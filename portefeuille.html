@@ -1232,11 +1232,19 @@ function renderDays(c){
   });
   var body='<h3>Les 10 prochains jours</h3>'+h;
   if(!evs.length)body+='<div class="dlow ok">Rien de daté dans les 10 jours. Note tes rentrées et tes échéances avec leur date pour voir venir.</div>';
-  else body+='<div class="dlow '+(low<0?"bad":"ok")+'"><b>Ton point le plus bas : '+fmt(low)+'</b>'+
-     (low<0?" — il te manquera "+fmt(Math.abs(low))+" ce jour-là. Il faut faire rentrer de l\'argent avant, ou décaler une échéance."
-           :" — tu tiens sur les 10 jours.")+'</div>';
-  if(float>0)body+='<div class="dfloat"><b>⚠ '+fmt(float)+' peuvent tomber n\'importe quand</b> : '+
-     esc(floatN.slice(0,4).join(", "))+(floatN.length>4?"…":"")+'. Mets-leur une date dès que tu la connais, sinon tu ne peux pas les voir venir.</div>';
+  else {
+    var od=c.totalOd, worst=r2(low-float);
+    body+='<div class="dlow '+(low+od<0?"bad":"ok")+'"><b>Ton point le plus bas : '+fmt(low)+'</b>'+
+      (low<0?" — tu es en découvert ce jour-là"+(low+od<0?", et tu dépasses ce que ta banque autorise de "+fmt(Math.abs(low+od))+"."
+                                                      :", mais tu restes dans les "+fmt(od)+" autorisés.")
+            :" — tu tiens sur les 10 jours.")+'</div>';
+    if(float>0)body+='<div class="dlow '+(worst+od<0?"bad":"ok")+'" style="border-top:none"><b>Au pire '+fmt(worst)+'</b>'+
+      ' — si les '+fmt(float)+' sans date tombaient tous en même temps.'+
+      (worst+od<0?" Là tu dépasserais ton découvert.":" Même là, tu restes dans ton découvert autorisé.")+'</div>';
+  }
+  if(float>0)body+='<div class="dfloat"><b>'+fmt(float)+' sans date connue</b> : '+
+     esc(floatN.slice(0,5).join(", "))+(floatN.length>5?"…":"")+
+     '. Tu n\'as pas besoin de chercher : <b>coche-les le jour où elles passent</b>, et je retiendrai le jour pour les mois suivants.</div>';
   host.innerHTML='<div class="days">'+body+'</div>';
 }
 function renderCoach(c){
@@ -2201,6 +2209,10 @@ document.getElementById("padAmt").addEventListener("keydown",function(e){if(e.ke
 function markPaid(m){
   m.done=true;m.maybe=false;
   m.dateReal=(m.datePlanned&&m.datePlanned<=today())?m.datePlanned:today();
+  if(m.fixId){ /* on retient le jour pour les mois suivants */
+    var f=find(state.fixed,m.fixId);
+    if(f&&!f.day)f.day=String(parseInt(m.dateReal.slice(8,10),10));
+  }
   m.settled = !!(state.balanceAsOf && m.dateReal<state.balanceAsOf);
   return m.settled;
 }
