@@ -591,11 +591,17 @@ details.detail[open] summary::before{content:"▾ "}
   <div class="sheet panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <div class="sheet-head"><h2 id="sheetTitle">—</h2><button class="sheet-x" id="sheetClose" type="button" aria-label="Fermer">×</button></div>
     <div class="sheet-amt"><input id="sAmt" inputmode="decimal" placeholder="0,00" aria-label="Montant"><span>€</span></div>
+    <div id="sWhenWrap">
+      <div class="segs" id="sWhen">
+        <button type="button" data-w="done" aria-pressed="true">C'est déjà fait</button>
+        <button type="button" data-w="plan" aria-pressed="false">C'est prévu</button>
+      </div>
+    </div>
     <div id="sLabWrap">
       <div class="field-lbl" style="margin-bottom:6px">C'était quoi ?</div>
       <div class="chips" id="sChips"></div>
       <input class="fld" id="sLabel" placeholder="Ou écris-le toi-même" style="margin-top:7px">
-      <div class="field-lbl" style="margin:11px 0 6px">Quel jour ?</div>
+      <div class="field-lbl" id="sDateLbl" style="margin:11px 0 6px">Quel jour ?</div>
       <input class="fld" id="sDate" type="date" aria-label="Date">
     </div>
     <div id="sAccWrap">
@@ -1544,11 +1550,11 @@ document.addEventListener("focusout",function(){
 });
 
 /* ---------- quick entry sheet ---------- */
-var SH={mode:"in",cat:"Autre",accId:"sg",fromId:"sg",toId:"pel"};
+var SH={mode:"in",cat:"Autre",accId:"sg",fromId:"sg",toId:"pel",when:"done"};
 var QUICK={
-  "in":[["Salaire","Revenu"],["Avance","Revenu"],["TIBS","Revenu"],["On m'a remboursé","Revenu"],["Cadeau","Revenu"]],
+  "in":[["Salaire","Revenu"],["Avance","Revenu"],["TIBS","Revenu"],["Baby-sitting","Pourboire"],["On m'a remboursé","Revenu"],["Cadeau","Revenu"]],
   "out":[["Courses","Courses"],["Essence","Transport"],["Restaurant","Loisir"],["Santé","Santé"],["Beauté","Beauté"],["Retrait","Retrait"]],
-  "tip":[["Pourboire","Pourboire"],["Service du soir","Pourboire"],["Service du midi","Pourboire"],["Extra","Pourboire"],["Heures en plus","Pourboire"]]
+  "tip":[["Pourboire","Pourboire"],["Service du soir","Pourboire"],["Service du midi","Pourboire"],["Baby-sitting","Pourboire"],["Extra","Pourboire"],["Heures en plus","Pourboire"]]
 };
 function segHTML(sel,filterKind){
   var h="";
@@ -1567,6 +1573,9 @@ function openSheet(mode){
   var xfer=mode==="xfer";
   document.getElementById("sDate").value=today();
   document.getElementById("sLabWrap").hidden=xfer;
+  document.getElementById("sWhenWrap").hidden=xfer;
+  SH.when="done";
+  document.querySelectorAll("#sWhen button").forEach(function(x){x.setAttribute("aria-pressed",x.getAttribute("data-w")==="done"?"true":"false")});
   document.getElementById("sAccWrap").hidden=xfer;
   document.getElementById("sXferWrap").hidden=!xfer;
   if(xfer){
@@ -1600,6 +1609,15 @@ document.querySelectorAll("[data-sheet]").forEach(function(b){
 document.getElementById("sheetClose").addEventListener("click",closeSheet);
 document.getElementById("sheetBg").addEventListener("click",function(e){if(e.target===this)closeSheet()});
 document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!document.getElementById("sheetBg").hidden)closeSheet()});
+document.getElementById("sWhen").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-w]");if(!b)return;
+  this.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed",x===b?"true":"false")});
+  SH.when=b.getAttribute("data-w");
+  document.getElementById("sDateLbl").textContent=SH.when==="plan"?"C'est prévu quand ?":"Quel jour ?";
+  var sv=document.getElementById("sSave");
+  if(SH.when==="plan")sv.textContent="Ajouter à mes prévisions";
+  else sv.textContent=SH.mode==="out"?"Retirer de mon solde":"Ajouter à mon solde";
+});
 document.getElementById("sChips").addEventListener("click",function(e){
   var b=e.target.closest("button[data-lab]");if(!b)return;
   this.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed",x===b?"true":"false")});
@@ -1620,9 +1638,10 @@ document.getElementById("sSave").addEventListener("click",function(){
   var hint=document.getElementById("sHint");
   if(!v){hint.textContent="Entre un montant d'abord.";document.getElementById("sAmt").focus();return}
   var T=document.getElementById("sDate").value||today(),M=T.slice(0,7);
+  var isDone=SH.mode==="xfer"||SH.when!=="plan";
   function push(label,accId,dir,cat){
     state.movements.push({id:uid(),label:label,account:accId,dir:dir,amount:v,cat:cat,
-      datePlanned:T,month:M,dateReal:T,done:true,maybe:false,fixId:"",fixMonth:""});
+      datePlanned:T,month:M,dateReal:isDone?T:"",done:isDone,maybe:false,fixId:"",fixMonth:""});
   }
   if(SH.mode==="xfer"){
     if(SH.fromId===SH.toId){hint.textContent="Choisis deux comptes différents.";return}
@@ -1631,10 +1650,12 @@ document.getElementById("sSave").addEventListener("click",function(){
     push("Virement depuis "+(fa.short||fa.name),SH.toId,"in","Autre");
     toast(fmt(v)+" déplacés vers "+(ta.short||ta.name));
   } else {
-    var lab=document.getElementById("sLabel").value.trim()||(SH.mode==="out"?"Dépense":(SH.mode==="tip"?"Pourboire":"Argent reçu"));
+    var lab=document.getElementById("sLabel").value.trim()||(SH.mode==="out"?"Dépense":(SH.mode==="tip"?"Pourboire":(SH.when==="plan"?"Argent à recevoir":"Argent reçu")));
     push(lab,SH.accId,SH.mode==="out"?"out":"in",SH.cat);
     var an=acc(SH.accId);
-    toast((SH.mode==="out"?"− ":"+ ")+fmt(v)+" sur "+(an.short||an.name));
+    toast(isDone
+      ? (SH.mode==="out"?"− ":"+ ")+fmt(v)+" sur "+(an.short||an.name)
+      : fmt(v)+" prévu le "+dl(T)+" — coche quand ça tombe");
   }
   closeSheet();renderAll();save();
 });
