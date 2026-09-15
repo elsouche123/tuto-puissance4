@@ -437,6 +437,16 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .entry .v.in{color:var(--credit)} .entry .v.out{color:var(--debit)}
 
 /* plan */
+.smonth{margin-top:12px;border:1px solid var(--rule);border-radius:12px;background:var(--card);overflow:hidden;box-shadow:var(--shadow)}
+.smonth>header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 14px;background:color-mix(in srgb,var(--c-dette) 12%,transparent);border-bottom:1px solid var(--rule)}
+.smonth>header b{font-family:Fraunces,Georgia,serif;font-size:15px;text-transform:capitalize}
+.smonth>header span{font-family:"IBM Plex Mono",monospace;font-weight:700;color:var(--c-dette)}
+.sperson{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--rule);font-size:14px}
+.sperson:first-of-type{border-top:none}
+.sperson .who{flex:1 1 auto;min-width:0;font-weight:600}
+.sperson .who small{display:block;font-weight:400;color:var(--ink-2);font-size:11.5px}
+.sperson .amt2{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700}
+.sperson .tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--credit-soft);color:var(--credit);white-space:nowrap}
 .pmonth{margin-top:13px;border:1px solid var(--rule);border-radius:var(--radius);background:var(--card);overflow:hidden;box-shadow:var(--shadow)}
 .pmonth>header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px 15px;border-bottom:1px solid var(--rule);background:var(--card-2)}
 .pmonth>header b{font-size:15px;text-transform:capitalize;font-family:Fraunces,Georgia,serif;font-weight:600}
@@ -745,6 +755,8 @@ details.detail[open] summary::before{content:"▾ "}
 
 <section class="tabpanel" id="tab-debt" hidden>
   <div class="sect" style="margin-top:20px">
+    <div class="sect-head"><h2>Qui je rembourse, et quand</h2><span class="hint" id="schedHint"></span></div>
+    <div id="schedule" style="margin-bottom:26px"></div>
     <div class="sect-head"><h2>Tout l'argent que je dois</h2><span class="hint">Aux proches et à la banque.</span></div>
     <div class="eyebrow" style="margin-bottom:8px">Aux proches</div>
     <div id="debtList"></div>
@@ -1603,8 +1615,9 @@ function buildPlan(){
     if(!byM[k])byM[k]={in:0,out:0};
     if(m.dir==="in")byM[k].in+=pa(m.amount); else byM[k].out+=pa(m.amount);
   });
-  var debts=state.debts.map(function(d){return {name:d.name,rest:r2(Math.max(0,pa(d.amount)-pa(d.paid)))}})
+  var debts=state.debts.map(function(d){return {name:d.name,start:r2(Math.max(0,pa(d.amount)-pa(d.paid))),rest:r2(Math.max(0,pa(d.amount)-pa(d.paid)))}})
     .filter(function(d){return d.rest>0}).sort(function(a,b){return a.rest-b.rest});
+  var sched=[];
   var od=r2(Math.max(0,-c.totalReal));      /* le trou à combler */
   var bal=c.totalReal;
   var months=[],odDone=null,debtDone=null,saved=0;
@@ -1649,6 +1662,7 @@ function buildPlan(){
         var d=debts[0],put2=Math.min(d.rest,surplus);
         d.rest=r2(d.rest-put2);surplus=r2(surplus-put2);
         paid.push(d.name+" "+fmt(put2)+(d.rest>0?" (il restera "+fmt(d.rest)+")":""));
+        sched.push({name:d.name,mk:mk,amount:put2,rest:d.rest,cleared:d.rest<=0});
         if(d.rest<=0)debts.shift(); else break;
       }
       if(paid.length)acts.push({t:"dt",v:0,txt:"Tu rembourses "+paid.join(", ")});
@@ -1672,7 +1686,7 @@ function buildPlan(){
     if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>0)break;
   }
-  return {months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
+  return {sched:sched,months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
           goals:goals,fun:fun,living:living,startOd:r2(Math.max(0,-c.totalReal)),
           totalDebt:r2(state.debts.reduce(function(t,d){return t+Math.max(0,pa(d.amount)-pa(d.paid))},0)),saved:saved};
 }
@@ -1786,6 +1800,38 @@ function renderCalc(){
      '</span><button class="btn" type="button" id="putGo">Mettre au coffre</button></div></div>';
   document.getElementById("calcPanel").innerHTML=h;
 }
+function renderSchedule(){
+  var host=document.getElementById("schedule"),hint=document.getElementById("schedHint");
+  if(!state.income.length){
+    hint.textContent="";
+    host.innerHTML='<div class="empty">Dis-moi ce que tu gagnes dans <b>Mon plan</b>, et je te donne le calendrier exact : qui, combien, quel mois.</div>';
+    return;
+  }
+  var P=buildPlan();
+  if(!P.sched.length){
+    hint.textContent="";
+    host.innerHTML='<div class="empty">'+(P.totalDebt<=0?"Tu ne dois plus rien à personne.":"Avec ce que tu gagnes, il ne reste rien pour rembourser une fois tes charges payées. Regarde Mon plan.")+'</div>';
+    return;
+  }
+  var byM={},order=[];
+  P.sched.forEach(function(x){if(!byM[x.mk]){byM[x.mk]=[];order.push(x.mk)}byM[x.mk].push(x)});
+  hint.textContent="tout soldé en "+(P.debtDone?ml(P.debtDone):"—");
+  var first=(state.order||[]).indexOf("debts");
+  var h='<p class="hint" style="margin:0 2px 4px">Calendrier calculé avec « rembourser mes proches » en position <b>'+(first+1)+
+        '</b>. Pour rembourser plus tôt, remonte-le dans <b>Mon plan → Dans quel ordre ?</b></p>';
+  order.forEach(function(mk){
+    var g=byM[mk],t=0;g.forEach(function(x){t+=x.amount});
+    h+='<article class="smonth"><header><b>'+esc(ml(mk))+'</b><span>'+fmt(t)+'</span></header>';
+    g.forEach(function(x){
+      h+='<div class="sperson"><span class="who">'+esc(x.name)+
+         (x.cleared?'':'<small>il restera '+fmt(x.rest)+' après</small>')+'</span>'+
+         '<span class="amt2">'+fmt(x.amount)+'</span>'+
+         (x.cleared?'<span class="tag">soldé</span>':'')+'</div>';
+    });
+    h+='</article>';
+  });
+  host.innerHTML=h;
+}
 function renderDebts(){
   var h="",tp=0;
   state.debts.forEach(function(d){
@@ -1837,7 +1883,7 @@ function selects(){
   var q=document.getElementById("quick");
   if(!q.dataset.b){q.dataset.b="1";q.innerHTML=[10,20,50,100].map(function(v){return '<button type="button" data-v="'+v+'">'+v+' €</button>'}).join("")}
 }
-function renderAll(){selects();renderPadAcc();renderRows();renderFixed();renderGoals();renderPlan();renderCalc();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderRows();renderFixed();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
@@ -2086,7 +2132,7 @@ planTab.addEventListener("input",function(e){
 });
 planTab.addEventListener("change",function(e){
   var a=e.target.getAttribute("data-act");
-  if(e.target.id==="livingIn"||a==="amount"||a==="eamount"){renderPlan();renderSummary()}
+  if(e.target.id==="livingIn"||a==="amount"||a==="eamount"){renderPlan();renderSchedule();renderSummary()}
 });
 planTab.addEventListener("click",function(e){
   var el=e.target.closest('[data-act="del"], [data-act="edel"]');if(!el)return;
@@ -2097,7 +2143,7 @@ planTab.addEventListener("click",function(e){
       state.envelopes=state.envelopes.filter(function(x){return x.id!==eid})}
     else{var id=row.getAttribute("data-id");
       state.income=state.income.filter(function(x){return x.id!==id})}
-    renderPlan();renderSummary();save();
+    renderPlan();renderSchedule();renderSummary();save();
   });
 });
 document.getElementById("orderList").addEventListener("click",function(e){
@@ -2107,17 +2153,17 @@ document.getElementById("orderList").addEventListener("click",function(e){
   var i=state.order.indexOf(k),j=u?i-1:i+1;
   if(j<0||j>=state.order.length)return;
   state.order[i]=state.order[j];state.order[j]=k;
-  renderPlan();renderSummary();save();
+  renderPlan();renderSchedule();renderSummary();save();
 });
 document.getElementById("cushionOn").addEventListener("change",function(){
-  state.cushionOn=this.checked;renderPlan();renderSummary();save();
+  state.cushionOn=this.checked;renderPlan();renderSchedule();renderSummary();save();
 });
 document.getElementById("envForm").addEventListener("submit",function(e){
   e.preventDefault();
   var n=document.getElementById("eName").value.trim();if(!n)return;
   state.envelopes.push({id:uid(),name:n,amount:pa(document.getElementById("eAmount").value)});
   document.getElementById("eName").value="";document.getElementById("eAmount").value="";
-  renderPlan();renderSummary();save();
+  renderPlan();renderSchedule();renderSummary();save();
 });
 document.getElementById("incomeForm").addEventListener("submit",function(e){
   e.preventDefault();
@@ -2126,7 +2172,7 @@ document.getElementById("incomeForm").addEventListener("submit",function(e){
   state.income=state.income.filter(function(x){return x.from!==f});
   state.income.push({id:uid(),from:f,amount:v});
   document.getElementById("iAmount").value="";
-  renderPlan();save();
+  renderPlan();renderSchedule();save();
 });
 
 var calcPanel=document.getElementById("calcPanel");
