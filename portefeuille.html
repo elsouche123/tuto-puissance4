@@ -355,6 +355,23 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .mhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:14px 3px 7px;font-size:13px}
 .mhead b{font-size:14px;text-transform:capitalize}
 .mhead span{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;color:var(--debit);font-weight:600}
+.coach{margin-top:14px;border-radius:var(--radius);border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+.coach>h3{margin:0;padding:12px 15px;font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;border-bottom:1px solid var(--rule);background:var(--card-2);display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.coach>h3 span{font-family:"Public Sans",sans-serif;font-size:11.5px;font-weight:400;color:var(--ink-2)}
+.cbody{padding:6px 15px 14px}
+.cline{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--rule);font-size:13.5px}
+.cline:first-child{border-top:none}
+.cline .ic{flex:none;width:24px;height:24px;border-radius:7px;display:grid;place-content:center;font-size:12px;font-weight:700;color:#fff;background:var(--ink-3)}
+.cline .w{flex:1 1 auto;min-width:0;line-height:1.35}
+.cline .w small{display:block;color:var(--ink-2);font-size:11.5px}
+.cline .v{flex:none;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+.cline.spent .ic{background:var(--ink-3)}
+.cline.deb .ic{background:var(--c-dette)} .cline.deb .v{color:var(--c-dette)}
+.cline.sav .ic{background:var(--credit)} .cline.sav .v{color:var(--credit)}
+.cline.fun .ic{background:var(--c-beaute)} .cline.fun .v{color:var(--c-beaute)}
+.cline.fun.none .ic{background:var(--ink-3)} .cline.fun.none .v{color:var(--ink-3)}
+.cwarn{margin:4px 15px 14px;padding:11px 13px;border-radius:10px;background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);font-size:13px;line-height:1.45}
+.csetup{padding:14px 15px;font-size:13px;color:var(--ink-2);line-height:1.5}
 .strip{width:100%;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-radius:12px;border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);cursor:pointer;font:inherit;text-align:left;color:var(--ink)}
 .strip:hover{border-color:var(--accent)}
 .strip .l{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -422,6 +439,8 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .todo.dt .ic{background:var(--c-dette)}
 .todo.sv{background:var(--credit-soft);border:1px solid color-mix(in srgb,var(--credit) 35%,transparent)}
 .todo.sv .ic{background:var(--credit)}
+.todo.cu{background:color-mix(in srgb,var(--c-transport) 12%,transparent);border:1px solid color-mix(in srgb,var(--c-transport) 35%,transparent)}
+.todo.cu .ic{background:var(--c-transport)}
 .todo.no{background:var(--card-2);border:1px dashed var(--rule-strong);color:var(--ink-2)}
 .todo.no .ic{background:var(--ink-3)}
 .summary-card{padding:16px;border-radius:var(--radius);background:var(--accent-soft);border:1.5px solid color-mix(in srgb,var(--accent) 35%,transparent)}
@@ -527,6 +546,8 @@ details.detail[open] summary::before{content:"▾ "}
     <span class="sub" id="dispoSub"></span>
   </div>
 
+  <div class="coach" id="coach"></div>
+
   <button class="strip" type="button" id="subsStrip" data-goto="pay"></button>
 
   <div class="panel pad">
@@ -561,8 +582,8 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="sect">
     <div class="panel pay">
-      <h2>Est-ce que je peux payer maintenant ?</h2>
-      <p class="hint" style="margin:0">La réponse tient compte de ton découvert autorisé, de ton épargne bloquée <b>et</b> de ce que tu dois encore payer.</p>
+      <h2>Je veux dépenser…</h2>
+      <p class="hint" style="margin:0">Tape un montant : je te dis si ça rentre, et ce que ça te coûte ailleurs.</p>
       <div class="pay-row">
         <span class="money-in"><input id="payAmount" inputmode="decimal" placeholder="0,00" aria-label="Montant à payer"><span class="eur">€</span></span>
         <span class="quick" id="quick"></span>
@@ -608,6 +629,19 @@ details.detail[open] summary::before{content:"▾ "}
       </form>
       <div class="plan-line" style="margin-top:12px"><span class="lb">Ce qu'il me faut pour vivre<small>courses, essence, sorties — ton chiffre à toi</small></span>
         <span class="rt"><input id="livingIn" inputmode="decimal" aria-label="Pour vivre"><span class="am">/ mois</span></span></div>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><h2>Ce que je me garde pour moi</h2><span class="hint">Cadeaux, restaurants, plaisir — tu y as droit.</span></div>
+    <div class="panel" style="padding:14px">
+      <div id="envList"></div>
+      <form id="envForm" class="put-row" style="margin-top:11px" autocomplete="off">
+        <input class="fld" id="eName" placeholder="Autre chose (ex. Sorties)" aria-label="Nom" required style="flex:1 1 140px">
+        <input class="fld num" id="eAmount" inputmode="decimal" placeholder="€ / mois" aria-label="Montant" style="width:100px">
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+      <label class="switch" style="margin-top:12px"><input type="checkbox" id="cushionOn"><span>Me constituer un matelas d'urgence de 3 mois d'abonnements — important tant que tu es en période d'essai</span></label>
     </div>
   </div>
 
@@ -776,16 +810,15 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:7,
+  v:8,
   settings:{buffer:0,lockSavings:true},
   income:[],
   living:0,
+  cushionOn:true,
   envelopes:[
-    {id:"e-vivre",name:"Vivre au quotidien",amount:300},
-    {id:"e-permis",name:"Permis",amount:400},
-    {id:"e-coffre",name:"Coffre (PEL)",amount:150},
-    {id:"e-dettes",name:"Rembourser mes proches",amount:0},
-    {id:"e-envies",name:"Mes envies",amount:0}
+    {id:"e-cadeaux",name:"Cadeaux pour mon copain",amount:0},
+    {id:"e-restau",name:"Restaurants",amount:0},
+    {id:"e-plaisir",name:"Me faire plaisir",amount:0}
   ],
   plan:{income:1200,incomeLabel:"Alternance",cdiFrom:"2026-11",incomeCdi:2400,cdiLabel:"CDI (estimé)",margin:300,monthly:150,monthlyUntil:"2026-10",payDay:5},
   accounts:[
@@ -828,10 +861,10 @@ var SEED = {
     {id:"f-taglit",label:"Don Taglit (jusqu'au 31/12/2026)",account:"sg",amount:12,day:"",cat:"Autre"}
   ],
   goals:[
-    {id:"g-permis",name:"Permis",target:1999,saved:0},
-    {id:"g-voiture",name:"Fonds voiture",target:6000,saved:0},
-    {id:"g-appart",name:"Appartement",target:0,saved:0},
-    {id:"g-mariage",name:"Mariage",target:0,saved:0}
+    {id:"g-permis",name:"Permis",target:1000,saved:0},
+    {id:"g-voiture",name:"Voiture",target:6000,saved:0},
+    {id:"g-mariage",name:"Mariage",target:10000,saved:0},
+    {id:"g-appart",name:"Appartement",target:100000,saved:0}
   ],
   debts:[
     {id:"d-illan",name:"Illan",amount:572,paid:0},
@@ -901,7 +934,7 @@ function migrate(s){
       datePlanned:/^\d{4}-\d{2}-\d{2}$/.test(m.datePlanned||"")?m.datePlanned:"",
       month:/^\d{4}-\d{2}$/.test(m.month||"")?m.month:"",
       dateReal:/^\d{4}-\d{2}-\d{2}$/.test(m.dateReal||"")?m.dateReal:"",
-      done:!!m.done,maybe:!!m.maybe,fixId:m.fixId||"",fixMonth:m.fixMonth||""};
+      done:!!m.done,maybe:!!m.maybe,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free};
   }
   if(Array.isArray(s.movements)){
     var old=["m-avance","m-lissage"];
@@ -918,6 +951,7 @@ function migrate(s){
   if(Array.isArray(s.income))o.income=s.income.filter(Boolean).map(function(i){
     return {id:String(i.id||uid()),from:/^\d{4}-\d{2}$/.test(i.from||"")?i.from:curMonth(),amount:pa(i.amount)}});
   o.living=pa(s.living);
+  if(typeof s.cushionOn==="boolean")o.cushionOn=s.cushionOn;
   if(Array.isArray(s.envelopes))o.envelopes=s.envelopes.filter(Boolean).map(function(e){
     return {id:String(e.id||uid()),name:String(e.name||""),amount:pa(e.amount)}});
   if(Array.isArray(s.goals))o.goals=s.goals.filter(Boolean)
@@ -927,7 +961,7 @@ function migrate(s){
     return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid)}});
   if(Array.isArray(s.loans))o.loans=s.loans.filter(Boolean).map(function(l){
     return {id:String(l.id||uid()),name:String(l.name||""),rest:pa(l.rest),monthly:pa(l.monthly)}});
-  o.v=7;
+  o.v=8;
   return o;
 }
 function loadLocal(){try{var r=localStorage.getItem(LS);return r?migrate(JSON.parse(r)):null}catch(e){return null}}
@@ -1117,6 +1151,58 @@ function renderWallet(c){
   });
   document.getElementById("future").innerHTML=fh||'<div class="empty">Rien de prévu après ce mois-ci.</div>';
 }
+function renderCoach(c){
+  var host=document.getElementById("coach"),cm=curMonth();
+  if(!state.income.length){
+    host.innerHTML='<h3>Ce mois-ci</h3><div class="csetup">Pour que je puisse te dire ce que tu peux te permettre, va dans <b>Mon plan</b> et dis-moi ce que tu gagnes et ce qu\'il te faut pour vivre. Une fois pour toutes.</div>';
+    return;
+  }
+  var P=buildPlan(),m0=P.months[0]||{acts:[]};
+  var fun=funBudget(),spent=spentFree(),funLeft=r2(fun-spent);
+  var dt="",sv="";
+  (m0.acts||[]).forEach(function(a){
+    if(a.t==="dt")dt=a.txt;
+    if(a.t==="sv"||a.t==="cu")sv=sv?sv+" · "+a.txt:a.txt;
+  });
+  var passed=0;state.fixed.forEach(function(f){
+    if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===cm&&m.done}))passed++;
+  });
+  var h='<h3>Ce mois-ci<span>'+esc(MY.format(new Date()))+'</span></h3><div class="cbody">';
+  h+='<div class="cline spent"><span class="ic">€</span><span class="w"><b>Déjà dépensé librement</b>'+
+     '<small>en plus de tes prélèvements</small></span><span class="v">'+fmt(spent)+'</span></div>';
+  h+='<div class="cline spent"><span class="ic">◷</span><span class="w"><b>Tes prélèvements</b>'+
+     '<small>'+passed+' passés sur '+state.fixed.length+'</small></span><span class="v">'+fmt(state.fixed.reduce(function(t,f){return t+pa(f.amount)},0))+'</span></div>';
+  if(dt)h+='<div class="cline deb"><span class="ic">→</span><span class="w"><b>Sur le mois, tu peux rembourser</b><small>'+esc(dt.replace(/^Tu rembourses /,""))+' — une fois ta paie tombée</small></span></div>';
+  if(sv)h+='<div class="cline sav"><span class="ic">✓</span><span class="w"><b>Sur le mois, tu peux mettre de côté</b><small>'+esc(sv.replace(/^Tu (mets|peux mettre) (de côté : |)/,""))+'</small></span></div>';
+  var nowRoom=r2(Math.max(0,c.capacity-c.dueMonth));
+  var funNow=r2(Math.min(Math.max(0,funLeft),nowRoom));
+  var capped=fun>0&&funLeft>0&&funNow<funLeft;
+  h+='<div class="cline fun'+(funNow<=0?" none":"")+'"><span class="ic">★</span><span class="w"><b>'+
+     (fun<=0?"Aucun budget plaisir défini"
+       :(funNow>0?"Tu peux te faire plaisir"
+         :(funLeft<=0?"Plus de budget plaisir ce mois-ci":"Pas maintenant — attends ta paie")))+'</b>'+
+     '<small>'+(fun<=0?"Dis-moi combien tu veux garder pour toi dans Mon plan"
+       :(capped||funNow<=0
+         ? "ton budget du mois est de "+fmt(funLeft)+", mais aujourd\'hui tu n\'as pas la marge : tes prélèvements passent avant"
+         : "sur "+fmt(fun)+" prévus ce mois-ci"))+'</small></span>'+
+     '<span class="v">'+fmt(funNow)+'</span></div>';
+  h+='</div>';
+  /* grosses dépenses à venir dans les 3 mois */
+  var soon=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.maybe||m.dir!=="out")return;
+    var k=mMonth(m);if(!k||k<=cm)return;
+    if(k<=addM(cm,3)&&pa(m.amount)>=100)soon.push({k:k,l:m.label,v:pa(m.amount)});
+  });
+  soon.sort(function(a,b){return a.k<b.k?-1:1});
+  if(soon.length){
+    h+='<div class="cwarn"><b>Garde de la marge :</b> '+soon.slice(0,3).map(function(x){
+      return esc(x.l)+" "+fmt(x.v)+" en "+esc(ml(x.k).split(" ")[0]);
+    }).join(", ")+'.</div>';
+  }
+  if(P.months.length>8)h+='<p class="hint" style="margin:13px 3px 0">Les mois suivants continuent sur la même lancée — les dates d\'objectif du résumé en tiennent compte jusqu\'à 3 ans.</p>';
+  host.innerHTML=h;
+}
 function renderSummary(){
   var c=calc();
   renderAccounts(c);
@@ -1145,34 +1231,56 @@ function renderSummary(){
   document.getElementById("cOut").textContent=(c.lateOut>0?"dont "+fmt(c.lateOut)+" à échéance · ":"")+"engagé jusqu'en déc. : "+fmt(c.pendingOut);
   document.getElementById("cMaybe").textContent=c.nMaybe+(c.nMaybe>1?" lignes":" ligne")+" optionnelles";
   renderWallet(c);
+  renderCoach(c);
   renderVerdict(c);
   renderCats();
   renderPayday();
   return c;
 }
+function tradeOff(v){
+  /* ce que ces euros coûtent ailleurs */
+  var out=[];
+  var ds=state.debts.map(function(x){return {n:x.name,r:r2(Math.max(0,pa(x.amount)-pa(x.paid)))}})
+    .filter(function(x){return x.r>0}).sort(function(a,b){return a.r-b.r});
+  if(ds.length){
+    var left=v,names=[];
+    for(var i=0;i<ds.length&&left>=ds[i].r;i++){names.push(ds[i].n);left=r2(left-ds[i].r)}
+    if(names.length)out.push("ça solderait "+esc(names.join(", ")));
+    else out.push("c\'est "+Math.round(v/ds[0].r*100)+" % de ce que tu dois à "+esc(ds[0].n));
+  }
+  var g=state.goals.filter(function(x){return pa(x.target)>0&&pa(x.saved)<pa(x.target)})[0];
+  if(g)out.push(Math.round(v/pa(g.target)*100)+" % de ton "+esc(g.name.toLowerCase()));
+  return out;
+}
 function renderVerdict(c){
   var raw=document.getElementById("payAmount").value;
   var box=document.getElementById("verdict"),t=document.getElementById("vTitle"),x=document.getElementById("vText");
   var mk=box.querySelector(".mark"),v=pa(raw);
+  var fun=funBudget(),funLeft=r2(fun-spentFree());
   if(!raw||v<=0){
     box.className="verdict";mk.textContent="?";t.textContent="Entre un montant";
-    x.innerHTML="Tu as <b>"+fmt(c.capacity)+"</b> mobilisables tout de suite"+
-      (c.reserved>0?", après "+fmt(c.reserved)+" d'épargne bloquée":"")+
-      (c.buffer>0?" et "+fmt(c.buffer)+" de matelas":"")+". Il reste "+fmt(c.dueMonth)+" à payer d'ici fin "+MO.format(new Date())+".";
+    x.innerHTML="Tu as <b>"+fmt(c.capacity)+"</b> tout de suite, et "+
+      (fun>0?"<b>"+fmt(Math.max(0,funLeft))+"</b> de budget plaisir pour ce mois-ci."
+            :"aucun budget plaisir défini — dis-le-moi dans Mon plan.");
     return;
   }
   var after=r2(c.capacity-v), all=r2(after-c.dueMonth);
-  var extra=c.maybeOut>0?" (+ "+fmt(c.maybeOut)+" d'optionnel si tu le fais)":"";
+  var tr=tradeOff(v), trTxt=tr.length?" <b>Pour comparer :</b> "+tr.join(", ")+"." : "";
   if(v>c.capacity){
-    box.className="verdict bad";mk.textContent="✕";t.textContent="Non, ça ne passe pas";
-    x.innerHTML="Il te manque <b>"+fmt(v-c.capacity)+"</b>. Tu as "+fmt(c.capacity)+" de dispo, découvert autorisé compris.";
+    box.className="verdict bad";mk.textContent="✕";t.textContent="Non, tu ne les as pas";
+    x.innerHTML="Il te manque <b>"+fmt(v-c.capacity)+"</b>, découvert autorisé compris."+trTxt;
   } else if(all<0){
-    box.className="verdict warn";mk.textContent="!";t.textContent="Oui, mais tu te mets en danger";
-    x.innerHTML="Il te restera <b>"+fmt(after)+"</b>. Sauf que "+fmt(c.dueMonth)+" de sorties tombent encore d'ici fin "+MO.format(new Date())+
-      " : il manquerait <b>"+fmt(Math.abs(all))+"</b> pour tout honorer."+(c.lateOut>0?" Dont "+fmt(c.lateOut)+" déjà à échéance.":"")+extra;
+    box.className="verdict bad";mk.textContent="✕";t.textContent="Non — tes prélèvements ne passeraient plus";
+    x.innerHTML=fmt(c.dueMonth)+" tombent encore d'ici fin "+MO.format(new Date())+
+      " : il manquerait <b>"+fmt(Math.abs(all))+"</b>. C'est le découvert assuré."+trTxt;
+  } else if(fun>0&&v>funLeft){
+    box.className="verdict warn";mk.textContent="!";t.textContent="Ça passe, mais c'est au-dessus de ton budget plaisir";
+    x.innerHTML="Tu t'étais gardé <b>"+fmt(fun)+"</b> ce mois-ci, il t'en reste "+fmt(Math.max(0,funLeft))+
+      ". Ces "+fmt(v)+" vont être pris ailleurs."+trTxt;
   } else {
-    box.className="verdict ok";mk.textContent="✓";t.textContent="Oui, tu peux";
-    x.innerHTML="Il te restera <b>"+fmt(after)+"</b> — et encore <b>"+fmt(all)+"</b> une fois payé tout ce qui tombe d'ici fin "+MO.format(new Date())+"."+extra;
+    box.className="verdict ok";mk.textContent="✓";t.textContent="Oui, fais-toi plaisir";
+    x.innerHTML=(fun>0?"C'est dans ton budget plaisir : il te restera <b>"+fmt(r2(funLeft-v))+"</b> pour le reste du mois."
+                      :"Il te restera <b>"+fmt(after)+"</b>, et "+fmt(all)+" une fois tout payé.")+trTxt;
   }
 }
 function renderCats(){
@@ -1372,11 +1480,22 @@ function incomeFor(mk){
   state.income.forEach(function(i){if(i.from<=mk&&(!best||i.from>best.from))best=i});
   return best?pa(best.amount):0;
 }
+function funBudget(){return r2(state.envelopes.reduce(function(t,e){return t+pa(e.amount)},0))}
+function spentFree(){
+  var cm=curMonth(),t=0;
+  state.movements.forEach(function(m){
+    if(!m.done||m.dir!=="out"||!m.free)return;
+    if((m.dateReal||"").slice(0,7)===cm)t+=pa(m.amount);
+  });
+  return r2(t);
+}
 function buildPlan(){
   var c=calc(),cm=curMonth();
   var fixTot=r2(state.fixed.reduce(function(t,f){return t+pa(f.amount)},0));
   var missTot=r2(missingFixed().reduce(function(t,f){return t+pa(f.amount)},0));
-  var living=pa(state.living);
+  var living=pa(state.living),fun=funBudget();
+  var cushionTarget=state.cushionOn?r2(fixTot*3):0,cushion=0,cushionDone=null;
+  var goals=state.goals.map(function(g){return {name:g.name,target:pa(g.target),saved:pa(g.saved),eta:null}});
   /* échéances déjà saisies, par mois */
   var byM={};
   state.movements.forEach(function(m){
@@ -1392,11 +1511,11 @@ function buildPlan(){
   var od=r2(Math.max(0,-c.totalReal));      /* le trou à combler */
   var bal=c.totalReal;
   var months=[],odDone=null,debtDone=null,saved=0;
-  for(var n=0;n<14;n++){
+  for(var n=0;n<36;n++){
     var mk=addM(cm,n);
     var rev=incomeFor(mk), e=byM[mk]||{in:0,out:0};
     var fx=(n===0?missTot:fixTot);
-    var flux=r2(rev+e.in-fx-e.out-living);
+    var flux=r2(rev+e.in-fx-e.out-living-fun);
     bal=r2(bal+flux);
     var acts=[],surplus=flux;
     if(rev===0&&n>0&&!state.income.length){months.push({mk:mk,none:true});break}
@@ -1406,8 +1525,16 @@ function buildPlan(){
       acts.push({t:"od",v:put,txt:od<=0?"Tu sors du découvert — ton compte repasse à zéro":"Tu combles "+fmt(put)+" de ton découvert, il en restera "+fmt(od)});
       if(od<=0&&!odDone)odDone=mk;
     }
-    /* 2. rembourser les proches, du plus petit au plus gros */
-    if(od<=0&&surplus>0&&debts.length){
+    /* 2. matelas d'urgence : trois mois d'abonnements, à cause de la période d'essai */
+    if(od<=0&&surplus>0&&cushionTarget>0&&cushion<cushionTarget){
+      var pc=Math.min(cushionTarget-cushion,surplus);cushion=r2(cushion+pc);surplus=r2(surplus-pc);
+      acts.push({t:"cu",v:pc,txt:cushion>=cushionTarget
+        ? "Ton matelas d'urgence est plein : "+fmt(cushionTarget)+" de côté, tu tiens 3 mois sans rien"
+        : "Tu mets "+fmt(pc)+" dans ton matelas d'urgence ("+fmt(cushion)+" sur "+fmt(cushionTarget)+")"});
+      if(cushion>=cushionTarget&&!cushionDone)cushionDone=mk;
+    }
+    /* 3. rembourser les proches, du plus petit au plus gros */
+    if(od<=0&&surplus>0&&debts.length&&(cushionTarget===0||cushion>=cushionTarget)){
       var paid=[];
       while(debts.length&&surplus>0){
         var d=debts[0],put2=Math.min(d.rest,surplus);
@@ -1418,17 +1545,26 @@ function buildPlan(){
       if(paid.length)acts.push({t:"dt",v:0,txt:"Tu rembourses "+paid.join(", ")});
       if(!debts.length&&!debtDone)debtDone=mk;
     }
-    /* 3. le coffre */
+    /* 4. les objectifs, dans l'ordre de ta liste */
     if(od<=0&&!debts.length&&surplus>0){
-      saved=r2(saved+surplus);
-      acts.push({t:"sv",v:surplus,txt:"Tu peux mettre "+fmt(surplus)+" de côté (PEL, permis, voiture)"});
-      surplus=0;
+      var put3=[];
+      goals.forEach(function(g){
+        if(surplus<=0||g.target<=0||g.saved>=g.target)return;
+        var q=Math.min(g.target-g.saved,surplus);
+        g.saved=r2(g.saved+q);surplus=r2(surplus-q);saved=r2(saved+q);
+        put3.push(g.name+" "+fmt(q)+(g.saved>=g.target?" ✓ objectif atteint":""));
+        if(g.saved>=g.target&&!g.eta)g.eta=mk;
+      });
+      if(put3.length)acts.push({t:"sv",v:0,txt:"Tu mets de côté : "+put3.join(", ")});
+      if(surplus>0){saved=r2(saved+surplus);acts.push({t:"sv",v:surplus,txt:"Et il te reste encore "+fmt(surplus)+" libres"});surplus=0}
     }
     if(flux<=0)acts.push({t:"no",v:0,txt:rev?"Ce mois-ci tu ne dégages rien : "+fmt(Math.abs(flux))+" de trop":"Tu ne m'as pas dit ce que tu gagnes ce mois-là"});
-    months.push({mk:mk,rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,flux:flux,bal:bal,acts:acts});
-    if(od<=0&&!debts.length&&n>=2)break;
+    months.push({mk:mk,rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts});
+    if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
+    if(rev<=0&&n>0)break;
   }
-  return {months:months,odDone:odDone,debtDone:debtDone,startOd:r2(Math.max(0,-c.totalReal)),
+  return {months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
+          goals:goals,fun:fun,living:living,startOd:r2(Math.max(0,-c.totalReal)),
           totalDebt:r2(state.debts.reduce(function(t,d){return t+Math.max(0,pa(d.amount)-pa(d.paid))},0)),saved:saved};
 }
 function renderIncome(){
@@ -1442,8 +1578,20 @@ function renderIncome(){
     '<p class="hint" style="margin:0">Rien pour l\'instant. Dis-moi ce que tu gagnes aujourd\'hui, puis ajoute une ligne à partir de novembre quand ton salaire change.</p>';
   document.getElementById("livingIn").value=nb(state.living);
 }
+function renderEnv(){
+  var h="";
+  state.envelopes.forEach(function(e,i){
+    h+='<div class="irow" data-env="'+esc(e.id)+'"><span class="w"><b>'+esc(e.name)+'</b></span>'+
+       '<input data-act="eamount" inputmode="decimal" value="'+nb(e.amount)+'" aria-label="Montant"><span class="hint">/ mois</span>'+
+       '<button class="del" type="button" data-act="edel" aria-label="Supprimer">×</button></div>';
+  });
+  h+='<div class="irow" style="border-top:2px solid var(--rule)"><span class="w"><b>Total pour moi</b></span>'+
+     '<span class="am" style="color:var(--c-beaute);font-weight:700">'+fmt(funBudget())+'</span><span class="hint">/ mois</span></div>';
+  document.getElementById("envList").innerHTML=h;
+  document.getElementById("cushionOn").checked=!!state.cushionOn;
+}
 function renderPlan(){
-  renderIncome();
+  renderIncome();renderEnv();
   var P=buildPlan();
   var sum=document.getElementById("planSummary"),host=document.getElementById("planMonths");
   if(!state.income.length){
@@ -1455,12 +1603,16 @@ function renderPlan(){
   document.getElementById("planHint").textContent="calculé sur ce que tu m'as déclaré";
   sum.innerHTML='<div class="summary-card"><h3>Où ça te mène</h3>'+
     '<div class="sline"><span>Ton découvert aujourd\'hui</span><b>'+fmt(P.startOd)+'</b></div>'+
-    '<div class="sline"><span>Tu en sors</span><b>'+(P.odDone?ml(P.odDone):(P.startOd<=0?"déjà dehors":"pas dans les 14 prochains mois"))+'</b></div>'+
+    '<div class="sline"><span>Tu en sors</span><b>'+(P.odDone?ml(P.odDone):(P.startOd<=0?"déjà dehors":"pas dans les 3 prochaines années"))+'</b></div>'+
     '<div class="sline"><span>Ce que tu dois à tes proches</span><b>'+fmt(P.totalDebt)+'</b></div>'+
     '<div class="sline"><span>Tout remboursé</span><b>'+(P.debtDone?ml(P.debtDone):(P.totalDebt<=0?"rien à rendre":"pas encore"))+'</b></div>'+
+    (P.cushionTarget?'<div class="sline"><span>Matelas d\'urgence ('+fmt(P.cushionTarget)+')</span><b>'+(P.cushionDone?ml(P.cushionDone):"pas encore")+'</b></div>':"")+
+    P.goals.filter(function(g){return g.target>0}).map(function(g){
+      return '<div class="sline"><span>'+esc(g.name)+' ('+fmt(g.target)+')</span><b>'+(g.eta?ml(g.eta):"au-delà de 3 ans")+'</b></div>';
+    }).join("")+
     '</div>';
   var h="";
-  P.months.forEach(function(m){
+  P.months.slice(0,8).forEach(function(m){
     if(m.none)return;
     h+='<article class="pmonth"><header><b>'+esc(ml(m.mk))+'</b><span style="color:'+(m.bal<0?"var(--debit)":"var(--credit)")+'">compte : '+fmt(m.bal)+'</span></header><div class="pbody">'+
       '<div class="prow"><b>Ce que tu gagnes</b><span class="v" style="color:var(--credit)">+'+fmt(m.rev)+'</span></div>'+
@@ -1468,9 +1620,10 @@ function renderPlan(){
       '<div class="prow"><span>Abonnements</span><span class="v">−'+fmt(m.fix)+'</span></div>'+
       (m.due?'<div class="prow"><span>Échéances du mois</span><span class="v">−'+fmt(m.due)+'</span></div>':"")+
       (m.living?'<div class="prow"><span>Pour vivre</span><span class="v">−'+fmt(m.living)+'</span></div>':"")+
+      (m.fun?'<div class="prow"><span>Pour me faire plaisir</span><span class="v" style="color:var(--c-beaute)">−'+fmt(m.fun)+'</span></div>':"")+
       '<div class="prest"><b>Il te reste</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--credit)")+'">'+fmt(m.flux)+'</span></div>';
     m.acts.forEach(function(a){
-      h+='<div class="todo '+a.t+'"><span class="ic">'+(a.t==="od"?"!":(a.t==="dt"?"→":(a.t==="sv"?"✓":"·")))+'</span><span>'+esc(a.txt)+'</span></div>';
+      h+='<div class="todo '+a.t+'"><span class="ic">'+(a.t==="od"?"!":(a.t==="cu"?"◆":(a.t==="dt"?"→":(a.t==="sv"?"✓":"·"))))+'</span><span>'+esc(a.txt)+'</span></div>';
     });
     h+='</div></article>';
   });
@@ -1805,20 +1958,39 @@ planTab.addEventListener("input",function(e){
   var el=e.target;
   if(el.id==="livingIn"){state.living=pa(el.value);save();return}
   var row=el.closest(".irow");if(!row)return;
+  if(el.getAttribute("data-act")==="eamount"){
+    var en=find(state.envelopes,row.getAttribute("data-env"));
+    if(en){en.amount=pa(el.value);save()}
+    return;
+  }
   var it=find(state.income,row.getAttribute("data-id"));if(!it)return;
   if(el.getAttribute("data-act")==="amount"){it.amount=pa(el.value);save()}
 });
 planTab.addEventListener("change",function(e){
-  if(e.target.id==="livingIn"||e.target.getAttribute("data-act")==="amount")renderPlan();
+  var a=e.target.getAttribute("data-act");
+  if(e.target.id==="livingIn"||a==="amount"||a==="eamount"){renderPlan();renderSummary()}
 });
 planTab.addEventListener("click",function(e){
-  var el=e.target.closest('[data-act="del"]');if(!el)return;
+  var el=e.target.closest('[data-act="del"], [data-act="edel"]');if(!el)return;
   var row=el.closest(".irow");if(!row)return;
-  var id=row.getAttribute("data-id");
+  var kind=el.getAttribute("data-act");
   armDel(el,function(){
-    state.income=state.income.filter(function(x){return x.id!==id});
-    renderPlan();save();
+    if(kind==="edel"){var eid=row.getAttribute("data-env");
+      state.envelopes=state.envelopes.filter(function(x){return x.id!==eid})}
+    else{var id=row.getAttribute("data-id");
+      state.income=state.income.filter(function(x){return x.id!==id})}
+    renderPlan();renderSummary();save();
   });
+});
+document.getElementById("cushionOn").addEventListener("change",function(){
+  state.cushionOn=this.checked;renderPlan();renderSummary();save();
+});
+document.getElementById("envForm").addEventListener("submit",function(e){
+  e.preventDefault();
+  var n=document.getElementById("eName").value.trim();if(!n)return;
+  state.envelopes.push({id:uid(),name:n,amount:pa(document.getElementById("eAmount").value)});
+  document.getElementById("eName").value="";document.getElementById("eAmount").value="";
+  renderPlan();renderSummary();save();
 });
 document.getElementById("incomeForm").addEventListener("submit",function(e){
   e.preventDefault();
@@ -1900,7 +2072,7 @@ function padAdd(dir){
   var T=today();
   state.movements.push({id:uid(),label:note||(dir==="in"?"Argent reçu":"Dépense"),
     account:PADACC,dir:dir,amount:v,cat:dir==="in"?"Revenu":"Autre",
-    datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,fixId:"",fixMonth:""});
+    datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,fixId:"",fixMonth:"",free:true});
   ai.value="";document.getElementById("padNote").value="";
   var an=acc(PADACC);
   toast((dir==="in"?"+ ":"− ")+fmt(v)+" sur "+(an.short||an.name));
