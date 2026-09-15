@@ -284,6 +284,24 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:95;background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);animation:pop .25s ease}
 @keyframes pop{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
 
+/* coffre calculator */
+.calc-line{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--rule);font-size:13.5px}
+.calc-line:first-child{border-top:none}
+.calc-line .lb{display:flex;flex-direction:column;gap:1px;min-width:0}
+.calc-line .lb small{color:var(--ink-3);font-size:11.5px}
+.calc-line .rt{display:flex;align-items:center;gap:8px;flex:none}
+.calc-line .rt input{width:92px;padding:6px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
+.calc-line .rt input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.calc-line .am{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:600;min-width:96px;text-align:right}
+.calc-res{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:14px 15px;border-radius:12px;background:var(--accent-soft);border:1.5px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.calc-res .lb,.put .lb{display:flex;flex-direction:column;gap:2px;min-width:0}
+.calc-res .lb small,.put .lb small{color:var(--ink-2);font-size:11.5px;line-height:1.4}
+.calc-res .big{font-family:Fraunces,Georgia,serif;font-size:27px;font-weight:700;color:var(--accent)}
+.warn-box{margin-top:12px;padding:13px 15px;border-radius:12px;background:var(--debit-soft);border:1.5px solid color-mix(in srgb,var(--debit) 40%,transparent);font-size:13.5px}
+.put{margin-top:13px;padding-top:13px;border-top:1px dashed var(--rule);display:flex;flex-direction:column;gap:9px}
+.put-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.put-row input{width:110px;padding:10px;border-radius:9px;border:1.5px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:16px;text-align:right}
+
 /* register readability on phones */
 .meta .chips-ro{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .meta .edit{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
@@ -307,7 +325,7 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
     <button role="tab" data-tab="today" aria-selected="true">Aujourd'hui</button>
     <button role="tab" data-tab="reg" aria-selected="false">Registre</button>
     <button role="tab" data-tab="fix" aria-selected="false">Charges <span class="badge" id="fixBadge" hidden></span></button>
-    <button role="tab" data-tab="save" aria-selected="false">Épargne</button>
+    <button role="tab" data-tab="save" aria-selected="false">Coffre</button>
     <button role="tab" data-tab="debt" aria-selected="false">Dettes</button>
   </nav>
 </header>
@@ -324,7 +342,6 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
   <div class="sect">
     <div class="sect-head"><h2>Mes comptes, en vrai</h2><span class="hint">Seules les lignes <b>pointées</b> comptent ici.</span></div>
     <div class="accounts" id="accounts"></div>
-    <div class="panel savings" id="savingsPanel"></div>
   </div>
 
   <div class="band">
@@ -400,8 +417,18 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 
 <section class="tabpanel" id="tab-save" hidden>
   <div class="sect" style="margin-top:20px">
-    <div class="sect-head"><h2>Ce que je mets de côté</h2><span class="hint">L'argent reste sur ton compte — il est juste réservé.</span></div>
-    <label class="switch" style="margin-bottom:13px"><input type="checkbox" id="lockSavings"><span>Bloquer mon épargne : la retirer du « dispo » pour ne pas la dépenser sans faire exprès</span></label>
+    <div class="sect-head"><h2>Mon coffre</h2><span class="hint">Livrets + PEL. Cet argent ne compte jamais dans ton « dispo ».</span></div>
+    <div class="panel savings" id="savingsPanel"></div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><h2>Combien je peux mettre ce mois-ci ?</h2><span class="hint" id="calcMonth"></span></div>
+    <div class="panel" id="calcPanel" style="padding:16px"></div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><h2>Mes objectifs</h2><span class="hint">Une part du courant réservée, pas encore virée.</span></div>
+    <label class="switch" style="margin-bottom:13px"><input type="checkbox" id="lockSavings"><span>Retirer l'argent réservé du « dispo » pour ne pas le dépenser sans faire exprès</span></label>
     <div class="goals" id="goals"></div>
     <form class="panel addbar addbar-3" id="goalForm" style="margin-top:13px" autocomplete="off">
       <input class="fld" id="gName" placeholder="Nouvel objectif" aria-label="Nom" required>
@@ -489,8 +516,9 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:4,
+  v:5,
   settings:{buffer:0,lockSavings:true},
+  plan:{income:1200,incomeLabel:"Alternance",cdiFrom:"2026-11",incomeCdi:2400,cdiLabel:"CDI (estimé)",margin:300,monthly:150,monthlyUntil:"2026-10"},
   accounts:[
     {id:"sg",name:"Société Générale",tag:"Banque",start:-630.86,overdraft:700,kind:"courant",short:"SG"},
     {id:"revolut",name:"Revolut",tag:"Salaires",start:0,overdraft:0,kind:"courant",short:"Revolut"},
@@ -564,7 +592,7 @@ function fmt(n){return EUR.format(r2(n))}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function pa(v){var s=String(v==null?"":v).replace(/\s| |€/g,"").replace(",",".").replace(/[^0-9.\-]/g,"");var n=parseFloat(s);return isFinite(n)?Math.abs(n):0}
 function ps(v){var s=String(v==null?"":v).replace(/\s| |€/g,"").replace(",",".").replace(/[^0-9.\-]/g,"");var n=parseFloat(s);return isFinite(n)?n:0}
-function nb(n){return String(r2(n)).replace(".",",")}
+function nb(n){return r2(n).toFixed(2).replace(".",",")}
 function pad(n){return n<10?"0"+n:""+n}
 function today(){var d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
 function curMonth(){var d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)}
@@ -581,6 +609,14 @@ function migrate(s){
   var o=JSON.parse(JSON.stringify(SEED));
   if(!s||typeof s!=="object")return o;
   if(s.settings){o.settings.buffer=pa(s.settings.buffer);o.settings.lockSavings=s.settings.lockSavings!==false}
+  if(s.plan&&typeof s.plan==="object"){
+    o.plan.income=pa(s.plan.income)||o.plan.income;
+    o.plan.incomeCdi=pa(s.plan.incomeCdi)||o.plan.incomeCdi;
+    o.plan.margin=pa(s.plan.margin);
+    o.plan.monthly=pa(s.plan.monthly);
+    if(/^\d{4}-\d{2}$/.test(s.plan.cdiFrom||""))o.plan.cdiFrom=s.plan.cdiFrom;
+    if(/^\d{4}-\d{2}$/.test(s.plan.monthlyUntil||""))o.plan.monthlyUntil=s.plan.monthlyUntil;
+  }
   if(Array.isArray(s.accounts))o.accounts=o.accounts.map(function(d){
     var f=null;for(var i=0;i<s.accounts.length;i++)if(s.accounts[i]&&s.accounts[i].id===d.id)f=s.accounts[i];
     return f?{id:d.id,name:f.name||d.name,tag:d.tag,short:d.short,kind:d.kind,start:ps(f.start),overdraft:pa(f.overdraft)}:d});
@@ -613,7 +649,7 @@ function migrate(s){
     return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid)}});
   if(Array.isArray(s.loans))o.loans=s.loans.filter(Boolean).map(function(l){
     return {id:String(l.id||uid()),name:String(l.name||""),rest:pa(l.rest),monthly:pa(l.monthly)}});
-  o.v=4;
+  o.v=5;
   return o;
 }
 function loadLocal(){try{var r=localStorage.getItem(LS);return r?migrate(JSON.parse(r)):null}catch(e){return null}}
@@ -865,6 +901,50 @@ function renderGoals(){
   document.getElementById("savedTotal").textContent=fmt(tot);
   document.getElementById("lockSavings").checked=!!state.settings.lockSavings;
 }
+function planIncome(){
+  var P=state.plan,cm=curMonth();
+  return cm>=P.cdiFrom?{amount:pa(P.incomeCdi),label:P.cdiLabel}:{amount:pa(P.income),label:P.incomeLabel};
+}
+function renderCalc(){
+  var c=calc(),P=state.plan,cm=curMonth(),inc=planIncome();
+  document.getElementById("calcMonth").textContent=MY.format(new Date());
+  /* charges fixes pas encore versées au registre, pour ne rien compter deux fois */
+  var pending=missingFixed(),chargesLeft=r2(pending.reduce(function(t,f){return t+pa(f.amount)},0));
+  var rest=r2(inc.amount-chargesLeft-c.dueMonth-pa(P.margin));
+  var stillPlanned = cm<=P.monthlyUntil;
+  var h='<div class="calc-line"><span class="lb">Ce que je gagne ce mois-ci<small>'+esc(inc.label)+'</small></span>'+
+    '<span class="rt"><input data-calc="income" inputmode="decimal" value="'+nb(inc.amount)+'" aria-label="Revenus du mois"><span class="am" style="color:var(--credit)">+'+fmt(inc.amount)+'</span></span></div>'+
+    '<div class="calc-line"><span class="lb">Charges imposées<small>'+(pending.length?pending.length+" pas encore au registre":"déjà toutes au registre")+'</small></span>'+
+    '<span class="rt"><span class="am" style="color:var(--debit)">−'+fmt(chargesLeft)+'</span></span></div>'+
+    '<div class="calc-line"><span class="lb">Paiements qui tombent encore<small>d\'ici fin '+MO.format(new Date())+'</small></span>'+
+    '<span class="rt"><span class="am" style="color:var(--debit)">−'+fmt(c.dueMonth)+'</span></span></div>'+
+    '<div class="calc-line"><span class="lb">Ma marge pour vivre<small>courses, essence, imprévus</small></span>'+
+    '<span class="rt"><input data-calc="margin" inputmode="decimal" value="'+nb(P.margin)+'" aria-label="Marge vie courante"><span class="am" style="color:var(--debit)">−'+fmt(P.margin)+'</span></span></div>';
+
+  h+='<div class="calc-res"><span class="lb"><b>Il te reste</b><small>'+(rest>0?"c\'est ça que tu peux mettre de côté":"ce mois-ci, rien à mettre de côté")+'</small></span>'+
+     '<span class="big num">'+fmt(rest)+'</span></div>';
+
+  if(c.totalReal<0){
+    h+='<div class="warn-box"><b>D\'abord ton découvert.</b> Tu es à '+fmt(c.totalReal)+' sur tes comptes courants. '+
+       'Remplir le coffre pendant que tu es à découvert te coûte des agios pour rien : ramène d\'abord SG à zéro, le coffre vient après.</div>';
+  }
+
+  h+='<div class="put"><div class="lb"><b>'+(stillPlanned?"Ton versement prévu : "+fmt(P.monthly)+" par mois":"À toi de décider")+'</b>'+
+     '<small>'+(stillPlanned
+       ? "jusqu\'à "+ml(P.monthlyUntil)+", la fin de ton alternance. Après, l\'appli calculera à partir de ton nouveau salaire."
+       : "ton alternance est finie : le calcul ci-dessus part de ton salaire actuel.")+'</small></div>'+
+     '<div class="put-row"><input id="putAmt" inputmode="decimal" value="'+(rest>0?nb(Math.min(rest,stillPlanned?pa(P.monthly):rest)):"")+'" placeholder="0,00" aria-label="Montant à mettre au coffre">'+
+     '<span class="segs" id="putTo" style="flex:1 1 200px">'+
+     state.accounts.filter(function(a){return a.kind==="epargne"}).map(function(a,i){
+       return '<button type="button" data-id="'+a.id+'" aria-pressed="'+(a.id==="pel"?"true":"false")+'">'+esc(a.short||a.name)+'</button>'}).join("")+
+     '</span></div>'+
+     '<div class="put-row"><span class="field-lbl" style="flex:1 1 100%">Depuis</span>'+
+     '<span class="segs" id="putFrom" style="flex:1 1 200px">'+
+     state.accounts.filter(function(a){return a.kind!=="epargne"}).map(function(a){
+       return '<button type="button" data-id="'+a.id+'" aria-pressed="'+(a.id==="sg"?"true":"false")+'">'+esc(a.short||a.name)+'</button>'}).join("")+
+     '</span><button class="btn" type="button" id="putGo">Mettre au coffre</button></div></div>';
+  document.getElementById("calcPanel").innerHTML=h;
+}
 function renderDebts(){
   var h="",tp=0;
   state.debts.forEach(function(d){
@@ -916,7 +996,7 @@ function selects(){
   var q=document.getElementById("quick");
   if(!q.dataset.b){q.dataset.b="1";q.innerHTML=[10,20,50,100].map(function(v){return '<button type="button" data-v="'+v+'">'+v+' €</button>'}).join("")}
 }
-function renderAll(){selects();renderRows();renderFixed();renderGoals();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderRows();renderFixed();renderGoals();renderCalc();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
@@ -1122,6 +1202,35 @@ document.getElementById("btnReset").addEventListener("click",function(){
     setTimeout(function(){b.removeAttribute("data-arm");b.textContent="Recharger mes données d'origine";h.textContent=""},5000);return}
   b.removeAttribute("data-arm");b.textContent="Recharger mes données d'origine";h.textContent="";
   state=JSON.parse(JSON.stringify(SEED));renderAll();save();
+});
+var calcPanel=document.getElementById("calcPanel");
+calcPanel.addEventListener("input",function(e){
+  var k=e.target.getAttribute("data-calc");if(!k)return;
+  if(k==="income"){ if(curMonth()>=state.plan.cdiFrom)state.plan.incomeCdi=pa(e.target.value); else state.plan.income=pa(e.target.value) }
+  else if(k==="margin")state.plan.margin=pa(e.target.value);
+  else return;
+  save();
+});
+calcPanel.addEventListener("change",function(e){
+  if(e.target.getAttribute("data-calc"))renderCalc();
+});
+calcPanel.addEventListener("click",function(e){
+  var seg=e.target.closest("#putTo button[data-id], #putFrom button[data-id]");
+  if(seg){seg.parentNode.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed",x===seg?"true":"false")});return}
+  if(!e.target.closest("#putGo"))return;
+  var v=pa(document.getElementById("putAmt").value);
+  if(!v)return;
+  var to=calcPanel.querySelector('#putTo button[aria-pressed="true"]');
+  var from=calcPanel.querySelector('#putFrom button[aria-pressed="true"]');
+  if(!to||!from)return;
+  var ta=acc(to.getAttribute("data-id")),fa=acc(from.getAttribute("data-id"));
+  var T=today(),M=curMonth();
+  state.movements.push({id:uid(),label:"Vers le coffre ("+(ta.short||ta.name)+")",account:fa.id,dir:"out",amount:v,
+    cat:"Autre",datePlanned:T,month:M,dateReal:T,done:true,maybe:false,fixId:"",fixMonth:""});
+  state.movements.push({id:uid(),label:"Depuis "+(fa.short||fa.name),account:ta.id,dir:"in",amount:v,
+    cat:"Autre",datePlanned:T,month:M,dateReal:T,done:true,maybe:false,fixId:"",fixMonth:""});
+  toast(fmt(v)+" mis au coffre sur "+(ta.short||ta.name));
+  renderAll();save();
 });
 document.getElementById("savingsPanel").addEventListener("input",function(e){
   var el=e.target,id=el.getAttribute("data-sv");if(!id)return;
