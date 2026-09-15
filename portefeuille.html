@@ -355,6 +355,22 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .mhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:14px 3px 7px;font-size:13px}
 .mhead b{font-size:14px;text-transform:capitalize}
 .mhead span{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;color:var(--debit);font-weight:600}
+.days{margin-top:14px;border-radius:var(--radius);border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+.days>h3{margin:0;padding:12px 15px;font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;border-bottom:1px solid var(--rule);background:var(--card-2)}
+.dday{display:flex;align-items:center;gap:11px;padding:9px 15px;border-top:1px solid var(--rule);font-size:13.5px}
+.dday:first-of-type{border-top:none}
+.dday .dt{flex:none;width:58px;font-size:12px;color:var(--ink-2);text-transform:capitalize}
+.dday .dt b{display:block;color:var(--ink);font-size:13px}
+.dday .lb2{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dday .mv2{flex:none;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:600;font-size:13.5px}
+.dday .mv2.in{color:var(--credit)} .dday .mv2.out{color:var(--debit)}
+.dday .bal{flex:none;width:84px;text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;font-size:13.5px}
+.dday .bal.neg{color:var(--debit)}
+.dday.today{background:var(--accent-soft)}
+.dlow{padding:11px 15px;font-size:13px;line-height:1.45;border-top:1px solid var(--rule)}
+.dlow.ok{background:var(--credit-soft);color:var(--ink)}
+.dlow.bad{background:var(--debit-soft)}
+.dfloat{padding:11px 15px;border-top:1px solid var(--rule);background:var(--warn-soft);font-size:12.5px;line-height:1.45}
 .coach{margin-top:14px;border-radius:var(--radius);border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);overflow:hidden}
 .coach>h3{margin:0;padding:12px 15px;font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;border-bottom:1px solid var(--rule);background:var(--card-2);display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .coach>h3 span{font-family:"Public Sans",sans-serif;font-size:11.5px;font-weight:400;color:var(--ink-2)}
@@ -546,6 +562,8 @@ details.detail[open] summary::before{content:"▾ "}
     <span class="sub" id="dispoSub"></span>
   </div>
 
+  <div id="daysBox"></div>
+
   <div class="coach" id="coach"></div>
 
   <button class="strip" type="button" id="subsStrip" data-goto="pay"></button>
@@ -642,6 +660,13 @@ details.detail[open] summary::before{content:"▾ "}
         <button class="btn" type="submit">Ajouter</button>
       </form>
       <label class="switch" style="margin-top:12px"><input type="checkbox" id="cushionOn"><span>Me constituer un matelas d'urgence de 3 mois d'abonnements — important tant que tu es en période d'essai</span></label>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><h2>Dans quel ordre ?</h2><span class="hint">Chaque euro qui reste part dans cet ordre. C'est toi qui décides.</span></div>
+    <div class="panel" style="padding:8px 14px 14px">
+      <div id="orderList"></div>
     </div>
   </div>
 
@@ -810,11 +835,12 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:8,
+  v:9,
   settings:{buffer:0,lockSavings:true},
   income:[],
   living:0,
   cushionOn:true,
+  order:["od","cushion","debts","goals"],
   envelopes:[
     {id:"e-cadeaux",name:"Cadeaux pour mon copain",amount:0},
     {id:"e-restau",name:"Restaurants",amount:0},
@@ -899,6 +925,8 @@ function pa(v){var s=String(v==null?"":v).replace(/\s| |€/g,"").replace(",","
 function ps(v){var s=String(v==null?"":v).replace(/\s| |€/g,"").replace(",",".").replace(/[^0-9.\-]/g,"");var n=parseFloat(s);return isFinite(n)?n:0}
 function nb(n){return r2(n).toFixed(2).replace(".",",")}
 function pad(n){return n<10?"0"+n:""+n}
+function addDays(iso,n){var q=iso.split("-");var d=new Date(+q[0],+q[1]-1,+q[2]+n);
+  return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
 function today(){var d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
 function curMonth(){var d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)}
 function eom(){var d=new Date(),e=new Date(d.getFullYear(),d.getMonth()+1,0);return e.getFullYear()+"-"+pad(e.getMonth()+1)+"-"+pad(e.getDate())}
@@ -952,6 +980,11 @@ function migrate(s){
     return {id:String(i.id||uid()),from:/^\d{4}-\d{2}$/.test(i.from||"")?i.from:curMonth(),amount:pa(i.amount)}});
   o.living=pa(s.living);
   if(typeof s.cushionOn==="boolean")o.cushionOn=s.cushionOn;
+  if(Array.isArray(s.order)){
+    var ok=["od","cushion","debts","goals"],keep=s.order.filter(function(k){return ok.indexOf(k)>=0});
+    ok.forEach(function(k){if(keep.indexOf(k)<0)keep.push(k)});
+    o.order=keep;
+  }
   if(Array.isArray(s.envelopes))o.envelopes=s.envelopes.filter(Boolean).map(function(e){
     return {id:String(e.id||uid()),name:String(e.name||""),amount:pa(e.amount)}});
   if(Array.isArray(s.goals))o.goals=s.goals.filter(Boolean)
@@ -961,7 +994,7 @@ function migrate(s){
     return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid)}});
   if(Array.isArray(s.loans))o.loans=s.loans.filter(Boolean).map(function(l){
     return {id:String(l.id||uid()),name:String(l.name||""),rest:pa(l.rest),monthly:pa(l.monthly)}});
-  o.v=8;
+  o.v=9;
   return o;
 }
 function loadLocal(){try{var r=localStorage.getItem(LS);return r?migrate(JSON.parse(r)):null}catch(e){return null}}
@@ -1151,6 +1184,56 @@ function renderWallet(c){
   });
   document.getElementById("future").innerHTML=fh||'<div class="empty">Rien de prévu après ce mois-ci.</div>';
 }
+var DJ=new Intl.DateTimeFormat("fr-FR",{weekday:"short"});
+var DN=new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"short"});
+function renderDays(c){
+  var host=document.getElementById("daysBox"),T=today(),cm=curMonth();
+  var horizon=addDays(T,10);
+  var evs=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.maybe)return;
+    if(acc(m.account).kind==="epargne")return;
+    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>horizon)return;
+    evs.push(m);
+  });
+  evs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
+  /* ce qui n'a pas de date et peut tomber n'importe quand */
+  var float=0,floatN=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.maybe||m.dir!=="out")return;
+    if(acc(m.account).kind==="epargne")return;
+    if(m.datePlanned)return;
+    if((mMonth(m)||cm)>cm)return;
+    float+=pa(m.amount);floatN.push(m.label);
+  });
+  state.fixed.forEach(function(f){
+    if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===cm}))return;
+    float+=pa(f.amount);floatN.push(f.label);
+  });
+  float=r2(float);
+
+  var run=c.capacity,low=run,lowDay=T,h="";
+  h+='<div class="dday today"><span class="dt"><b>auj.</b>'+esc(DN.format(new Date()))+'</span>'+
+     '<span class="lb2">Ce que tu peux utiliser</span><span class="mv2"></span>'+
+     '<span class="bal'+(run<0?" neg":"")+'">'+fmt(run)+'</span></div>';
+  evs.forEach(function(m){
+    run=r2(run+(m.dir==="in"?pa(m.amount):-pa(m.amount)));
+    if(run<low){low=run;lowDay=m.datePlanned}
+    var d=new Date(+m.datePlanned.slice(0,4),+m.datePlanned.slice(5,7)-1,+m.datePlanned.slice(8,10));
+    h+='<div class="dday"><span class="dt"><b>'+esc(DJ.format(d))+'</b>'+esc(DN.format(d))+'</span>'+
+       '<span class="lb2">'+esc(m.label)+'</span>'+
+       '<span class="mv2 '+m.dir+'">'+(m.dir==="in"?"+":"−")+fmt(m.amount)+'</span>'+
+       '<span class="bal'+(run<0?" neg":"")+'">'+fmt(run)+'</span></div>';
+  });
+  var body='<h3>Les 10 prochains jours</h3>'+h;
+  if(!evs.length)body+='<div class="dlow ok">Rien de daté dans les 10 jours. Note tes rentrées et tes échéances avec leur date pour voir venir.</div>';
+  else body+='<div class="dlow '+(low<0?"bad":"ok")+'"><b>Ton point le plus bas : '+fmt(low)+'</b>'+
+     (low<0?" — il te manquera "+fmt(Math.abs(low))+" ce jour-là. Il faut faire rentrer de l\'argent avant, ou décaler une échéance."
+           :" — tu tiens sur les 10 jours.")+'</div>';
+  if(float>0)body+='<div class="dfloat"><b>⚠ '+fmt(float)+' peuvent tomber n\'importe quand</b> : '+
+     esc(floatN.slice(0,4).join(", "))+(floatN.length>4?"…":"")+'. Mets-leur une date dès que tu la connais, sinon tu ne peux pas les voir venir.</div>';
+  host.innerHTML='<div class="days">'+body+'</div>';
+}
 function renderCoach(c){
   var host=document.getElementById("coach"),cm=curMonth();
   if(!state.income.length){
@@ -1231,6 +1314,7 @@ function renderSummary(){
   document.getElementById("cOut").textContent=(c.lateOut>0?"dont "+fmt(c.lateOut)+" à échéance · ":"")+"engagé jusqu'en déc. : "+fmt(c.pendingOut);
   document.getElementById("cMaybe").textContent=c.nMaybe+(c.nMaybe>1?" lignes":" ligne")+" optionnelles";
   renderWallet(c);
+  renderDays(c);
   renderCoach(c);
   renderVerdict(c);
   renderCats();
@@ -1519,14 +1603,26 @@ function buildPlan(){
     bal=r2(bal+flux);
     var acts=[],surplus=flux;
     if(rev===0&&n>0&&!state.income.length){months.push({mk:mk,none:true});break}
+    var ORD=state.order||["od","cushion","debts","goals"];
+    function rank(k){var i=ORD.indexOf(k);return i<0?9:i}
+    function before(k){ /* tout ce qui passe avant k est-il soldé ? */
+      for(var z=0;z<rank(k);z++){
+        var w=ORD[z];
+        if(w==="od"&&od>0)return false;
+        if(w==="cushion"&&cushionTarget>0&&cushion<cushionTarget)return false;
+        if(w==="debts"&&debts.length)return false;
+        if(w==="goals"&&goals.some(function(g){return g.target>0&&g.saved<g.target}))return false;
+      }
+      return true;
+    }
     /* 1. combler le découvert */
-    if(od>0&&surplus>0){
+    if(od>0&&surplus>0&&before("od")){
       var put=Math.min(od,surplus);od=r2(od-put);surplus=r2(surplus-put);
       acts.push({t:"od",v:put,txt:od<=0?"Tu sors du découvert — ton compte repasse à zéro":"Tu combles "+fmt(put)+" de ton découvert, il en restera "+fmt(od)});
       if(od<=0&&!odDone)odDone=mk;
     }
     /* 2. matelas d'urgence : trois mois d'abonnements, à cause de la période d'essai */
-    if(od<=0&&surplus>0&&cushionTarget>0&&cushion<cushionTarget){
+    if(surplus>0&&cushionTarget>0&&cushion<cushionTarget&&before("cushion")){
       var pc=Math.min(cushionTarget-cushion,surplus);cushion=r2(cushion+pc);surplus=r2(surplus-pc);
       acts.push({t:"cu",v:pc,txt:cushion>=cushionTarget
         ? "Ton matelas d'urgence est plein : "+fmt(cushionTarget)+" de côté, tu tiens 3 mois sans rien"
@@ -1534,7 +1630,7 @@ function buildPlan(){
       if(cushion>=cushionTarget&&!cushionDone)cushionDone=mk;
     }
     /* 3. rembourser les proches, du plus petit au plus gros */
-    if(od<=0&&surplus>0&&debts.length&&(cushionTarget===0||cushion>=cushionTarget)){
+    if(surplus>0&&debts.length&&before("debts")){
       var paid=[];
       while(debts.length&&surplus>0){
         var d=debts[0],put2=Math.min(d.rest,surplus);
@@ -1546,7 +1642,7 @@ function buildPlan(){
       if(!debts.length&&!debtDone)debtDone=mk;
     }
     /* 4. les objectifs, dans l'ordre de ta liste */
-    if(od<=0&&!debts.length&&surplus>0){
+    if(surplus>0&&before("goals")){
       var put3=[];
       goals.forEach(function(g){
         if(surplus<=0||g.target<=0||g.saved>=g.target)return;
@@ -1578,6 +1674,16 @@ function renderIncome(){
     '<p class="hint" style="margin:0">Rien pour l\'instant. Dis-moi ce que tu gagnes aujourd\'hui, puis ajoute une ligne à partir de novembre quand ton salaire change.</p>';
   document.getElementById("livingIn").value=nb(state.living);
 }
+var ORDNAMES={od:"Combler mon découvert",cushion:"Mon matelas d'urgence",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
+function renderOrder(){
+  var h="";
+  (state.order||[]).forEach(function(k,i){
+    h+='<div class="irow" data-ord="'+k+'"><span class="w"><b>'+(i+1)+'. '+esc(ORDNAMES[k]||k)+'</b></span>'+
+       '<button class="btn ghost sm" type="button" data-up="'+k+'"'+(i===0?" disabled":"")+' aria-label="Monter">↑</button>'+
+       '<button class="btn ghost sm" type="button" data-down="'+k+'"'+(i===state.order.length-1?" disabled":"")+' aria-label="Descendre">↓</button></div>';
+  });
+  document.getElementById("orderList").innerHTML=h;
+}
 function renderEnv(){
   var h="";
   state.envelopes.forEach(function(e,i){
@@ -1591,7 +1697,7 @@ function renderEnv(){
   document.getElementById("cushionOn").checked=!!state.cushionOn;
 }
 function renderPlan(){
-  renderIncome();renderEnv();
+  renderIncome();renderEnv();renderOrder();
   var P=buildPlan();
   var sum=document.getElementById("planSummary"),host=document.getElementById("planMonths");
   if(!state.income.length){
@@ -1981,6 +2087,15 @@ planTab.addEventListener("click",function(e){
       state.income=state.income.filter(function(x){return x.id!==id})}
     renderPlan();renderSummary();save();
   });
+});
+document.getElementById("orderList").addEventListener("click",function(e){
+  var u=e.target.closest("[data-up]"),d=e.target.closest("[data-down]");
+  var k=u?u.getAttribute("data-up"):(d?d.getAttribute("data-down"):null);
+  if(!k)return;
+  var i=state.order.indexOf(k),j=u?i-1:i+1;
+  if(j<0||j>=state.order.length)return;
+  state.order[i]=state.order[j];state.order[j]=k;
+  renderPlan();renderSummary();save();
 });
 document.getElementById("cushionOn").addEventListener("change",function(){
   state.cushionOn=this.checked;renderPlan();renderSummary();save();
