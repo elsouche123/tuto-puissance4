@@ -325,6 +325,46 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:95;background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);animation:pop .25s ease}
 @keyframes pop{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
 
+/* écran portefeuille simple */
+.wcards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:20px}
+@media(max-width:520px){.wcards{grid-template-columns:1fr}}
+.wcard{background:var(--card);border:1px solid var(--rule);border-top:4px solid var(--ac);border-radius:12px;padding:11px 12px;box-shadow:var(--shadow)}
+.wcard .n{font-size:11.5px;font-weight:700;color:var(--ac);text-transform:uppercase;letter-spacing:.05em}
+.wcard input{width:100%;border:none;background:transparent;padding:4px 0 0;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:20px;font-weight:600;color:var(--ink);min-width:0}
+.wcard input:focus{outline:none;box-shadow:0 2px 0 var(--ac)}
+.wcard.neg input{color:var(--debit)}
+.dispo{margin-top:14px;padding:18px 16px;border-radius:var(--radius);display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;border:2px solid var(--rule-strong);background:var(--card)}
+.dispo .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.09em;font-weight:700;opacity:.85}
+.dispo .val{font-family:Fraunces,Georgia,serif;font-size:42px;font-weight:700;line-height:1.05}
+.dispo .sub{font-size:12.5px;opacity:.9}
+.dispo[data-s="ok"]{background:var(--credit-soft);border-color:color-mix(in srgb,var(--credit) 50%,transparent);color:var(--credit)}
+.dispo[data-s="tight"]{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 55%,transparent);color:var(--warn)}
+.dispo[data-s="bad"]{background:var(--debit-soft);border-color:color-mix(in srgb,var(--debit) 55%,transparent);color:var(--debit)}
+.pad{margin-top:14px;padding:15px;display:flex;flex-direction:column;gap:10px}
+.pad-amt{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:12px;background:var(--card-2);border:2px solid var(--rule-strong)}
+.pad-amt:focus-within{border-color:var(--accent)}
+.pad-amt input{width:100%;max-width:210px;border:none;background:transparent;text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:40px;font-weight:600;color:var(--ink);padding:0;min-width:0}
+.pad-amt input:focus{outline:none}
+.pad-amt span{font-size:28px;color:var(--ink-3)}
+.pad-btns{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.bigbtn{border:none;border-radius:12px;padding:16px 10px;font:inherit;font-size:15.5px;font-weight:700;cursor:pointer;color:#fff}
+.bigbtn:active{transform:scale(.98)}
+.bigbtn.plus{background:var(--credit)}
+.bigbtn.minus{background:var(--debit)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .bigbtn{color:#131013}}
+:root[data-theme="dark"] .bigbtn{color:#131013}
+.pad-links{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.pad-links button{border:none;background:transparent;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;text-decoration:underline;padding:4px 2px}
+.entry{display:flex;align-items:center;gap:10px;padding:12px 13px;border:1px solid var(--rule);border-top:none;background:var(--card)}
+.entry:first-child{border-top:1px solid var(--rule);border-radius:var(--radius) var(--radius) 0 0}
+.entry:last-child{border-radius:0 0 var(--radius) var(--radius)}
+.entry .dot{width:10px;height:10px;border-radius:3px;background:var(--ac);flex:none}
+.entry .txt{flex:1 1 auto;min-width:0}
+.entry .txt b{display:block;font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entry .txt small{color:var(--ink-2);font-size:11.5px}
+.entry .v{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;font-size:16px;flex:none}
+.entry .v.in{color:var(--credit)} .entry .v.out{color:var(--debit)}
+
 /* mon mois */
 .plan-line{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--rule);font-size:13.5px}
 .plan-line:first-child{border-top:none}
@@ -399,33 +439,43 @@ details.detail[open] summary::before{content:"▾ "}
     <div class="sync" id="sync" data-s="wait"><span class="dot"></span><span id="syncTxt">…</span></div>
   </div>
   <nav class="tabs" id="tabs" role="tablist">
-    <button role="tab" data-tab="today" aria-selected="true">Aujourd'hui</button>
-    <button role="tab" data-tab="plan" aria-selected="false">Mon mois</button>
-    <button role="tab" data-tab="reg" aria-selected="false">Registre</button>
-    <button role="tab" data-tab="fix" aria-selected="false">Charges <span class="badge" id="fixBadge" hidden></span></button>
-    <button role="tab" data-tab="save" aria-selected="false">Coffre</button>
-    <button role="tab" data-tab="debt" aria-selected="false">Dettes</button>
+    <button role="tab" data-tab="today" aria-selected="true">Mon portefeuille</button>
+    <button role="tab" data-tab="pay" aria-selected="false">À payer <span class="badge" id="fixBadge" hidden></span></button>
+    <button role="tab" data-tab="more" aria-selected="false">Le reste</button>
   </nav>
 </header>
 
 <div class="wrap">
 
 <section class="tabpanel" id="tab-today">
-  <div class="quickacts">
-    <button class="qa qa-in" type="button" data-sheet="in"><span class="big">+</span>J'ai reçu<small>de l'argent</small></button>
-    <button class="qa qa-out" type="button" data-sheet="out"><span class="big">−</span>J'ai dépensé<small>maintenant</small></button>
-    <button class="qa qa-tip" type="button" data-sheet="tip"><span class="big">☺</span>Pourboire<small>ce que j'ai fait au resto</small></button>
-    <button class="qa qa-x" type="button" data-sheet="xfer"><span class="big">⇄</span>Virement<small>entre mes comptes</small></button>
+  <div class="wcards" id="wcards"></div>
+
+  <div class="dispo" id="dispoBig">
+    <span class="lbl">Je peux utiliser</span>
+    <span class="val num" id="dispoVal">—</span>
+    <span class="sub" id="dispoSub"></span>
   </div>
 
-  <div class="payday" id="paydayBox"></div>
+  <div class="panel pad">
+    <div class="pad-amt"><input id="padAmt" inputmode="decimal" placeholder="0" aria-label="Montant"><span>€</span></div>
+    <div class="segs" id="padAcc"></div>
+    <input class="fld" id="padNote" placeholder="Note (facultatif) — ex. baby-sitting" aria-label="Note">
+    <div class="pad-btns">
+      <button class="bigbtn plus" type="button" id="padPlus">+ &nbsp;J'ai gagné</button>
+      <button class="bigbtn minus" type="button" id="padMinus">− &nbsp;J'ai dépensé</button>
+    </div>
+    <div class="pad-links">
+      <button type="button" data-sheet="planned">Noter quelque chose de prévu</button>
+      <button type="button" data-sheet="xfer">Virement entre mes comptes</button>
+    </div>
+  </div>
 
   <div class="sect">
-    <div class="sect-head"><h2>Mes comptes, en vrai</h2><span class="hint">Seules les lignes <b>pointées</b> comptent ici.</span></div>
-    <div class="accounts" id="accounts"></div>
+    <div class="sect-head"><h2>Ce que j'ai noté</h2><span class="hint" id="notedCount"></span></div>
+    <div id="myEntries"></div>
   </div>
 
-  <div class="band">
+  <div class="sect">
     <div class="panel pay">
       <h2>Est-ce que je peux payer maintenant ?</h2>
       <p class="hint" style="margin:0">La réponse tient compte de ton découvert autorisé, de ton épargne bloquée <b>et</b> de ce que tu dois encore payer.</p>
@@ -438,20 +488,27 @@ details.detail[open] summary::before{content:"▾ "}
         <p id="vText"></p>
       </div>
     </div>
-    <div class="tiles">
+  </div>
+
+  <details class="box" id="detailBox">
+    <summary>Voir le détail : mes comptes, mes prévisions, où part mon argent</summary>
+    <div class="box-body">
+      <div class="payday" id="paydayBox"></div>
+      <div class="accounts" id="accounts"></div>
+      <div class="tiles">
       <div class="tile lead"><span class="k"><b>Prévision fin <span id="eomLabel">de mois</span></b><span id="eomSub"></span></span><span class="v num" id="tForecast">—</span></div>
       <div class="tile" style="--tc:var(--credit)"><span class="k"><b>Entrées prévues, pas reçues</b><span id="cIn"></span></span><span class="v num pos" id="tIn">—</span></div>
       <div class="tile" style="--tc:var(--debit)"><span class="k"><b>Encore à payer ce mois-ci</b><span id="cOut"></span></span><span class="v num neg" id="tOut">—</span></div>
       <div class="tile" style="--tc:var(--c-abo)"><span class="k"><b>Peut-être (si je le fais)</b><span id="cMaybe"></span></span><span class="v num" id="tMaybe">—</span></div>
       <div class="tile" style="--tc:var(--ac-sg)"><span class="k"><b>Sur mes comptes courants</b>Hors découvert autorisé</span><span class="v num" id="tReal">—</span></div>
       <div class="tile" style="--tc:var(--ac-pel)"><span class="k"><b>Mon coffre</b>Livrets + PEL, pas touchés par le quotidien</span><span class="v num pos" id="tSave">—</span></div>
+      </div>
+      <div>
+        <div class="sect-head" style="margin-bottom:8px"><h2 style="font-size:16px">Où part mon argent</h2><span class="hint" id="catMonth"></span></div>
+        <div class="panel cats" id="cats"></div>
+      </div>
     </div>
-  </div>
-
-  <div class="sect">
-    <div class="sect-head"><h2>Où part mon argent</h2><span class="hint" id="catMonth"></span></div>
-    <div class="panel cats" id="cats"></div>
-  </div>
+  </details>
 </section>
 
 <section class="tabpanel" id="tab-plan" hidden>
@@ -584,7 +641,7 @@ details.detail[open] summary::before{content:"▾ "}
   </div>
 </details>
 
-<footer>Les soldes « réels » ne bougent qu'avec les cases cochées. Tant qu'une ligne n'est pas pointée, elle reste une prévision.</footer>
+<footer>Tu tapes un montant, tu appuies sur + ou −, c'est compté. Tu ne me dois aucune explication : la note est facultative.</footer>
 </div>
 
 <div class="sheet-bg" id="sheetBg" hidden>
@@ -707,6 +764,7 @@ var SEED = {
 };
 
 var ACCIDS=["sg","revolut","cash","ldd","ljeune","pel"];
+var TABG={today:["today"],pay:["reg","fix"],more:["plan","save","debt"]};
 var LS="portefeuille.v3", state=null, filter="all", tab="today";
 var docRef=null, hydrated=false, saveTimer=null, writing=false, dirty=false, lastSent="", pendingRemote=null;
 
@@ -857,6 +915,40 @@ function renderAccounts(c){
     '<div class="sv-head"><span class="eyebrow">Mon épargne</span><span class="tot num">'+fmt(tot)+'</span></div>'+sv+
     '<p class="hint" style="margin:10px 0 0">Cet argent ne compte pas dans ton « dispo » : il est à toi, mais pas pour le quotidien. Corrige un solde en tapant dessus.</p>';
 }
+function renderWallet(c){
+  var h="";
+  c.accs.forEach(function(a){
+    if(a.kind==="epargne")return;
+    h+='<div class="wcard'+(a.real<0?" neg":"")+'" style="--ac:'+accC(a.id)+'">'+
+       '<div class="n">'+esc(a.short||a.name)+'</div>'+
+       '<input data-wc="'+a.id+'" inputmode="decimal" value="'+nb(a.real)+'" aria-label="Solde '+esc(a.name)+'"></div>';
+  });
+  document.getElementById("wcards").innerHTML=h;
+
+  var st=c.capacity<0?"bad":(c.capacity<80?"tight":"ok");
+  var box=document.getElementById("dispoBig");
+  box.setAttribute("data-s",st);
+  document.getElementById("dispoVal").textContent=fmt(c.capacity);
+  document.getElementById("dispoSub").textContent=
+    st==="bad"?"tu es au-delà de ce que ta banque autorise"
+    :(st==="tight"?"c'est très serré, fais attention":"découvert autorisé compris");
+
+  var done=state.movements.filter(function(m){return m.done})
+    .sort(function(a,b){return (b.dateReal||"")<(a.dateReal||"")?-1:1}).slice(0,40);
+  var eh="";
+  done.forEach(function(m){
+    eh+='<div class="entry" data-id="'+esc(m.id)+'" style="--ac:'+accC(m.account)+'">'+
+      '<span class="dot"></span>'+
+      '<span class="txt"><b>'+esc(m.label||(m.dir==="in"?"Argent reçu":"Dépense"))+'</b>'+
+      '<small>'+esc(dl(m.dateReal)||"")+' · '+esc(acc(m.account).short||acc(m.account).name)+'</small></span>'+
+      '<span class="v '+m.dir+'">'+(m.dir==="in"?"+":"−")+fmt(m.amount)+'</span>'+
+      '<button class="del" type="button" data-act="del" aria-label="Supprimer">×</button></div>';
+  });
+  document.getElementById("myEntries").innerHTML=eh||
+    '<div class="empty">Rien pour l\'instant. Tape un montant au-dessus et appuie sur <b>+ J\'ai gagné</b> ou <b>− J\'ai dépensé</b>.</div>';
+  var n=state.movements.filter(function(m){return m.done}).length;
+  document.getElementById("notedCount").textContent=n?n+(n>1?" mouvements":" mouvement"):"";
+}
 function renderSummary(){
   var c=calc();
   renderAccounts(c);
@@ -884,6 +976,7 @@ function renderSummary(){
   document.getElementById("cIn").textContent=c.nIn+(c.nIn>1?" lignes":" ligne")+" en attente";
   document.getElementById("cOut").textContent=(c.lateOut>0?"dont "+fmt(c.lateOut)+" à échéance · ":"")+"engagé jusqu'en déc. : "+fmt(c.pendingOut);
   document.getElementById("cMaybe").textContent=c.nMaybe+(c.nMaybe>1?" lignes":" ligne")+" optionnelles";
+  renderWallet(c);
   renderVerdict(c);
   renderCats();
   renderPayday();
@@ -1265,7 +1358,7 @@ function selects(){
   var q=document.getElementById("quick");
   if(!q.dataset.b){q.dataset.b="1";q.innerHTML=[10,20,50,100].map(function(v){return '<button type="button" data-v="'+v+'">'+v+' €</button>'}).join("")}
 }
-function renderAll(){selects();renderRows();renderFixed();renderGoals();renderCalc();renderPlan();renderTips();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderRows();renderFixed();renderGoals();renderCalc();renderPlan();renderTips();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
@@ -1274,11 +1367,17 @@ function armDel(el,fn){
     setTimeout(function(){if(el.isConnected){el.removeAttribute("data-arm");el.textContent="×"}},3500);return}
   fn();
 }
+function showTab(){
+  var on=TABG[tab]||["today"];
+  ["today","plan","reg","fix","save","debt"].forEach(function(k){
+    document.getElementById("tab-"+k).hidden=(on.indexOf(k)<0);
+  });
+}
 document.getElementById("tabs").addEventListener("click",function(e){
   var b=e.target.closest("button[data-tab]");if(!b)return;
   tab=b.getAttribute("data-tab");
   this.querySelectorAll("button[data-tab]").forEach(function(x){x.setAttribute("aria-selected",x===b?"true":"false")});
-  ["today","plan","reg","fix","save","debt"].forEach(function(t){document.getElementById("tab-"+t).hidden=(t!==tab)});
+  showTab();
   try{localStorage.setItem(LS+".tab",tab)}catch(err){}
   window.scrollTo(0,0);
 });
@@ -1555,6 +1654,62 @@ document.addEventListener("focusout",function(){
   setTimeout(function(){if(pendingRemote&&!editing()){state=migrate(pendingRemote);pendingRemote=null;renderAll()}},80);
 });
 
+/* ---------- pad : + / − en un geste ---------- */
+var PADACC="sg";
+function renderPadAcc(){
+  var h="";
+  state.accounts.forEach(function(a){
+    if(a.kind==="epargne")return;
+    h+='<button type="button" data-id="'+a.id+'" aria-pressed="'+(a.id===PADACC?"true":"false")+'">'+esc(a.short||a.name)+"</button>";
+  });
+  document.getElementById("padAcc").innerHTML=h;
+}
+document.getElementById("padAcc").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-id]");if(!b)return;
+  this.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed",x===b?"true":"false")});
+  PADACC=b.getAttribute("data-id");
+  try{localStorage.setItem(LS+".padacc",PADACC)}catch(err){}
+});
+function padAdd(dir){
+  var ai=document.getElementById("padAmt"),v=pa(ai.value);
+  if(!v){ai.focus();return}
+  var note=document.getElementById("padNote").value.trim();
+  var T=today();
+  state.movements.push({id:uid(),label:note||(dir==="in"?"Argent reçu":"Dépense"),
+    account:PADACC,dir:dir,amount:v,cat:dir==="in"?"Revenu":"Autre",
+    datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,fixId:"",fixMonth:""});
+  ai.value="";document.getElementById("padNote").value="";
+  var an=acc(PADACC);
+  toast((dir==="in"?"+ ":"− ")+fmt(v)+" sur "+(an.short||an.name));
+  renderAll();save();
+}
+document.getElementById("padPlus").addEventListener("click",function(){padAdd("in")});
+document.getElementById("padMinus").addEventListener("click",function(){padAdd("out")});
+document.getElementById("padAmt").addEventListener("keydown",function(e){if(e.key==="Enter")padAdd("in")});
+
+document.getElementById("myEntries").addEventListener("click",function(e){
+  var el=e.target.closest('[data-act="del"]');if(!el)return;
+  var row=el.closest(".entry");if(!row)return;
+  var id=row.getAttribute("data-id");
+  armDel(el,function(){
+    state.movements=state.movements.filter(function(x){return x.id!==id});
+    renderAll();save();
+  });
+});
+document.getElementById("wcards").addEventListener("input",function(e){
+  var id=e.target.getAttribute("data-wc");if(!id)return;
+  var a=acc(id),c=calc(),cur=null;
+  c.accs.forEach(function(x){if(x.id===id)cur=x});
+  if(!cur)return;
+  a.start=r2(ps(e.target.value)-(cur.real-ps(a.start)));
+  var cc=calc();
+  document.getElementById("dispoVal").textContent=fmt(cc.capacity);
+  document.getElementById("dispoBig").setAttribute("data-s",cc.capacity<0?"bad":(cc.capacity<80?"tight":"ok"));
+  document.getElementById("barCapa").textContent=fmt(cc.capacity);
+  save();
+});
+document.getElementById("wcards").addEventListener("change",function(){renderAll()});
+
 /* ---------- quick entry sheet ---------- */
 var SH={mode:"in",cat:"Autre",accId:"sg",fromId:"sg",toId:"pel",when:"done"};
 var QUICK={
@@ -1610,7 +1765,11 @@ function toast(msg){
   setTimeout(function(){if(d.isConnected)d.remove()},2600);
 }
 document.querySelectorAll("[data-sheet]").forEach(function(b){
-  b.addEventListener("click",function(){openSheet(b.getAttribute("data-sheet"))});
+  b.addEventListener("click",function(){
+    var m=b.getAttribute("data-sheet");
+    if(m==="planned"){openSheet("in");document.querySelector('#sWhen button[data-w="plan"]').click()}
+    else openSheet(m);
+  });
 });
 document.getElementById("sheetClose").addEventListener("click",closeSheet);
 document.getElementById("sheetBg").addEventListener("click",function(e){if(e.target===this)closeSheet()});
@@ -1684,11 +1843,13 @@ function csv(){
 
 /* ---------- boot ---------- */
 state=loadLocal()||JSON.parse(JSON.stringify(SEED));
+try{var pa2=localStorage.getItem(LS+".padacc");if(pa2)PADACC=pa2}catch(e){}
 try{
   var t=localStorage.getItem(LS+".tab");
   if(t){tab=t;
+    if(!TABG[tab])tab="today";
     document.querySelectorAll("#tabs button[data-tab]").forEach(function(x){x.setAttribute("aria-selected",x.getAttribute("data-tab")===tab?"true":"false")});
-    ["today","plan","reg","fix","save","debt"].forEach(function(k){document.getElementById("tab-"+k).hidden=(k!==tab)});
+    showTab();
   }
 }catch(e){}
 renderAll();
