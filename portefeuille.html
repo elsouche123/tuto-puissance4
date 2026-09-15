@@ -357,6 +357,22 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .mhead span{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;color:var(--debit);font-weight:600}
 .days{margin-top:14px;border-radius:var(--radius);border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);overflow:hidden}
 .days>h3{margin:0;padding:12px 15px;font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;border-bottom:1px solid var(--rule);background:var(--card-2)}
+.days>h3 span{float:right;font-family:"Public Sans",sans-serif;font-size:11px;font-weight:400;color:var(--ink-2)}
+.step{display:flex;gap:11px;padding:13px 15px;border-top:1px solid var(--rule)}
+.step:first-of-type{border-top:none}
+.step .num2{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-content:center;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:700;color:#fff;background:var(--ink-3)}
+.step.good .num2{background:var(--credit)}
+.step.warn2 .num2{background:var(--warn)}
+.step.ko .num2{background:var(--debit)}
+.step.ko{background:var(--debit-soft)}
+.step.warn2{background:var(--warn-soft)}
+.sbody{flex:1 1 auto;min-width:0}
+.stop{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.stop b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.samt{flex:none;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+.samt.in{color:var(--credit)} .samt.out{color:var(--debit)}
+.swhen{font-size:11.5px;color:var(--ink-2);text-transform:capitalize;margin-top:1px}
+.sverd{font-size:13px;line-height:1.45;margin-top:5px}
 .dday{display:flex;align-items:center;gap:11px;padding:9px 15px;border-top:1px solid var(--rule);font-size:13.5px}
 .dday:first-of-type{border-top:none}
 .dday .dt{flex:none;width:58px;font-size:12px;color:var(--ink-2);text-transform:capitalize}
@@ -590,12 +606,6 @@ details.detail[open] summary::before{content:"▾ "}
       <button type="button" data-sheet="planned">Noter quelque chose de prévu</button>
       <button type="button" data-sheet="xfer">Virement entre mes comptes</button>
     </div>
-  </div>
-
-  <div class="sect">
-    <div class="sect-head"><h2>Ce qui arrive</h2><span class="hint" id="comingHint"></span></div>
-    <div id="coming"></div>
-    <div id="afterBox"></div>
   </div>
 
   <details class="box" id="paidBox">
@@ -1129,7 +1139,7 @@ function renderWallet(c){
   document.getElementById("paidSummary").textContent=
     "Déjà payé ce mois-ci"+(done.length?" ("+done.length+") — "+fmt(paidOut)+" sortis":"");
 
-  /* ---- ce qui arrive encore ce mois-ci ---- */
+  /* ---- helpers partagés avec « les mois suivants » ---- */
   var E=eom(),T=today();
   function dueThis(m){
     if(m.done||m.maybe)return false;
@@ -1155,27 +1165,10 @@ function renderWallet(c){
     var x=a.datePlanned||"9999-99",y=b.datePlanned||"9999-99";
     return x<y?-1:x>y?1:0;
   }
-  var coming=state.movements.filter(dueThis).sort(chrono);
-  var net=0;coming.forEach(function(m){net+=(m.dir==="in"?pa(m.amount):-pa(m.amount))});
-  var run=c.capacity,cut=false,ch="";
-  coming.forEach(function(m){
+  var run=c.capacity;
+  state.movements.filter(dueThis).sort(chrono).forEach(function(m){
     run=r2(run+(m.dir==="in"?pa(m.amount):-pa(m.amount)));
-    ch+=dueRow(m,run);
-    if(run<0&&!cut){cut=true;ch+='<div class="cutline">⚠ À partir d\'ici, tu n\'as plus de quoi payer</div>'}
   });
-  document.getElementById("coming").innerHTML=coming.length?ch
-    :'<div class="empty">Plus rien à payer d\'ici la fin du mois.</div>';
-  document.getElementById("comingHint").textContent=coming.length
-    ? "dans l'ordre des dates · le « reste » te dit où ça coince" : "";
-  var after=r2(c.capacity+net);
-  var ab=document.getElementById("afterBox");
-  if(coming.length){
-    var cls=after<0?"bad":(after<50?"warn":"ok");
-    ab.className="after "+cls;
-    ab.innerHTML='<span class="lb"><b>'+(after<0?"Attention, ça ne passe pas":(after<50?"Ça passe, mais tout juste":"Une fois tout payé"))+'</b>'+
-      '<small>'+(after<0?"il te manquera "+fmt(Math.abs(after))+" pour honorer tout ça":"c\'est ce qu\'il te restera")+'</small></span>'+
-      '<span class="big num">'+fmt(after)+'</span>';
-  } else ab.className="", ab.innerHTML="";
 
   /* ---- les mois suivants ---- */
   var fut={},order=[];
@@ -1202,10 +1195,18 @@ function renderWallet(c){
   document.getElementById("future").innerHTML=fh||'<div class="empty">Rien de prévu après ce mois-ci.</div>';
 }
 var DJ=new Intl.DateTimeFormat("fr-FR",{weekday:"short"});
+var DJ2=new Intl.DateTimeFormat("fr-FR",{weekday:"long"});
 var DN=new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"short"});
+function dayWord(iso){
+  var T=today();
+  if(iso===T)return "aujourd'hui";
+  if(iso===addDays(T,1))return "demain";
+  var q=iso.split("-"),d=new Date(+q[0],+q[1]-1,+q[2]);
+  return DJ2.format(d)+" "+(+q[2]);
+}
 function renderDays(c){
   var host=document.getElementById("daysBox"),T=today(),cm=curMonth();
-  var horizon=addDays(T,10);
+  var horizon=addDays(T,14);
   var evs=[];
   state.movements.forEach(function(m){
     if(m.done||m.maybe)return;
@@ -1214,7 +1215,7 @@ function renderDays(c){
     evs.push(m);
   });
   evs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
-  /* ce qui n'a pas de date et peut tomber n'importe quand */
+
   var float=0,floatN=[];
   state.movements.forEach(function(m){
     if(m.done||m.maybe||m.dir!=="out")return;
@@ -1229,34 +1230,49 @@ function renderDays(c){
   });
   float=r2(float);
 
-  var run=c.capacity,low=run,lowDay=T,h="";
-  h+='<div class="dday today"><span class="dt"><b>auj.</b>'+esc(DN.format(new Date()))+'</span>'+
-     '<span class="lb2">Ce que tu peux utiliser</span><span class="mv2"></span>'+
-     '<span class="bal'+(run<0?" neg":"")+'">'+fmt(run)+'</span></div>';
-  evs.forEach(function(m){
-    run=r2(run+(m.dir==="in"?pa(m.amount):-pa(m.amount)));
-    if(run<low){low=run;lowDay=m.datePlanned}
-    var d=new Date(+m.datePlanned.slice(0,4),+m.datePlanned.slice(5,7)-1,+m.datePlanned.slice(8,10));
-    h+='<div class="dday"><span class="dt"><b>'+esc(DJ.format(d))+'</b>'+esc(DN.format(d))+'</span>'+
-       '<span class="lb2">'+esc(m.label)+'</span>'+
-       '<span class="mv2 '+m.dir+'">'+(m.dir==="in"?"+":"−")+fmt(m.amount)+'</span>'+
-       '<span class="bal'+(run<0?" neg":"")+'">'+fmt(run)+'</span></div>';
-  });
-  var body='<h3>Les 10 prochains jours</h3>'+h;
-  if(!evs.length)body+='<div class="dlow ok">Rien de daté dans les 10 jours. Note tes rentrées et tes échéances avec leur date pour voir venir.</div>';
-  else {
-    var od=c.totalOd, worst=r2(low-float);
-    body+='<div class="dlow '+(low+od<0?"bad":"ok")+'"><b>Ton point le plus bas : '+fmt(low)+'</b>'+
-      (low<0?" — tu es en découvert ce jour-là"+(low+od<0?", et tu dépasses ce que ta banque autorise de "+fmt(Math.abs(low+od))+"."
-                                                      :", mais tu restes dans les "+fmt(od)+" autorisés.")
-            :" — tu tiens sur les 10 jours.")+'</div>';
-    if(float>0)body+='<div class="dlow '+(worst+od<0?"bad":"ok")+'" style="border-top:none"><b>Au pire '+fmt(worst)+'</b>'+
-      ' — si les '+fmt(float)+' sans date tombaient tous en même temps.'+
-      (worst+od<0?" Là tu dépasserais ton découvert.":" Même là, tu restes dans ton découvert autorisé.")+'</div>';
+  if(!evs.length){
+    host.innerHTML='<div class="days"><h3>Ce qui arrive</h3>'+
+      '<div class="dlow ok">Rien de daté dans les 15 jours.'+(float>0?" Mais "+fmt(float)+" sans date peuvent tomber.":"")+'</div></div>';
+    return;
   }
+
+  var run=c.capacity, realRun=c.totalReal, h="", n=0;
+  evs.forEach(function(m){
+    n++;
+    var amt=pa(m.amount), isIn=m.dir==="in";
+    run=r2(run+(isIn?amt:-amt));
+    realRun=r2(realRun+(isIn?amt:-amt));
+    var cls,verdict;
+    if(isIn){
+      cls="good";
+      verdict="Tu remontes à <b>"+fmt(run)+"</b>"+(realRun<0?", mais tu es encore dans le rouge de "+fmt(Math.abs(realRun))+".":".");
+    } else if(run<0){
+      cls="ko";
+      verdict="<b>Il te manque "+fmt(Math.abs(run))+".</b> Ta banque peut refuser : il faut faire rentrer de l'argent avant.";
+    } else if(realRun<0){
+      cls="warn2";
+      verdict="Ça passe. Il te restera <b>"+fmt(run)+"</b> — tu es à découvert de "+fmt(Math.abs(realRun))+" sur les "+fmt(c.totalOd)+" autorisés.";
+    } else {
+      cls="good";
+      verdict="Ça passe. Il te restera <b>"+fmt(run)+"</b>.";
+    }
+    h+='<div class="step '+cls+'" data-id="'+esc(m.id)+'">'+
+       '<span class="num2">'+n+'</span>'+
+       '<div class="sbody"><div class="stop"><b>'+esc(m.label)+'</b>'+
+       '<span class="samt '+(isIn?"in":"out")+'">'+(isIn?"+":"−")+fmt(amt)+'</span></div>'+
+       '<div class="swhen">'+esc(dayWord(m.datePlanned))+' · '+esc(acc(m.account).short||acc(m.account).name)+'</div>'+
+       '<div class="sverd">'+verdict+'</div></div>'+
+       '<input type="checkbox" class="tickbox" data-act="pay" aria-label="C\'est passé" style="align-self:center">'+
+       '</div>';
+  });
+
+  var after=run, ac=after<0;
+  var body='<h3>Ce qui arrive<span>prochain paiement en haut</span></h3>'+h+
+    '<div class="dlow '+(ac?"bad":"ok")+'"><b>Une fois tout ça passé : '+fmt(after)+'</b>'+
+    (ac?" — il te manquera "+fmt(Math.abs(after))+" pour tout honorer.":" — c\'est ce qu\'il te restera.")+'</div>';
   if(float>0)body+='<div class="dfloat"><b>'+fmt(float)+' sans date connue</b> : '+
      esc(floatN.slice(0,5).join(", "))+(floatN.length>5?"…":"")+
-     '. Tu n\'as pas besoin de chercher : <b>coche-les le jour où elles passent</b>, et je retiendrai le jour pour les mois suivants.</div>';
+     '. Coche-les le jour où elles passent, je retiendrai le jour pour la suite.</div>';
   host.innerHTML='<div class="days">'+body+'</div>';
 }
 function renderCoach(c){
@@ -2280,7 +2296,17 @@ function onTick(e){
   toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » marqué payé");
   renderAll();save();
 }
-document.getElementById("coming").addEventListener("change",onTick);
+document.getElementById("daysBox").addEventListener("change",function(e){
+  var el=e.target;
+  if(el.getAttribute("data-act")!=="pay")return;
+  var row=el.closest(".step");if(!row)return;
+  var m=null,id=row.getAttribute("data-id");
+  state.movements.forEach(function(x){if(x.id===id)m=x});
+  if(!m)return;
+  var already=markPaid(m);
+  toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » marqué payé");
+  renderAll();save();
+});
 document.getElementById("future").addEventListener("change",onTick);
 document.getElementById("myEntries").addEventListener("click",function(e){
   var el=e.target.closest('[data-act="del"]');if(!el)return;
