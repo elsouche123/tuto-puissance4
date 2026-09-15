@@ -686,8 +686,9 @@ details.detail[open] summary::before{content:"▾ "}
     </div>
     <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
       <button class="btn ghost" id="btnCsv" type="button" hidden>Exporter en CSV</button>
-      <button class="btn ghost" id="btnReset" type="button">Recharger mes données d'origine</button>
-      <span class="hint" id="resetHint"></span>
+      <button class="btn ghost" id="btnOnlyBal" type="button">Ne garder que mes soldes</button>
+      <button class="btn ghost" id="btnReset" type="button">Recharger le contenu d'origine</button>
+      <span class="hint" id="resetHint" style="flex:1 1 100%"></span>
     </div>
   </div>
 </details>
@@ -1703,10 +1704,28 @@ document.querySelector(".box-body").addEventListener("input",function(e){
   else return;
   renderSummary();save();
 });
+document.getElementById("btnOnlyBal").addEventListener("click",function(){
+  var b=this,h=document.getElementById("resetHint");
+  if(b.getAttribute("data-arm")!=="1"){
+    b.setAttribute("data-arm","1");b.textContent="Confirmer : effacer toutes les lignes";
+    h.textContent="Tes soldes actuels sont conservés tels quels. Toutes les lignes payées et prévues sont effacées. Tes abonnements, tes dettes et ton coffre restent.";
+    setTimeout(function(){b.removeAttribute("data-arm");b.textContent="Ne garder que mes soldes";h.textContent=""},6000);
+    return;
+  }
+  b.removeAttribute("data-arm");b.textContent="Ne garder que mes soldes";h.textContent="";
+  var c=calc();
+  state.accounts.forEach(function(a){
+    var cur=null;c.accs.forEach(function(x){if(x.id===a.id)cur=x});
+    if(cur)a.start=cur.real;          /* le solde affiché ne bouge pas */
+  });
+  state.movements=[];
+  toast("Tout effacé — il ne reste que tes soldes");
+  renderAll();save();
+});
 document.getElementById("btnReset").addEventListener("click",function(){
   var b=this,h=document.getElementById("resetHint");
   if(b.getAttribute("data-arm")!=="1"){b.setAttribute("data-arm","1");b.textContent="Confirmer le rechargement";
-    h.textContent="Tout ce que tu as saisi depuis sera perdu.";
+    h.textContent="Remet les lignes, abonnements et dettes tirés de ton Excel. Ce que tu as saisi depuis sera perdu.";
     setTimeout(function(){b.removeAttribute("data-arm");b.textContent="Recharger mes données d'origine";h.textContent=""},5000);return}
   b.removeAttribute("data-arm");b.textContent="Recharger mes données d'origine";h.textContent="";
   state=JSON.parse(JSON.stringify(SEED));renderAll();save();
