@@ -325,6 +325,31 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:95;background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);animation:pop .25s ease}
 @keyframes pop{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
 
+.due{display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid var(--rule);border-top:none;background:var(--card)}
+.due:first-child{border-top:1px solid var(--rule);border-radius:var(--radius) var(--radius) 0 0}
+.due:last-child{border-radius:0 0 var(--radius) var(--radius)}
+.due[data-late="true"]{box-shadow:inset 3px 0 0 var(--debit)}
+.due .d{flex:none;width:46px;text-align:center;line-height:1.05;font-family:"IBM Plex Mono",monospace}
+.due .d b{display:block;font-size:19px;font-weight:600}
+.due .d small{font-size:10.5px;color:var(--ink-2);text-transform:lowercase}
+.due .t{flex:1 1 auto;min-width:0}
+.due .t b{display:block;font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.due .t small{color:var(--ink-2);font-size:11.5px}
+.due .a{flex:none;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;font-size:15.5px;color:var(--debit)}
+.due .a.in{color:var(--credit)}
+.due .tickbox{appearance:none;-webkit-appearance:none;margin:0;flex:none;width:26px;height:26px;border:2px solid var(--rule-strong);border-radius:8px;background:var(--card);cursor:pointer;display:grid;place-content:center}
+.due .tickbox:hover{border-color:var(--accent)}
+.due .tickbox:checked{background:var(--accent);border-color:var(--accent)}
+.due .tickbox:checked::after{content:"";width:6px;height:11px;border:solid var(--on-accent);border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.after{margin-top:11px;padding:14px 15px;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1.5px solid var(--rule);font-size:13.5px}
+.after.ok{background:var(--credit-soft);border-color:color-mix(in srgb,var(--credit) 40%,transparent)}
+.after.warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.after.bad{background:var(--debit-soft);border-color:color-mix(in srgb,var(--debit) 45%,transparent)}
+.after .big{font-family:Fraunces,Georgia,serif;font-size:25px;font-weight:700}
+.after.ok .big{color:var(--credit)} .after.warn .big{color:var(--warn)} .after.bad .big{color:var(--debit)}
+.mhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:14px 3px 7px;font-size:13px}
+.mhead b{font-size:14px;text-transform:capitalize}
+.mhead span{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;color:var(--debit);font-weight:600}
 .strip{width:100%;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-radius:12px;border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);cursor:pointer;font:inherit;text-align:left;color:var(--ink)}
 .strip:hover{border-color:var(--accent)}
 .strip .l{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -481,8 +506,19 @@ details.detail[open] summary::before{content:"▾ "}
   </div>
 
   <div class="sect">
-    <div class="sect-head"><h2>Ce que j'ai noté</h2><span class="hint" id="notedCount"></span></div>
-    <div id="myEntries"></div>
+    <div class="sect-head"><h2>Ce qui arrive</h2><span class="hint" id="comingHint"></span></div>
+    <div id="coming"></div>
+    <div id="afterBox"></div>
+  </div>
+
+  <details class="box" id="paidBox">
+    <summary><span id="paidSummary">Déjà payé ce mois-ci</span></summary>
+    <div class="box-body" style="padding:0"><div id="myEntries"></div><p class="hint" id="notedCount" style="padding:12px 14px;margin:0"></p></div>
+  </details>
+
+  <div class="sect">
+    <div class="sect-head"><h2>Les mois suivants</h2><span class="hint">Les dates de ce qui t'attend.</span></div>
+    <div id="future"></div>
   </div>
 
   <div class="sect">
@@ -782,6 +818,8 @@ var EUR=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"});
 var DS=new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"short"});
 var MY=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric"});
 var MO=new Intl.DateTimeFormat("fr-FR",{month:"long"});
+var MSH=new Intl.DateTimeFormat("fr-FR",{month:"short"});
+function mshort(mk){if(!mk)return"?";var q=mk.split("-");var d=new Date(+q[0],+q[1]-1,1);return isNaN(d)?mk:MSH.format(d)}
 function r2(n){return Math.round((Number(n)||0)*100)/100}
 function fmt(n){return EUR.format(r2(n))}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
@@ -943,10 +981,13 @@ function renderWallet(c){
     st==="bad"?"tu es au-delà de ce que ta banque autorise"
     :(st==="tight"?"c'est très serré, fais attention":"découvert autorisé compris");
 
-  var done=state.movements.filter(function(m){return m.done})
-    .sort(function(a,b){return (b.dateReal||"")<(a.dateReal||"")?-1:1}).slice(0,40);
-  var eh="";
+  /* ---- déjà payé ce mois-ci ---- */
+  var cm=curMonth();
+  var done=state.movements.filter(function(m){return m.done&&(m.dateReal||"").slice(0,7)===cm})
+    .sort(function(a,b){return (b.dateReal||"")<(a.dateReal||"")?-1:1});
+  var eh="",paidOut=0,paidIn=0;
   done.forEach(function(m){
+    if(m.dir==="in")paidIn+=pa(m.amount); else paidOut+=pa(m.amount);
     eh+='<div class="entry" data-id="'+esc(m.id)+'" style="--ac:'+accC(m.account)+'">'+
       '<span class="dot"></span>'+
       '<span class="txt"><b>'+esc(m.label||(m.dir==="in"?"Argent reçu":"Dépense"))+'</b>'+
@@ -955,9 +996,70 @@ function renderWallet(c){
       '<button class="del" type="button" data-act="del" aria-label="Supprimer">×</button></div>';
   });
   document.getElementById("myEntries").innerHTML=eh||
-    '<div class="empty">Rien pour l\'instant. Tape un montant au-dessus et appuie sur <b>+ J\'ai gagné</b> ou <b>− J\'ai dépensé</b>.</div>';
-  var n=state.movements.filter(function(m){return m.done}).length;
-  document.getElementById("notedCount").textContent=n?n+(n>1?" mouvements":" mouvement"):"";
+    '<div class="empty" style="margin:12px">Rien d\'encore payé ce mois-ci.</div>';
+  document.getElementById("notedCount").textContent=done.length
+    ? "Sorti : "+fmt(paidOut)+" · Rentré : "+fmt(paidIn)
+    : "";
+  document.getElementById("paidSummary").textContent=
+    "Déjà payé ce mois-ci"+(done.length?" ("+done.length+") — "+fmt(paidOut)+" sortis":"");
+
+  /* ---- ce qui arrive encore ce mois-ci ---- */
+  var E=eom(),T=today();
+  function dueThis(m){
+    if(m.done||m.maybe)return false;
+    if(acc(m.account).kind==="epargne")return false;
+    var mk=mMonth(m);
+    return m.datePlanned?(m.datePlanned<=E):(mk?mk<=cm:true);
+  }
+  function dblock(m){
+    if(m.datePlanned){var q=m.datePlanned.split("-");return '<b>'+q[2]+'</b><small>'+esc(mshort(m.datePlanned.slice(0,7)))+'</small>'}
+    return '<b>—</b><small>'+esc(m.month?mshort(m.month):"?")+'</small>';
+  }
+  function dueRow(m){
+    return '<div class="due" data-id="'+esc(m.id)+'" data-late="'+(m.datePlanned&&m.datePlanned<=T?"true":"false")+'">'+
+      '<span class="d">'+dblock(m)+'</span>'+
+      '<span class="t"><b>'+esc(m.label)+'</b><small>'+esc(acc(m.account).short||acc(m.account).name)+
+      (m.datePlanned?"":" · date à confirmer")+'</small></span>'+
+      '<span class="a'+(m.dir==="in"?" in":"")+'">'+(m.dir==="in"?"+":"−")+fmt(m.amount)+'</span>'+
+      '<input type="checkbox" class="tickbox" data-act="pay" aria-label="C\'est payé"></div>';
+  }
+  var coming=state.movements.filter(dueThis).sort(function(a,b){
+    var x=a.datePlanned||"9999",y=b.datePlanned||"9999";return x<y?-1:x>y?1:0});
+  var net=0;coming.forEach(function(m){net+=(m.dir==="in"?pa(m.amount):-pa(m.amount))});
+  document.getElementById("coming").innerHTML=coming.length?coming.map(dueRow).join("")
+    :'<div class="empty">Plus rien à payer d\'ici la fin du mois.</div>';
+  document.getElementById("comingHint").textContent=coming.length
+    ? coming.length+(coming.length>1?" lignes":" ligne")+" d'ici fin "+MO.format(new Date()) : "";
+  var after=r2(c.capacity+net);
+  var ab=document.getElementById("afterBox");
+  if(coming.length){
+    var cls=after<0?"bad":(after<50?"warn":"ok");
+    ab.className="after "+cls;
+    ab.innerHTML='<span class="lb"><b>'+(after<0?"Attention, ça ne passe pas":(after<50?"Ça passe, mais tout juste":"Une fois tout payé"))+'</b>'+
+      '<small>'+(after<0?"il te manquera "+fmt(Math.abs(after))+" pour honorer tout ça":"c\'est ce qu\'il te restera")+'</small></span>'+
+      '<span class="big num">'+fmt(after)+'</span>';
+  } else ab.className="", ab.innerHTML="";
+
+  /* ---- les mois suivants ---- */
+  var fut={},order=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.maybe)return;
+    if(acc(m.account).kind==="epargne")return;
+    if(dueThis(m))return;
+    var k=mMonth(m)||"zzz";
+    if(!fut[k]){fut[k]=[];order.push(k)}
+    fut[k].push(m);
+  });
+  order.sort();
+  var fh="";
+  order.forEach(function(k){
+    var g=fut[k],t=0;
+    g.forEach(function(m){t+=(m.dir==="in"?pa(m.amount):-pa(m.amount))});
+    g.sort(function(a,b){var x=a.datePlanned||"9999",y=b.datePlanned||"9999";return x<y?-1:x>y?1:0});
+    fh+='<div class="mhead"><b>'+esc(k==="zzz"?"Sans date":ml(k))+'</b><span>'+(t>=0?"+":"")+fmt(t)+'</span></div>'+
+        '<div>'+g.map(dueRow).join("")+'</div>';
+  });
+  document.getElementById("future").innerHTML=fh||'<div class="empty">Rien de prévu après ce mois-ci.</div>';
 }
 function renderSummary(){
   var c=calc();
@@ -1706,6 +1808,20 @@ document.getElementById("padPlus").addEventListener("click",function(){padAdd("i
 document.getElementById("padMinus").addEventListener("click",function(){padAdd("out")});
 document.getElementById("padAmt").addEventListener("keydown",function(e){if(e.key==="Enter")padAdd("in")});
 
+function onTick(e){
+  var el=e.target;
+  if(el.getAttribute("data-act")!=="pay")return;
+  var row=el.closest(".due");if(!row)return;
+  var m=null,id=row.getAttribute("data-id");
+  state.movements.forEach(function(x){if(x.id===id)m=x});
+  if(!m)return;
+  m.done=true;m.maybe=false;
+  m.dateReal=(m.datePlanned&&m.datePlanned<=today())?m.datePlanned:today();
+  toast("« "+m.label+" » marqué payé");
+  renderAll();save();
+}
+document.getElementById("coming").addEventListener("change",onTick);
+document.getElementById("future").addEventListener("change",onTick);
 document.getElementById("myEntries").addEventListener("click",function(e){
   var el=e.target.closest('[data-act="del"]');if(!el)return;
   var row=el.closest(".entry");if(!row)return;
