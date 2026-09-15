@@ -1682,7 +1682,7 @@ function buildPlan(){
       if(surplus>0){saved=r2(saved+surplus);acts.push({t:"sv",v:surplus,txt:"Et il te reste encore "+fmt(surplus)+" libres"});surplus=0}
     }
     if(flux<=0)acts.push({t:"no",v:0,txt:rev?"Ce mois-ci tu ne dégages rien : "+fmt(Math.abs(flux))+" de trop":"Tu ne m'as pas dit ce que tu gagnes ce mois-là"});
-    months.push({mk:mk,rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts});
+    months.push({mk:mk,first:n===0,rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts});
     if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>0)break;
   }
@@ -1750,11 +1750,18 @@ function renderPlan(){
     h+='<article class="pmonth"><header><b>'+esc(ml(m.mk))+'</b><span style="color:'+(m.bal<0?"var(--debit)":"var(--credit)")+'">compte : '+fmt(m.bal)+'</span></header><div class="pbody">'+
       '<div class="prow"><b>Ce que tu gagnes</b><span class="v" style="color:var(--credit)">+'+fmt(m.rev)+'</span></div>'+
       (m.extra?'<div class="prow"><span>Autres rentrées notées</span><span class="v" style="color:var(--credit)">+'+fmt(m.extra)+'</span></div>':"")+
-      '<div class="prow"><span>Abonnements</span><span class="v">−'+fmt(m.fix)+'</span></div>'+
+      '<div class="prow"><span>Mes prélèvements</span><span class="v">−'+fmt(m.fix)+'</span></div>'+
       (m.due?'<div class="prow"><span>Échéances du mois</span><span class="v">−'+fmt(m.due)+'</span></div>':"")+
       (m.living?'<div class="prow"><span>Pour vivre</span><span class="v">−'+fmt(m.living)+'</span></div>':"")+
       (m.fun?'<div class="prow"><span>Pour me faire plaisir</span><span class="v" style="color:var(--c-beaute)">−'+fmt(m.fun)+'</span></div>':"")+
-      '<div class="prest"><b>Il te reste</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--credit)")+'">'+fmt(m.flux)+'</span></div>';
+      '<div class="prest"><b>Il te reste</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--credit)")+'">'+fmt(m.flux)+'</span></div>'+
+      (m.first?'<details class="detail"><summary>Quel prélèvement, quel jour</summary><div class="detail-list">'+
+        state.fixed.slice().sort(function(a,b){
+          var x=a.day?parseInt(a.day,10):99,y=b.day?parseInt(b.day,10):99;return x-y;
+        }).map(function(f){
+          var dd=f.day?(parseInt(f.day,10)>=29?"dernier jour du mois":"le "+parseInt(f.day,10)):"jour inconnu";
+          return '<div><span>'+esc(dd)+' · '+esc(f.label)+'</span><span class="num">'+fmt(f.amount)+'</span></div>';
+        }).join("")+'</div></details>':"");
     m.acts.forEach(function(a){
       h+='<div class="todo '+a.t+'"><span class="ic">'+(a.t==="od"?"!":(a.t==="cu"?"◆":(a.t==="dt"?"→":(a.t==="sv"?"✓":"·"))))+'</span><span>'+esc(a.txt)+'</span></div>';
     });
