@@ -835,11 +835,12 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:9,
+  v:10,
   settings:{buffer:0,lockSavings:true},
   income:[],
   living:0,
   cushionOn:true,
+  balanceAsOf:"",
   order:["od","cushion","debts","goals"],
   envelopes:[
     {id:"e-cadeaux",name:"Cadeaux pour mon copain",amount:0},
@@ -962,7 +963,7 @@ function migrate(s){
       datePlanned:/^\d{4}-\d{2}-\d{2}$/.test(m.datePlanned||"")?m.datePlanned:"",
       month:/^\d{4}-\d{2}$/.test(m.month||"")?m.month:"",
       dateReal:/^\d{4}-\d{2}-\d{2}$/.test(m.dateReal||"")?m.dateReal:"",
-      done:!!m.done,maybe:!!m.maybe,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free};
+      done:!!m.done,maybe:!!m.maybe,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free,settled:!!m.settled};
   }
   if(Array.isArray(s.movements)){
     var old=["m-avance","m-lissage"];
@@ -980,6 +981,7 @@ function migrate(s){
     return {id:String(i.id||uid()),from:/^\d{4}-\d{2}$/.test(i.from||"")?i.from:curMonth(),amount:pa(i.amount)}});
   o.living=pa(s.living);
   if(typeof s.cushionOn==="boolean")o.cushionOn=s.cushionOn;
+  o.balanceAsOf=/^\d{4}-\d{2}-\d{2}$/.test(s.balanceAsOf||"")?s.balanceAsOf:today();
   if(Array.isArray(s.order)){
     var ok=["od","cushion","debts","goals"],keep=s.order.filter(function(k){return ok.indexOf(k)>=0});
     ok.forEach(function(k){if(keep.indexOf(k)<0)keep.push(k)});
@@ -994,7 +996,7 @@ function migrate(s){
     return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid)}});
   if(Array.isArray(s.loans))o.loans=s.loans.filter(Boolean).map(function(l){
     return {id:String(l.id||uid()),name:String(l.name||""),rest:pa(l.rest),monthly:pa(l.monthly)}});
-  o.v=9;
+  o.v=10;
   return o;
 }
 function loadLocal(){try{var r=localStorage.getItem(LS);return r?migrate(JSON.parse(r)):null}catch(e){return null}}
@@ -1017,7 +1019,7 @@ function calc(){
     var real=ps(a.start),pin=0,pout=0;
     state.movements.forEach(function(m){
       if(m.account!==a.id)return; var v=pa(m.amount);
-      if(m.done)real+=(m.dir==="in"?v:-v);
+      if(m.done){ if(!m.settled)real+=(m.dir==="in"?v:-v); }
       else if(m.maybe)return;
       else if(m.dir==="in")pin+=v; else pout+=v;
     });
@@ -1080,6 +1082,8 @@ function renderWallet(c){
        '<div class="n">'+esc(a.short||a.name)+'</div>'+
        '<input data-wc="'+a.id+'" inputmode="decimal" value="'+nb(a.real)+'" aria-label="Solde '+esc(a.name)+'"></div>';
   });
+  h+='<p class="hint" style="grid-column:1/-1;margin:2px 2px 0">Soldes constatés le <b>'+esc(dl(state.balanceAsOf)||"—")+
+     '</b> : tout ce qui est passé avant est déjà dedans. Si un solde ne colle plus avec ta banque, <b>retape-le</b> — je repars de ce chiffre-là.</p>';
   document.getElementById("wcards").innerHTML=h;
 
   var st=c.capacity<0?"bad":(c.capacity<80?"tight":"ok");
@@ -1100,8 +1104,9 @@ function renderWallet(c){
     eh+='<div class="entry" data-id="'+esc(m.id)+'" style="--ac:'+accC(m.account)+'">'+
       '<span class="dot"></span>'+
       '<span class="txt"><b>'+esc(m.label||(m.dir==="in"?"Argent reçu":"Dépense"))+'</b>'+
-      '<small>'+esc(dl(m.dateReal)||"")+' · '+esc(acc(m.account).short||acc(m.account).name)+'</small></span>'+
-      '<span class="v '+m.dir+'">'+(m.dir==="in"?"+":"−")+fmt(m.amount)+'</span>'+
+      '<small>'+esc(dl(m.dateReal)||"")+' · '+esc(acc(m.account).short||acc(m.account).name)+
+      (m.settled?" · déjà dans ton solde":"")+'</small></span>'+
+      '<span class="v '+m.dir+'"'+(m.settled?' style="opacity:.5"':"")+'>'+(m.dir==="in"?"+":"−")+fmt(m.amount)+'</span>'+
       '<button class="del" type="button" data-act="del" aria-label="Supprimer">×</button></div>';
   });
   document.getElementById("myEntries").innerHTML=eh||
@@ -1858,9 +1863,8 @@ rows.addEventListener("change",function(e){
   var m=find(state.movements,row.getAttribute("data-id"));if(!m)return;
   var a=el.getAttribute("data-act");
   if(a==="done"){
-    m.done=el.checked;
-    if(m.done){m.maybe=false;if(!m.dateReal)m.dateReal=(m.datePlanned&&m.datePlanned<=today())?m.datePlanned:today()}
-    else m.dateReal="";
+    if(el.checked)markPaid(m);
+    else {m.done=false;m.dateReal="";m.settled=false}
     renderRows();renderSummary();save();return;
   }
   if(a==="acc")m.account=el.value;
@@ -2148,10 +2152,7 @@ calcPanel.addEventListener("click",function(e){
 });
 document.getElementById("savingsPanel").addEventListener("input",function(e){
   var el=e.target,id=el.getAttribute("data-sv");if(!id)return;
-  var a=acc(id),c=calc(),cur=null;
-  c.accs.forEach(function(x){if(x.id===id)cur=x});
-  if(!cur)return;
-  a.start=r2(ps(el.value)-(cur.real-ps(a.start)));
+  rebase(id,el.value);
   renderSummary();save();
 });
 document.getElementById("payAmount").addEventListener("input",function(){renderVerdict(calc())});
@@ -2197,6 +2198,12 @@ document.getElementById("padPlus").addEventListener("click",function(){padAdd("i
 document.getElementById("padMinus").addEventListener("click",function(){padAdd("out")});
 document.getElementById("padAmt").addEventListener("keydown",function(e){if(e.key==="Enter")padAdd("in")});
 
+function markPaid(m){
+  m.done=true;m.maybe=false;
+  m.dateReal=(m.datePlanned&&m.datePlanned<=today())?m.datePlanned:today();
+  m.settled = !!(state.balanceAsOf && m.dateReal<state.balanceAsOf);
+  return m.settled;
+}
 function onTick(e){
   var el=e.target;
   if(el.getAttribute("data-act")!=="pay")return;
@@ -2204,9 +2211,8 @@ function onTick(e){
   var m=null,id=row.getAttribute("data-id");
   state.movements.forEach(function(x){if(x.id===id)m=x});
   if(!m)return;
-  m.done=true;m.maybe=false;
-  m.dateReal=(m.datePlanned&&m.datePlanned<=today())?m.datePlanned:today();
-  toast("« "+m.label+" » marqué payé");
+  var already=markPaid(m);
+  toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » marqué payé");
   renderAll();save();
 }
 document.getElementById("coming").addEventListener("change",onTick);
@@ -2220,12 +2226,15 @@ document.getElementById("myEntries").addEventListener("click",function(e){
     renderAll();save();
   });
 });
+function rebase(id,value){
+  var a=acc(id);
+  a.start=r2(ps(value));
+  state.movements.forEach(function(m){if(m.account===id&&m.done)m.settled=true});
+  state.balanceAsOf=today();
+}
 document.getElementById("wcards").addEventListener("input",function(e){
   var id=e.target.getAttribute("data-wc");if(!id)return;
-  var a=acc(id),c=calc(),cur=null;
-  c.accs.forEach(function(x){if(x.id===id)cur=x});
-  if(!cur)return;
-  a.start=r2(ps(e.target.value)-(cur.real-ps(a.start)));
+  rebase(id,e.target.value);
   var cc=calc();
   document.getElementById("dispoVal").textContent=fmt(cc.capacity);
   document.getElementById("dispoBig").setAttribute("data-s",cc.capacity<0?"bad":(cc.capacity<80?"tight":"ok"));
@@ -2367,6 +2376,7 @@ function csv(){
 
 /* ---------- boot ---------- */
 state=loadLocal()||JSON.parse(JSON.stringify(SEED));
+if(!state.balanceAsOf)state.balanceAsOf=today();
 try{var pa2=localStorage.getItem(LS+".padacc");if(pa2)PADACC=pa2}catch(e){}
 try{
   var t=localStorage.getItem(LS+".tab");
