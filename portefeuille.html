@@ -1081,7 +1081,13 @@ function flush(){
   ["catch"](function(){setSync("error","Sur cet appareil")})
   .then(function(){writing=false;if(dirty){dirty=false;flush()}});
 }
-function editing(){var a=document.activeElement;return !!(a&&a.closest&&a.closest(".wrap"))}
+function editing(){
+  var a=document.activeElement;
+  if(!a||!a.closest)return false;
+  var t=(a.tagName||"").toLowerCase();
+  if(t!=="input"&&t!=="select"&&t!=="textarea")return false;
+  return !!a.closest(".wrap");
+}
 
 /* ---------- computation ---------- */
 function calc(){
@@ -2518,8 +2524,22 @@ document.getElementById("quick").addEventListener("click",function(e){
   var i=document.getElementById("payAmount");
   i.value=nb(pa(i.value)+Number(b.getAttribute("data-v")));renderVerdict(calc());
 });
-document.addEventListener("focusout",function(){
-  setTimeout(function(){if(pendingRemote&&!editing()){state=migrate(pendingRemote);pendingRemote=null;renderAll()}},80);
+function applyPending(){
+  if(pendingRemote&&!editing()){state=migrate(pendingRemote);pendingRemote=null;renderAll()}
+}
+document.addEventListener("focusout",function(){setTimeout(applyPending,80)});
+setInterval(applyPending,3000);
+/* au retour sur l'appli, on recharge la dernière version */
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState!=="visible"||!docRef)return;
+  docRef.get().then(function(sn){
+    if(!sn.exists)return;
+    var dd=sn.data();if(!dd||!dd.state)return;
+    var j=JSON.stringify(dd.state);
+    if(j===lastSent||j===JSON.stringify(state))return;
+    if(editing()){pendingRemote=dd.state;return}
+    state=migrate(dd.state);renderAll();
+  })["catch"](function(){});
 });
 
 /* ---------- pad : + / − en un geste ---------- */
