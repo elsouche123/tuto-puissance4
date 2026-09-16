@@ -574,6 +574,7 @@ details.detail{margin-top:10px}
 details.detail summary{cursor:pointer;font-size:12.5px;color:var(--ink-2);list-style:none}
 details.detail summary::-webkit-details-marker{display:none}
 details.detail summary::before{content:"▸ ";color:var(--ink-3)}
+.chgbox{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);font-size:12.5px;line-height:1.5}
 details.detail[open] summary::before{content:"▾ "}
 .detail-list{margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--card-2);font-size:12.5px}
 .detail-list div{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
@@ -1907,7 +1908,11 @@ function buildPlan(){
       if(surplus>0){saved=r2(saved+surplus);alloc.goals=r2(alloc.goals+surplus);acts.push({t:"sv",v:surplus,txt:"Et il te reste encore "+fmt(surplus)+" libres"});surplus=0}
     }
     if(flux<=0)acts.push({t:"no",v:0,txt:rev?"Ce mois-ci tu ne dégages rien : "+fmt(Math.abs(flux))+" de trop":"Tu ne m'as pas dit ce que tu gagnes ce mois-là"});
-    months.push({mk:mk,first:n===0,rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
+    var got=0;
+    if(n===0)state.movements.forEach(function(x){
+      if(x.done&&x.dir==="in"&&!x.settled&&(x.dateReal||"").slice(0,7)===cm)got+=pa(x.amount);
+    });
+    months.push({mk:mk,first:n===0,got:r2(got),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
     if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>0)break;
   }
@@ -1956,6 +1961,49 @@ function renderOrder(){
   });
   document.getElementById("orderList").innerHTML=h;
 }
+function monthDetail(m){
+  var mk=m.mk, prev=addM(mk,-1);
+  var rows=state.fixed.slice().map(function(f){
+    return {f:f, now:fixAmountFor(f,mk), was:fixAmountFor(f,prev),
+            day:f.day?parseInt(f.day,10):99};
+  }).filter(function(r){return r.now>0||r.was>0}).sort(function(a,b){return a.day-b.day});
+  var changed=rows.filter(function(r){return r.now!==r.was});
+  var ech=state.movements.filter(function(x){
+    if(x.done||x.maybe)return false;
+    if(acc(x.account).kind==="epargne")return false;
+    return (mMonth(x)||"")===mk;
+  }).sort(function(a,b){var p=a.datePlanned||"9999",q=b.datePlanned||"9999";return p<q?-1:p>q?1:0});
+
+  var warn="";
+  if(changed.length&&!m.first){
+    warn='<div class="chgbox"><b>Tes prélèvements passent de '+fmt(rows.reduce(function(t,r){return t+r.was},0))+
+      ' à '+fmt(m.fix)+' ce mois-ci</b><br>'+changed.map(function(r){
+        return r.now===0 ? esc(r.f.label)+" s'arrête (−"+fmt(r.was)+")"
+             : (r.was===0 ? esc(r.f.label)+" démarre (+"+fmt(r.now)+")"
+                          : esc(r.f.label)+" passe de "+fmt(r.was)+" à "+fmt(r.now));
+      }).join("<br>")+'</div>';
+  }
+  return warn+'<details class="detail"><summary>Voir le détail de ce mois, ligne par ligne</summary><div class="detail-list">'+
+    '<div style="font-weight:700;padding-bottom:4px"><span>Prélèvements</span><span class="num">'+fmt(m.fix)+'</span></div>'+
+    (m.first?'<div class="hint" style="padding:0 0 6px">Les lignes grisées ne sont pas comptées ici : elles sont déjà payées, ou reprises dans « ce que tu dois payer ».</div>':"")+
+    rows.map(function(r){
+      var dd=r.day<99?(r.day>=29?"dernier jour":"le "+r.day):"jour inconnu";
+      var note="",grey=false;
+      if(m.first){
+        var mv=null;
+        state.movements.forEach(function(x){if(x.fixId===r.f.id&&x.fixMonth===mk)mv=x});
+        if(mv&&mv.done){note=" — déjà payé";grey=true}
+        else if(mv){note=" — repris plus bas";grey=true}
+      }
+      return '<div'+(grey?' style="opacity:.55"':(r.now!==r.was?' style="color:var(--warn);font-weight:600"':''))+
+        '><span>'+esc(dd)+' · '+esc(r.f.label)+esc(note)+'</span><span class="num">'+fmt(r.now)+'</span></div>';
+    }).join("")+
+    (ech.length?'<div style="font-weight:700;padding:8px 0 4px;border-top:1px solid var(--rule);margin-top:6px"><span>Ce que tu dois payer</span><span class="num">'+fmt(m.due)+'</span></div>'+
+      ech.map(function(x){
+        return '<div><span>'+(x.datePlanned?esc(dl(x.datePlanned)):"date à confirmer")+' · '+esc(x.label)+'</span><span class="num">'+(x.dir==="in"?"+":"−")+fmt(x.amount)+'</span></div>';
+      }).join(""):"")+
+    '</div></details>';
+}
 function renderPlan(){
   renderIncome();renderLiving();renderOrder();
   var P=buildPlan();
@@ -1989,7 +2037,8 @@ function renderPlan(){
     }
     h+='<article class="pmonth"><header><b>'+esc(ml(m.mk))+'</b><span style="color:'+(m.bal<0?"var(--debit)":"var(--credit)")+'">compte : '+fmt(m.bal)+'</span></header><div class="pbody">'+
       line("Ce que tu gagnes","","+"+fmt(m.rev),"var(--credit)",true)+
-      (m.extra?line("Autres rentrées notées","","+"+fmt(m.extra),"var(--credit)"):"")+
+      (m.extra?line("Autres rentrées que tu attends","","+"+fmt(m.extra),"var(--credit)"):"")+
+      (m.first&&m.got?line("Déjà encaissé ce mois-ci","resto, pourboires… déjà dans ton solde","+"+fmt(m.got),"var(--credit)"):"")+
       line("Mes abonnements et prélèvements","Claude, salle de sport, crédit, PEL…","−"+fmt(m.fix),"var(--debit)")+
       (m.due?line("Ce que je dois payer ce mois-ci","EMDR, Scalapay, Klarna…","−"+fmt(m.due),"var(--debit)"):"")+
       (m.living?line("Ce que tu dépenses au quotidien","d\'après ce que tu notes","−"+fmt(m.living),"var(--debit)"):"")+
@@ -2002,13 +2051,7 @@ function renderPlan(){
         (m.alloc.goals?line("Mettre de côté","permis, voiture, mariage…","−"+fmt(m.alloc.goals),"var(--credit)"):"")+
         '<div class="prest final"><b>Il me reste vraiment</b><span class="v">'+fmt(m.rest)+'</span></div>'
       :"")+
-      (m.first?'<details class="detail"><summary>Quel prélèvement, quel jour</summary><div class="detail-list">'+
-        state.fixed.slice().sort(function(a,b){
-          var x=a.day?parseInt(a.day,10):99,y=b.day?parseInt(b.day,10):99;return x-y;
-        }).map(function(f){
-          var dd=f.day?(parseInt(f.day,10)>=29?"dernier jour du mois":"le "+parseInt(f.day,10)):"jour inconnu";
-          return '<div><span>'+esc(dd)+' · '+esc(f.label)+'</span><span class="num">'+fmt(f.amount)+'</span></div>';
-        }).join("")+'</div></details>':"");
+      monthDetail(m);
     m.acts.forEach(function(a){
       if(a.t==="sv"&&!/:/.test(a.txt))return;
       h+='<div class="todo '+a.t+'"><span class="ic">'+(a.t==="od"?"!":(a.t==="cu"?"◆":(a.t==="dt"?"→":(a.t==="sv"?"✓":"·"))))+'</span><span>'+esc(a.txt)+'</span></div>';
