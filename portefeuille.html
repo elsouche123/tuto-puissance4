@@ -623,6 +623,7 @@ details.detail[open] summary::before{content:"▾ "}
     <button role="tab" data-tab="today" aria-selected="true">Mon portefeuille</button>
     <button role="tab" data-tab="pay" aria-selected="false">À payer <span class="badge" id="fixBadge" hidden></span></button>
     <button role="tab" data-tab="more" aria-selected="false">Mon plan</button>
+    <button role="tab" data-tab="debts" aria-selected="false">Dettes</button>
   </nav>
 </header>
 
@@ -959,7 +960,7 @@ var SEED = {
 };
 
 var ACCIDS=["sg","revolut","cash","ldd","ljeune","pel"];
-var TABG={today:["today"],pay:["reg","fix"],more:["plan","save","debt"]};
+var TABG={today:["today"],pay:["reg","fix"],more:["plan","save"],debts:["debt"]};
 var LS="portefeuille.v3", state=null, filter="all", tab="today";
 var docRef=null, hydrated=false, saveTimer=null, writing=false, dirty=false, lastSent="", pendingRemote=null;
 
@@ -1831,7 +1832,7 @@ function buildPlan(){
       flux=r2(rev+e.in-fx-e.out-living);
     }
     bal=r2(bal+flux);
-    var acts=[],surplus=flux,alloc={od:0,cushion:0,debts:0,goals:0};
+    var acts=[],surplus=flux,alloc={od:0,cushion:0,debts:0,goals:0},who=[],what=[];
 
     /* objectifs datés : ce qu'il faut mettre ce mois-ci pour tenir la date */
     var dated=goals.filter(function(g){return g.by&&g.target>0&&g.saved<g.target&&g.by>=mk})
@@ -1842,6 +1843,7 @@ function buildPlan(){
       var q=Math.min(need,Math.max(0,surplus));
       if(q>0){
         g.saved=r2(g.saved+q);surplus=r2(surplus-q);saved=r2(saved+q);alloc.goals=r2(alloc.goals+q);
+        what.push(g.name+" "+fmt(q)+(g.saved>=g.target?" ✓":""));
         acts.push({t:"sv",v:0,txt:"Pour ton "+g.name.toLowerCase()+" de "+ml(g.by)+" : tu mets "+fmt(q)+
           (g.saved>=g.target?" ✓ objectif atteint":" ("+fmt(g.saved)+" sur "+fmt(g.target)+")")});
         if(g.saved>=g.target&&!g.eta)g.eta=mk;
@@ -1908,6 +1910,7 @@ function buildPlan(){
         var d=debts[0],put2=Math.min(d.rest,budget);
         d.rest=r2(d.rest-put2);surplus=r2(surplus-put2);budget=r2(budget-put2);alloc.debts=r2(alloc.debts+put2);
         paid.push(d.name+" "+fmt(put2)+(d.rest>0?" (il restera "+fmt(d.rest)+")":""));
+        who.push(d.name+" "+fmt(put2)+(d.rest<=0?" ✓":""));
         sched.push({name:d.name,mk:mk,amount:put2,rest:d.rest,cleared:d.rest<=0});
         if(d.rest<=0)debts.shift(); else break;
       }
@@ -1922,6 +1925,7 @@ function buildPlan(){
         var q=Math.min(g.target-g.saved,surplus);
         g.saved=r2(g.saved+q);surplus=r2(surplus-q);saved=r2(saved+q);alloc.goals=r2(alloc.goals+q);
         put3.push(g.name+" "+fmt(q)+(g.saved>=g.target?" ✓ objectif atteint":""));
+        what.push(g.name+" "+fmt(q)+(g.saved>=g.target?" ✓":""));
         if(g.saved>=g.target&&!g.eta)g.eta=mk;
       });
       if(put3.length)acts.push({t:"sv",v:0,txt:"Tu mets de côté : "+put3.join(", ")});
@@ -1935,7 +1939,8 @@ function buildPlan(){
       if(x.dir==="in"){if(!x.settled)got+=pa(x.amount)}
       else spent+=pa(x.amount);
     });
-    months.push({mk:mk,first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
+    var pelAmt=0;state.fixed.forEach(function(f){if(/PEL/i.test(f.label))pelAmt+=fixAmountFor(f,mk)});
+    months.push({mk:mk,who:who,what:what,pel:r2(pelAmt),first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
     if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>=1&&!Object.keys(state.incomeByMonth||{}).length)break;
   }
@@ -2048,13 +2053,14 @@ function renderPlan(){
           '<span class="rt"><input class="monthinc" data-mk="'+esc(m.mk)+'" inputmode="decimal" value="'+(m.rev?nb(m.rev):"")+'" placeholder="0,00" aria-label="Revenus du mois"></span></div>')+
       (m.extra?line("Ce que tu attends encore","noté par toi","+"+fmt(m.extra),"var(--credit)"):"")+
       line("Reste à payer ce mois-ci","prélèvements + échéances","−"+fmt(m.toPay),"var(--debit)")+
+      (m.pel?line("dont virement vers mon PEL","compris dans la ligne du dessus","−"+fmt(m.pel),"var(--ac-pel)"):"")+
       ((m.first?m.livingLeft:m.living)?line("Ce que tu dépenses au quotidien",
         m.first?"ce qu'il t'en reste d'ici la fin du mois":"d'après ce que tu notes",
         "−"+fmt(m.first?m.livingLeft:m.living),"var(--debit)"):"")+
       '<div class="prest"><b>'+(m.flux<0?"Il te manque":"Il te reste")+'</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--ink)")+'">'+fmt(m.flux)+'</span></div>'+
       (m.flux>0?
-        (m.alloc.debts?line("→ Pour rembourser","","−"+fmt(m.alloc.debts),"var(--c-dette)"):"")+
-        (m.alloc.goals?line("→ Pour mes objectifs","permis, PEL, voiture…","−"+fmt(m.alloc.goals),"var(--credit)"):"")+
+        (m.alloc.debts?line("→ Pour rembourser",(m.who||[]).join(" · "),"−"+fmt(m.alloc.debts),"var(--c-dette)"):"")+
+        (m.alloc.goals?line("→ Pour mes objectifs",(m.what||[]).join(" · "),"−"+fmt(m.alloc.goals),"var(--credit)"):"")+
         (m.alloc.od?line("→ Pour combler ton découvert","","−"+fmt(m.alloc.od),"var(--debit)"):"")+
         (m.alloc.cushion?line("→ Argent de secours","","−"+fmt(m.alloc.cushion),"var(--c-transport)"):"")+
         (m.rest>0?'<div class="prest final"><b>Libre</b><span class="v">'+fmt(m.rest)+'</span></div>':"")
