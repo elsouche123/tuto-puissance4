@@ -1815,7 +1815,15 @@ function buildPlan(){
     var mk=addM(cm,n);
     var rev=incomeFor(mk), e=byM[mk]||{in:0,out:0};
     var fx=(n===0?missTot:fixTotalFor(mk));
-    var flux=r2(rev+e.in-fx-e.out-living-fun);
+    var flux, livingLeft=living, have=0;
+    if(n===0){
+      /* ce mois-ci : on part de ce qu'il y a sur les comptes, le salaire est déjà dedans */
+      have=c.capacity;
+      livingLeft=r2(Math.max(0,living-spentFree()));
+      flux=r2(have+e.in-fx-e.out-livingLeft);
+    } else {
+      flux=r2(rev+e.in-fx-e.out-living);
+    }
     bal=r2(bal+flux);
     var acts=[],surplus=flux,alloc={od:0,cushion:0,debts:0,goals:0};
 
@@ -1921,7 +1929,7 @@ function buildPlan(){
       if(x.dir==="in"){if(!x.settled)got+=pa(x.amount)}
       else spent+=pa(x.amount);
     });
-    months.push({mk:mk,first:n===0,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
+    months.push({mk:mk,first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
     if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>=1&&!Object.keys(state.incomeByMonth||{}).length)break;
   }
@@ -2024,13 +2032,19 @@ function renderPlan(){
     }
     h+='<article class="pmonth"><header><b>'+esc(ml(m.mk))+'</b>'+
       (m.first?'<span style="color:var(--ink-2);font-size:12px">ce mois-ci</span>':"")+'</header><div class="pbody">'+
-      '<div class="prow strong"><span class="lb"><b>Ce que je gagne ce mois-ci</b>'+
-      '<small>'+(m.known?"c\'est toi qui l\'as dit":"reprise du mois précédent — corrige si besoin")+'</small></span>'+
-      '<span class="rt"><input class="monthinc" data-mk="'+esc(m.mk)+'" inputmode="decimal" value="'+(m.rev?nb(m.rev):"")+'" placeholder="0,00" aria-label="Revenus du mois"></span></div>'+
-      (m.got?line("Déjà encaissé en plus","resto, pourboires — noté par toi","+"+fmt(m.got),"var(--credit)"):"")+
-      (m.spent?line("Déjà dépensé ce mois-ci","","−"+fmt(m.spent),"var(--debit)"):"")+
+      (m.first
+        ? line("Ce que tu as là, maintenant","sur tes comptes, découvert autorisé compris",
+               (m.have<0?"":"")+fmt(m.have),(m.have<0?"var(--debit)":"var(--credit)"),true)+
+          (m.got?line("Déjà encaissé ce mois-ci","resto, pourboires — compris dans le solde ci-dessus","+"+fmt(m.got),"var(--ink-3)"):"")+
+          (m.spent?line("Déjà dépensé ce mois-ci","compris dans le solde ci-dessus","−"+fmt(m.spent),"var(--ink-3)"):"")
+        : '<div class="prow strong"><span class="lb"><b>Ce que je gagne ce mois-ci</b>'+
+          '<small>'+(m.known?"c\'est toi qui l\'as dit":"reprise du mois précédent — corrige si besoin")+'</small></span>'+
+          '<span class="rt"><input class="monthinc" data-mk="'+esc(m.mk)+'" inputmode="decimal" value="'+(m.rev?nb(m.rev):"")+'" placeholder="0,00" aria-label="Revenus du mois"></span></div>')+
+      (m.extra?line("Ce que tu attends encore","noté par toi","+"+fmt(m.extra),"var(--credit)"):"")+
       line("Reste à payer ce mois-ci","prélèvements + échéances","−"+fmt(m.toPay),"var(--debit)")+
-      (m.living?line("Ce que tu dépenses au quotidien","d\'après ce que tu notes","−"+fmt(m.living),"var(--debit)"):"")+
+      ((m.first?m.livingLeft:m.living)?line("Ce que tu dépenses au quotidien",
+        m.first?"ce qu'il t'en reste d'ici la fin du mois":"d'après ce que tu notes",
+        "−"+fmt(m.first?m.livingLeft:m.living),"var(--debit)"):"")+
       '<div class="prest"><b>'+(m.flux<0?"Il te manque":"Il te reste")+'</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--ink)")+'">'+fmt(m.flux)+'</span></div>'+
       (m.flux>0?
         (m.alloc.debts?line("→ Pour rembourser","","−"+fmt(m.alloc.debts),"var(--c-dette)"):"")+
