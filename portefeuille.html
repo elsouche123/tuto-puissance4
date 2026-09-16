@@ -251,6 +251,8 @@ button.chip{cursor:pointer;font-family:inherit}
 .sub .samt2{grid-area:amt;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
 .sub .edit-toggle2{grid-area:edit;cursor:pointer;font-family:inherit}
 .sub .sedit{grid-area:edit2;display:none;flex-wrap:wrap;gap:6px;align-items:center;padding-top:7px}
+.sub .subx{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-top:4px}
+.sub .subx input[type=month]{padding:5px 8px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:12px}
 .sub[data-open="true"] .sedit{display:flex}
 .lrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 9px;padding:11px 13px;border:1px solid var(--rule);border-top:none;background:var(--card)}
 .lrow:first-of-type{border-top:1px solid var(--rule);border-radius:var(--radius) var(--radius) 0 0}
@@ -718,7 +720,7 @@ details.detail[open] summary::before{content:"▾ "}
         <input class="fld num" id="eAmount" inputmode="decimal" placeholder="€ / mois" aria-label="Montant" style="width:100px">
         <button class="btn" type="submit">Ajouter</button>
       </form>
-      <label class="switch" style="margin-top:12px"><input type="checkbox" id="cushionOn"><span>Me constituer un matelas d'urgence de 3 mois d'abonnements — important tant que tu es en période d'essai</span></label>
+      <label class="switch" style="margin-top:12px"><input type="checkbox" id="cushionOn"><span><b>Me garder un argent de secours</b><br><small style="color:var(--ink-2)">Trois mois de prélèvements mis de côté et qu'on ne touche pas. Si tu perds ton travail, si ta voiture casse, si tu tombes malade — tu tiens trois mois sans rien demander à personne. Tu es en période d'essai sans droit au chômage : c'est ce qui te protège vraiment.</small></span></label>
     </div>
   </div>
 
@@ -900,7 +902,7 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:13,
+  v:14,
   settings:{buffer:0,lockSavings:true},
   income:[],
   living:0,
@@ -1043,7 +1045,10 @@ function migrate(s){
   }
   if(Array.isArray(s.fixed))o.fixed=s.fixed.filter(Boolean).map(function(f){
     return {id:String(f.id||uid()),label:String(f.label||""),account:ACCIDS.indexOf(f.account)>=0?f.account:"sg",
-      amount:pa(f.amount),day:String(f.day||"").replace(/[^0-9]/g,"").slice(0,2),cat:CATS.indexOf(f.cat)>=0?f.cat:"Abonnement"}});
+      amount:pa(f.amount),day:String(f.day||"").replace(/[^0-9]/g,"").slice(0,2),cat:CATS.indexOf(f.cat)>=0?f.cat:"Abonnement",
+      until:/^\d{4}-\d{2}$/.test(f.until||"")?f.until:"",
+      nextFrom:/^\d{4}-\d{2}$/.test(f.nextFrom||"")?f.nextFrom:"",
+      nextAmount:pa(f.nextAmount)}});
   if(Array.isArray(s.income))o.income=s.income.filter(Boolean).map(function(i){
     return {id:String(i.id||uid()),from:/^\d{4}-\d{2}$/.test(i.from||"")?i.from:curMonth(),amount:pa(i.amount)}});
   o.living=pa(s.living);
@@ -1066,7 +1071,7 @@ function migrate(s){
     return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid)}});
   if(Array.isArray(s.loans))o.loans=s.loans.filter(Boolean).map(function(l){
     return {id:String(l.id||uid()),name:String(l.name||""),rest:pa(l.rest),monthly:pa(l.monthly)}});
-  o.v=13;
+  o.v=14;
   return o;
 }
 function loadLocal(){try{var r=localStorage.getItem(LS);return r?migrate(JSON.parse(r)):null}catch(e){return null}}
@@ -1555,15 +1560,25 @@ function renderFixed(){
   rows.forEach(function(r){
     var f=r.f;
     var o="";state.accounts.forEach(function(a){o+='<option value="'+a.id+'"'+(a.id===f.account?" selected":"")+">"+esc(a.name)+"</option>"});
-    h+='<div class="sub '+r.cls+'" data-id="'+esc(f.id)+'">'+
+    h+='<div class="sub '+r.cls+'" data-id="'+esc(f.id)+'"'+(FIXOPEN===f.id?' data-open="true"':'')+'>'+
       '<span class="sday"><b>'+(r.day||"?")+'</b></span>'+
-      '<span class="sinfo"><b>'+esc(f.label)+'</b><small>'+esc(r.st)+(r.when?" "+esc(r.when):"")+'</small></span>'+
+      '<span class="sinfo"><b>'+esc(f.label)+'</b><small>'+esc(r.st)+(r.when?" "+esc(r.when):"")+
+      (f.nextFrom?' · passe à '+fmt(f.nextAmount)+' en '+esc(mshort(f.nextFrom)):"")+
+      (f.until?' · s\'arrête après '+esc(mshort(f.until)):"")+'</small></span>'+
       '<span class="samt2">'+fmt(r.amt)+'</span>'+
-      '<button class="chip sure edit-toggle2" type="button" data-act="edit">Modifier</button>'+
+      '<button class="chip sure edit-toggle2" type="button" data-act="edit">'+(FIXOPEN===f.id?"Fermer":"Modifier")+'</button>'+
       '<span class="sedit"><input class="fld num w96" data-act="amount" inputmode="decimal" value="'+nb(f.amount)+'" aria-label="Montant">'+
       '<input class="fld num w70" data-act="day" inputmode="numeric" placeholder="jour" value="'+esc(f.day)+'" aria-label="Jour">'+
       '<select class="fld w140" data-act="acc">'+o+'</select>'+
-      '<button class="del" type="button" data-act="del" aria-label="Supprimer">×</button></span>'+
+      '<button class="del" type="button" data-act="del" aria-label="Supprimer">×</button>'+
+      '<span class="subx"><span class="field-lbl">À partir de</span>'+
+      '<input type="month" data-act="nextFrom" value="'+esc(f.nextFrom||"")+'" aria-label="À partir de">'+
+      '<span class="field-lbl">ce sera</span>'+
+      '<input class="fld num w96" data-act="nextAmount" inputmode="decimal" value="'+(f.nextAmount?nb(f.nextAmount):"")+'" placeholder="€" aria-label="Nouveau montant">'+
+      '</span>'+
+      '<span class="subx"><span class="field-lbl">Dernier mois</span>'+
+      '<input type="month" data-act="until" value="'+esc(f.until||"")+'" aria-label="Jusqu\'à">'+
+      '<span class="hint">(laisse vide si ça continue)</span></span>'+'</span>'+
     '</div>';
   });
   document.getElementById("fixList").innerHTML=h||'<div class="empty">Aucun abonnement.</div>';
@@ -1677,6 +1692,15 @@ function incomeFor(mk){
   state.income.forEach(function(i){if(i.from<=mk&&(!best||i.from>best.from))best=i});
   return best?pa(best.amount):0;
 }
+var FIXOPEN="";
+function fixAmountFor(f,mk){
+  if(f.until&&mk>f.until)return 0;
+  if(f.nextFrom&&mk>=f.nextFrom)return pa(f.nextAmount);
+  return pa(f.amount);
+}
+function fixTotalFor(mk){
+  var t=0;state.fixed.forEach(function(f){t+=fixAmountFor(f,mk)});return r2(t);
+}
 function funBudget(){return r2(state.envelopes.reduce(function(t,e){return t+pa(e.amount)},0))}
 function spentFree(){
   var cm=curMonth(),t=0;
@@ -1688,7 +1712,7 @@ function spentFree(){
 }
 function buildPlan(){
   var c=calc(),cm=curMonth();
-  var fixTot=r2(state.fixed.reduce(function(t,f){return t+pa(f.amount)},0));
+  var fixTot=fixTotalFor(cm);
   var missTot=r2(missingFixed().reduce(function(t,f){return t+pa(f.amount)},0));
   var living=pa(state.living),fun=funBudget();
   var cushionTarget=state.cushionOn?r2(fixTot*3):0,cushion=0,cushionDone=null;
@@ -1712,7 +1736,7 @@ function buildPlan(){
   for(var n=0;n<36;n++){
     var mk=addM(cm,n);
     var rev=incomeFor(mk), e=byM[mk]||{in:0,out:0};
-    var fx=(n===0?missTot:fixTot);
+    var fx=(n===0?missTot:fixTotalFor(mk));
     var flux=r2(rev+e.in-fx-e.out-living-fun);
     bal=r2(bal+flux);
     var acts=[],surplus=flux,alloc={od:0,cushion:0,debts:0,goals:0};
@@ -1776,12 +1800,12 @@ function buildPlan(){
       acts.push({t:"od",v:put,txt:od<=0?"Tu sors du découvert — ton compte repasse à zéro":"Tu combles "+fmt(put)+" de ton découvert, il en restera "+fmt(od)});
       if(od<=0&&!odDone)odDone=mk;
     }
-    /* 2. matelas d'urgence : trois mois d'abonnements, à cause de la période d'essai */
+    /* 2. argent de secours : trois mois d'abonnements, à cause de la période d'essai */
     if(surplus>0&&cushionTarget>0&&cushion<cushionTarget&&before("cushion")){
       var pc=Math.min(cushionTarget-cushion,surplus);cushion=r2(cushion+pc);surplus=r2(surplus-pc);alloc.cushion=r2(alloc.cushion+pc);
       acts.push({t:"cu",v:pc,txt:cushion>=cushionTarget
-        ? "Ton matelas d'urgence est plein : "+fmt(cushionTarget)+" de côté, tu tiens 3 mois sans rien"
-        : "Tu mets "+fmt(pc)+" dans ton matelas d'urgence ("+fmt(cushion)+" sur "+fmt(cushionTarget)+")"});
+        ? "Ton argent de secours est plein : "+fmt(cushionTarget)+" de côté, tu tiens 3 mois sans rien"
+        : "Tu mets "+fmt(pc)+" dans ton argent de secours ("+fmt(cushion)+" sur "+fmt(cushionTarget)+")"});
       if(cushion>=cushionTarget&&!cushionDone)cushionDone=mk;
     }
     /* 3. rembourser les proches, du plus petit au plus gros */
@@ -1832,7 +1856,7 @@ function renderIncome(){
     '<p class="hint" style="margin:0">Rien pour l\'instant. Dis-moi ce que tu gagnes aujourd\'hui, puis ajoute une ligne à partir de novembre quand ton salaire change.</p>';
   document.getElementById("livingIn").value=nb(state.living);
 }
-var ORDNAMES={od:"Combler mon découvert",cushion:"Mon matelas d'urgence",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
+var ORDNAMES={od:"Combler mon découvert",cushion:"Mon argent de secours (coup dur)",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
 function renderOrder(){
   var h="";
   (state.order||[]).forEach(function(k,i){
@@ -1897,7 +1921,7 @@ function renderPlan(){
       '<div class="prest"><b>'+(m.flux<0?"Il te manque":"Il reste")+'</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--ink)")+'">'+fmt(m.flux)+'</span></div>'+
       (m.flux>0?
         (m.alloc.od?line("Combler mon découvert","","−"+fmt(m.alloc.od),"var(--debit)"):"")+
-        (m.alloc.cushion?line("Mon matelas d\'urgence","","−"+fmt(m.alloc.cushion),"var(--c-transport)"):"")+
+        (m.alloc.cushion?line("Mon argent de secours","","−"+fmt(m.alloc.cushion),"var(--c-transport)"):"")+
         (m.alloc.debts?line("Rembourser mes proches","","−"+fmt(m.alloc.debts),"var(--c-dette)"):"")+
         (m.alloc.goals?line("Mettre de côté","permis, voiture, mariage…","−"+fmt(m.alloc.goals),"var(--credit)"):"")+
         '<div class="prest final"><b>Il me reste vraiment</b><span class="v">'+fmt(m.rest)+'</span></div>'
@@ -1919,7 +1943,7 @@ function renderPlan(){
   host.innerHTML=h;
 }
 var ECOL=["var(--e1)","var(--e2)","var(--e3)","var(--e4)","var(--e5)","var(--e6)"];
-var ORDNAMES={od:"Combler mon découvert",cushion:"Mon matelas d'urgence",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
+var ORDNAMES={od:"Combler mon découvert",cushion:"Mon argent de secours (coup dur)",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
 function planIncome(){
   var P=state.plan,cm=curMonth();
   return cm>=P.cdiFrom?{amount:pa(P.incomeCdi),label:P.cdiLabel}:{amount:pa(P.income),label:P.incomeLabel};
@@ -2139,6 +2163,7 @@ fixHost.addEventListener("input",function(e){
   if(a==="label")f.label=el.value;
   else if(a==="amount")f.amount=pa(el.value);
   else if(a==="day")f.day=el.value.replace(/[^0-9]/g,"").slice(0,2);
+  else if(a==="nextAmount")f.nextAmount=pa(el.value);
   else return;
   document.getElementById("fixTotal").textContent=fmt(state.fixed.reduce(function(s,x){return s+pa(x.amount)},0));
   save();
@@ -2146,11 +2171,16 @@ fixHost.addEventListener("input",function(e){
 fixHost.addEventListener("change",function(e){
   var el=e.target,row=el.closest(".sub");if(!row)return;
   var f=find(state.fixed,row.getAttribute("data-id"));if(!f)return;
-  if(el.getAttribute("data-act")==="acc"){f.account=el.value;save()}
+  var aa=el.getAttribute("data-act");
+  if(aa==="acc"){f.account=el.value;save();return}
+  if(aa==="nextFrom"){f.nextFrom=el.value||"";renderAll();save();return}
+  if(aa==="until"){f.until=el.value||"";renderAll();save();return}
+  if(aa==="nextAmount"){renderAll();save();return}
 });
 fixHost.addEventListener("click",function(e){
   var t=e.target.closest('[data-act="edit"]');
   if(t){var rw=t.closest(".sub");var op=rw.getAttribute("data-open")==="true";
+    FIXOPEN=op?"":rw.getAttribute("data-id");
     rw.setAttribute("data-open",op?"false":"true");t.textContent=op?"Modifier":"Fermer";return}
   var g=e.target.closest("#genFix");
   if(g){
