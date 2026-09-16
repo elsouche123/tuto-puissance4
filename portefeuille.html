@@ -695,32 +695,7 @@ details.detail[open] summary::before{content:"▾ "}
         <input class="fld num" id="iAmount" inputmode="decimal" placeholder="€ / mois" aria-label="Montant" required style="width:110px">
         <button class="btn" type="submit">Ajouter</button>
       </form>
-      <div class="plan-line" style="margin-top:12px"><span class="lb">Ce qu'il me faut pour vivre<small>courses, essence, sorties — ton chiffre à toi</small></span>
-        <span class="rt"><input id="livingIn" inputmode="decimal" aria-label="Pour vivre"><span class="am">/ mois</span></span></div>
-    </div>
-  </div>
-
-  <div class="sect">
-    <div class="sect-head"><h2>Chaque mois, je m'engage à</h2><span class="hint">Ça part dès ce mois-ci, avant tout le reste.</span></div>
-    <div class="panel" style="padding:14px">
-      <div class="plan-line" style="padding-top:0"><span class="lb">Rembourser mes proches<small>du plus petit montant au plus gros</small></span>
-        <span class="rt"><input id="pledgeD" inputmode="decimal" aria-label="Pour mes proches"><span class="am">/ mois</span></span></div>
-      <div class="plan-line"><span class="lb">Mettre de côté<small>permis, voiture, mariage, appartement</small></span>
-        <span class="rt"><input id="pledgeS" inputmode="decimal" aria-label="Mise de côté"><span class="am">/ mois</span></span></div>
-      <p class="hint" style="margin:10px 0 0">Laisse à 0 et l'appli décide toute seule, dans l'ordre plus bas. Mets un montant et il part <b>dès septembre</b>, même si ton découvert n'est pas encore comblé.</p>
-    </div>
-  </div>
-
-  <div class="sect">
-    <div class="sect-head"><h2>Ce que je me garde pour moi</h2><span class="hint">Cadeaux, restaurants, plaisir — tu y as droit.</span></div>
-    <div class="panel" style="padding:14px">
-      <div id="envList"></div>
-      <form id="envForm" class="put-row" style="margin-top:11px" autocomplete="off">
-        <input class="fld" id="eName" placeholder="Autre chose (ex. Sorties)" aria-label="Nom" required style="flex:1 1 140px">
-        <input class="fld num" id="eAmount" inputmode="decimal" placeholder="€ / mois" aria-label="Montant" style="width:100px">
-        <button class="btn" type="submit">Ajouter</button>
-      </form>
-      <label class="switch" style="margin-top:12px"><input type="checkbox" id="cushionOn"><span><b>Me garder un argent de secours</b><br><small style="color:var(--ink-2)">Trois mois de prélèvements mis de côté et qu'on ne touche pas. Si tu perds ton travail, si ta voiture casse, si tu tombes malade — tu tiens trois mois sans rien demander à personne. Tu es en période d'essai sans droit au chômage : c'est ce qui te protège vraiment.</small></span></label>
+      <div id="livingBox" style="margin-top:12px"></div>
     </div>
   </div>
 
@@ -728,6 +703,7 @@ details.detail[open] summary::before{content:"▾ "}
     <div class="sect-head"><h2>Dans quel ordre ?</h2><span class="hint">Chaque euro qui reste part dans cet ordre. C'est toi qui décides.</span></div>
     <div class="panel" style="padding:8px 14px 14px">
       <div id="orderList"></div>
+      <label class="switch" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)"><input type="checkbox" id="cushionOn"><span><b>Me garder un argent de secours</b><br><small style="color:var(--ink-2)">Trois mois de prélèvements mis de côté et qu'on ne touche pas. Si tu perds ton travail, si ta voiture casse, si tu tombes malade — tu tiens trois mois sans rien demander à personne.</small></span></label>
     </div>
   </div>
 
@@ -827,7 +803,7 @@ details.detail[open] summary::before{content:"▾ "}
 </section>
 
 <details class="box">
-  <summary>Réglages : soldes de départ, découvert, matelas, export</summary>
+  <summary>Réglages : soldes de départ, découvert, export</summary>
   <div class="box-body">
     <div>
       <div class="eyebrow" style="margin-bottom:8px">Soldes de départ</div>
@@ -838,7 +814,7 @@ details.detail[open] summary::before{content:"▾ "}
       <div class="eyebrow" style="margin-bottom:8px">Sécurité</div>
       <div class="set-grid">
         <div class="set-f"><label for="sOverdraft">Découvert autorisé SG (€)</label><input class="fld" id="sOverdraft" inputmode="decimal"></div>
-        <div class="set-f"><label for="sBuffer">Matelas à ne pas toucher (€)</label><input class="fld" id="sBuffer" inputmode="decimal"></div>
+        <div class="set-f"><label for="sBuffer">Somme à ne jamais toucher (€)</label><input class="fld" id="sBuffer" inputmode="decimal"></div>
       </div>
     </div>
     <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
@@ -1701,7 +1677,27 @@ function fixAmountFor(f,mk){
 function fixTotalFor(mk){
   var t=0;state.fixed.forEach(function(f){t+=fixAmountFor(f,mk)});return r2(t);
 }
-function funBudget(){return r2(state.envelopes.reduce(function(t,e){return t+pa(e.amount)},0))}
+function freeByMonth(){
+  var by={};
+  state.movements.forEach(function(m){
+    if(!m.done||m.dir!=="out"||!m.free)return;
+    var k=(m.dateReal||"").slice(0,7);if(!k)return;
+    by[k]=r2((by[k]||0)+pa(m.amount));
+  });
+  return by;
+}
+function livingLearned(){
+  var by=freeByMonth(),cm=curMonth();
+  var ks=Object.keys(by).filter(function(k){return k<cm});
+  if(!ks.length)return null;
+  var t=0;ks.forEach(function(k){t+=by[k]});
+  return {amount:r2(t/ks.length),months:ks.length};
+}
+function livingUsed(){
+  var l=livingLearned();
+  return l?l.amount:pa(state.living);
+}
+function funBudget(){return 0}
 function spentFree(){
   var cm=curMonth(),t=0;
   state.movements.forEach(function(m){
@@ -1714,7 +1710,7 @@ function buildPlan(){
   var c=calc(),cm=curMonth();
   var fixTot=fixTotalFor(cm);
   var missTot=r2(missingFixed().reduce(function(t,f){return t+pa(f.amount)},0));
-  var living=pa(state.living),fun=funBudget();
+  var living=livingUsed(),fun=0;
   var cushionTarget=state.cushionOn?r2(fixTot*3):0,cushion=0,cushionDone=null;
   var goals=state.goals.map(function(g){return {name:g.name,target:pa(g.target),saved:pa(g.saved),by:g.by||"",eta:null,short:0}});
   /* échéances déjà saisies, par mois */
@@ -1757,7 +1753,7 @@ function buildPlan(){
       if(q<need)g.short=r2(g.short+(need-q));
     });
     /* engagements mensuels choisis : ils partent avant tout le reste */
-    var pledgeD=pa(state.debtMonthly), pledgeS=pa(state.saveMonthly);
+    var pledgeD=pa(state.debtMonthly), pledgeS=0;
     if(pledgeD>0&&surplus>0&&debts.length){
       var bud=Math.min(pledgeD,surplus),names=[];
       while(debts.length&&bud>0){
@@ -1845,6 +1841,24 @@ function buildPlan(){
           goals:goals,fun:fun,living:living,startOd:r2(Math.max(0,-c.totalReal)),
           totalDebt:r2(state.debts.reduce(function(t,d){return t+Math.max(0,pa(d.amount)-pa(d.paid))},0)),saved:saved};
 }
+function renderLiving(){
+  var l=livingLearned(),by=freeByMonth(),cm=curMonth(),h="";
+  if(l){
+    h='<div class="plan-line" style="padding-top:0"><span class="lb">Ce que tu dépenses au quotidien'+
+      '<small>calculé sur tes '+l.months+(l.months>1?" derniers mois":" dernier mois")+' — je n\'ai rien inventé</small></span>'+
+      '<span class="rt"><span class="am" style="color:var(--debit)">−'+fmt(l.amount)+'</span><span class="hint">/ mois</span></span></div>'+
+      '<p class="hint" style="margin:8px 0 0">Ce chiffre bouge tout seul : plus tu notes tes dépenses avec <b>− J\'ai dépensé</b>, plus il colle à ta vraie vie, et plus le plan est juste.</p>';
+  } else {
+    h='<div class="plan-line" style="padding-top:0"><span class="lb">Ce que tu dépenses au quotidien'+
+      '<small>je ne le sais pas encore — je l\'apprendrai de tes dépenses</small></span>'+
+      '<span class="rt"><input id="livingIn" inputmode="decimal" aria-label="Estimation"><span class="am">/ mois</span></span></div>'+
+      '<p class="hint" style="margin:8px 0 0">Mets une estimation pour démarrer (courses, essence, sorties). Dès que tu auras un mois complet de dépenses notées, je remplacerai ce chiffre par ta vraie moyenne.</p>';
+  }
+  if(by[cm])h+='<p class="hint" style="margin:6px 0 0">Ce mois-ci tu en es à <b>'+fmt(by[cm])+'</b>.</p>';
+  document.getElementById("livingBox").innerHTML=h;
+  var el=document.getElementById("livingIn");
+  if(el)el.value=nb(state.living);
+}
 function renderIncome(){
   var h="";
   state.income.slice().sort(function(a,b){return a.from<b.from?-1:1}).forEach(function(i){
@@ -1854,7 +1868,8 @@ function renderIncome(){
   });
   document.getElementById("incomeList").innerHTML=h||
     '<p class="hint" style="margin:0">Rien pour l\'instant. Dis-moi ce que tu gagnes aujourd\'hui, puis ajoute une ligne à partir de novembre quand ton salaire change.</p>';
-  document.getElementById("livingIn").value=nb(state.living);
+  var _li=document.getElementById("livingIn");
+  if(_li)_li.value=nb(state.living);
 }
 var ORDNAMES={od:"Combler mon découvert",cushion:"Mon argent de secours (coup dur)",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
 function renderOrder(){
@@ -1866,22 +1881,8 @@ function renderOrder(){
   });
   document.getElementById("orderList").innerHTML=h;
 }
-function renderEnv(){
-  var h="";
-  state.envelopes.forEach(function(e,i){
-    h+='<div class="irow" data-env="'+esc(e.id)+'"><span class="w"><b>'+esc(e.name)+'</b></span>'+
-       '<input data-act="eamount" inputmode="decimal" value="'+nb(e.amount)+'" aria-label="Montant"><span class="hint">/ mois</span>'+
-       '<button class="del" type="button" data-act="edel" aria-label="Supprimer">×</button></div>';
-  });
-  h+='<div class="irow" style="border-top:2px solid var(--rule)"><span class="w"><b>Total pour moi</b></span>'+
-     '<span class="am" style="color:var(--c-beaute);font-weight:700">'+fmt(funBudget())+'</span><span class="hint">/ mois</span></div>';
-  document.getElementById("envList").innerHTML=h;
-  document.getElementById("cushionOn").checked=!!state.cushionOn;
-}
 function renderPlan(){
-  document.getElementById("pledgeD").value=nb(state.debtMonthly);
-  document.getElementById("pledgeS").value=nb(state.saveMonthly);
-  renderIncome();renderEnv();renderOrder();
+  renderIncome();renderLiving();renderOrder();
   var P=buildPlan();
   var sum=document.getElementById("planSummary"),host=document.getElementById("planMonths");
   if(!state.income.length){
@@ -1896,7 +1897,7 @@ function renderPlan(){
     '<div class="sline"><span>Tu en sors</span><b>'+(P.odDone?ml(P.odDone):(P.startOd<=0?"déjà dehors":"pas dans les 3 prochaines années"))+'</b></div>'+
     '<div class="sline"><span>Ce que tu dois à tes proches</span><b>'+fmt(P.totalDebt)+'</b></div>'+
     '<div class="sline"><span>Tout remboursé</span><b>'+(P.debtDone?ml(P.debtDone):(P.totalDebt<=0?"rien à rendre":"pas encore"))+'</b></div>'+
-    (P.cushionTarget?'<div class="sline"><span>Matelas d\'urgence ('+fmt(P.cushionTarget)+')</span><b>'+(P.cushionDone?ml(P.cushionDone):"pas encore")+'</b></div>':"")+
+    (P.cushionTarget?'<div class="sline"><span>Argent de secours ('+fmt(P.cushionTarget)+')</span><b>'+(P.cushionDone?ml(P.cushionDone):"pas encore")+'</b></div>':"")+
     (P.missed&&P.missed.length?'<div class="sline" style="color:var(--debit)"><span><b>Pas tenable à la date voulue</b></span><b>'+
       esc(P.missed.map(function(g){return g.name}).join(", "))+'</b></div>':"")+
     P.goals.filter(function(g){return g.target>0}).map(function(g){
@@ -1916,8 +1917,8 @@ function renderPlan(){
       (m.extra?line("Autres rentrées notées","","+"+fmt(m.extra),"var(--credit)"):"")+
       line("Mes abonnements et prélèvements","Claude, salle de sport, crédit, PEL…","−"+fmt(m.fix),"var(--debit)")+
       (m.due?line("Ce que je dois payer ce mois-ci","EMDR, Scalapay, Klarna…","−"+fmt(m.due),"var(--debit)"):"")+
-      (m.living?line("Pour vivre","courses, essence, imprévus","−"+fmt(m.living),"var(--debit)"):"")+
-      (m.fun?line("Pour me faire plaisir","cadeaux, restaurants","−"+fmt(m.fun),"var(--c-beaute)"):"")+
+      (m.living?line("Ce que tu dépenses au quotidien","d\'après ce que tu notes","−"+fmt(m.living),"var(--debit)"):"")+
+
       '<div class="prest"><b>'+(m.flux<0?"Il te manque":"Il reste")+'</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--ink)")+'">'+fmt(m.flux)+'</span></div>'+
       (m.flux>0?
         (m.alloc.od?line("Combler mon découvert","","−"+fmt(m.alloc.od),"var(--debit)"):"")+
@@ -2327,30 +2328,22 @@ var planTab=document.getElementById("tab-plan");
 planTab.addEventListener("input",function(e){
   var el=e.target;
   if(el.id==="livingIn"){state.living=pa(el.value);save();return}
-  if(el.id==="pledgeD"){state.debtMonthly=pa(el.value);save();return}
-  if(el.id==="pledgeS"){state.saveMonthly=pa(el.value);save();return}
+
   var row=el.closest(".irow");if(!row)return;
-  if(el.getAttribute("data-act")==="eamount"){
-    var en=find(state.envelopes,row.getAttribute("data-env"));
-    if(en){en.amount=pa(el.value);save()}
-    return;
-  }
   var it=find(state.income,row.getAttribute("data-id"));if(!it)return;
   if(el.getAttribute("data-act")==="amount"){it.amount=pa(el.value);save()}
 });
 planTab.addEventListener("change",function(e){
   var a=e.target.getAttribute("data-act");
-  if(e.target.id==="livingIn"||e.target.id==="pledgeD"||e.target.id==="pledgeS"||a==="amount"||a==="eamount"){renderPlan();renderSchedule();renderSummary()}
+  if(e.target.id==="livingIn"||a==="amount"){renderPlan();renderSchedule();renderSummary()}
 });
 planTab.addEventListener("click",function(e){
   var el=e.target.closest('[data-act="del"], [data-act="edel"]');if(!el)return;
   var row=el.closest(".irow");if(!row)return;
   var kind=el.getAttribute("data-act");
   armDel(el,function(){
-    if(kind==="edel"){var eid=row.getAttribute("data-env");
-      state.envelopes=state.envelopes.filter(function(x){return x.id!==eid})}
-    else{var id=row.getAttribute("data-id");
-      state.income=state.income.filter(function(x){return x.id!==id})}
+    var id=row.getAttribute("data-id");
+    state.income=state.income.filter(function(x){return x.id!==id});
     renderPlan();renderSchedule();renderSummary();save();
   });
 });
@@ -2366,13 +2359,7 @@ document.getElementById("orderList").addEventListener("click",function(e){
 document.getElementById("cushionOn").addEventListener("change",function(){
   state.cushionOn=this.checked;renderPlan();renderSchedule();renderSummary();save();
 });
-document.getElementById("envForm").addEventListener("submit",function(e){
-  e.preventDefault();
-  var n=document.getElementById("eName").value.trim();if(!n)return;
-  state.envelopes.push({id:uid(),name:n,amount:pa(document.getElementById("eAmount").value)});
-  document.getElementById("eName").value="";document.getElementById("eAmount").value="";
-  renderPlan();renderSchedule();renderSummary();save();
-});
+
 document.getElementById("incomeForm").addEventListener("submit",function(e){
   e.preventDefault();
   var f=document.getElementById("iFrom").value,v=pa(document.getElementById("iAmount").value);
