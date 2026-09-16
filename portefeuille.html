@@ -509,6 +509,9 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .pbody{padding:13px 15px}
 .prow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px;color:var(--ink-2)}
 .prow b{color:var(--ink);font-weight:600}
+.prow .rt{flex:none}
+input.monthinc{width:110px;padding:7px 9px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;font-weight:700}
+input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .prow .v{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}
 .prow .lb small{display:block;color:var(--ink-3);font-size:11px;line-height:1.35}
 .prow.strong .lb{font-weight:600}
@@ -704,25 +707,7 @@ details.detail[open] summary::before{content:"▾ "}
 
 <section class="tabpanel" id="tab-plan" hidden>
   <div class="sect" style="margin-top:20px">
-    <div class="sect-head"><h2>Ce que je vais gagner</h2><span class="hint">C'est toi qui me le dis. Je n'invente rien.</span></div>
-    <div class="panel" style="padding:14px">
-      <div id="incomeList"></div>
-      <form id="incomeForm" class="put-row" style="margin-top:11px" autocomplete="off">
-        <span class="field-lbl" style="flex:1 1 100%">À partir de quel mois, et combien</span>
-        <input class="fld" id="iFrom" type="month" aria-label="À partir de" required style="width:auto">
-        <input class="fld num" id="iAmount" inputmode="decimal" placeholder="€ / mois" aria-label="Montant" required style="width:110px">
-        <button class="btn" type="submit">Ajouter</button>
-      </form>
-      <div id="livingBox" style="margin-top:12px"></div>
-    </div>
-  </div>
-
-  <div class="sect">
-    <div class="sect-head"><h2>Dans quel ordre ?</h2><span class="hint">Chaque euro qui reste part dans cet ordre. C'est toi qui décides.</span></div>
-    <div class="panel" style="padding:8px 14px 14px">
-      <div id="orderList"></div>
-      <label class="switch" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)"><input type="checkbox" id="cushionOn"><span><b>Me garder un argent de secours</b><br><small style="color:var(--ink-2)">Trois mois de prélèvements mis de côté et qu'on ne touche pas. Si tu perds ton travail, si ta voiture casse, si tu tombes malade — tu tiens trois mois sans rien demander à personne.</small></span></label>
-    </div>
+    <div class="panel" style="padding:14px"><div id="livingBox"></div></div>
   </div>
 
   <div class="sect">
@@ -830,6 +815,7 @@ details.detail[open] summary::before{content:"▾ "}
     </div>
     <div>
       <div class="eyebrow" style="margin-bottom:8px">Sécurité</div>
+      <label class="switch" style="margin-bottom:12px"><input type="checkbox" id="cushionOn"><span><b>Me garder un argent de secours</b><br><small style="color:var(--ink-2)">Trois mois de prélèvements de côté, servis en dernier, après tes proches et tes objectifs.</small></span></label>
       <div class="set-grid">
         <div class="set-f"><label for="sOverdraft">Découvert autorisé SG (€)</label><input class="fld" id="sOverdraft" inputmode="decimal"></div>
         <div class="set-f"><label for="sBuffer">Somme à ne jamais toucher (€)</label><input class="fld" id="sBuffer" inputmode="decimal"></div>
@@ -896,9 +882,10 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:14,
+  v:15,
   settings:{buffer:0,lockSavings:true},
   income:[],
+  incomeByMonth:{},
   living:0,
   cushionOn:true,
   debtMonthly:0,
@@ -1043,6 +1030,12 @@ function migrate(s){
       until:/^\d{4}-\d{2}$/.test(f.until||"")?f.until:"",
       nextFrom:/^\d{4}-\d{2}$/.test(f.nextFrom||"")?f.nextFrom:"",
       nextAmount:pa(f.nextAmount)}});
+  o.incomeByMonth={};
+  if(s.incomeByMonth&&typeof s.incomeByMonth==="object"){
+    Object.keys(s.incomeByMonth).forEach(function(k){
+      if(/^\d{4}-\d{2}$/.test(k))o.incomeByMonth[k]=pa(s.incomeByMonth[k]);
+    });
+  }
   if(Array.isArray(s.income))o.income=s.income.filter(Boolean).map(function(i){
     return {id:String(i.id||uid()),from:/^\d{4}-\d{2}$/.test(i.from||"")?i.from:curMonth(),amount:pa(i.amount)}});
   o.living=pa(s.living);
@@ -1065,7 +1058,16 @@ function migrate(s){
     return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid)}});
   if(Array.isArray(s.loans))o.loans=s.loans.filter(Boolean).map(function(l){
     return {id:String(l.id||uid()),name:String(l.name||""),rest:pa(l.rest),monthly:pa(l.monthly)}});
-  o.v=14;
+  /* reprise des anciens revenus « à partir de » en valeurs mensuelles */
+  if((Number(s.v)||1)<15&&Array.isArray(o.income)&&o.income.length){
+    var mk0=curMonth();
+    for(var q=0;q<24;q++){
+      var kk=addM(mk0,q),best=null;
+      o.income.forEach(function(it){if(it.from<=kk&&(!best||it.from>best.from))best=it});
+      if(best&&!o.incomeByMonth[kk])o.incomeByMonth[kk]=pa(best.amount);
+    }
+  }
+  o.v=15;
   return o;
 }
 function loadLocal(){try{var r=localStorage.getItem(LS);return r?migrate(JSON.parse(r)):null}catch(e){return null}}
@@ -1740,9 +1742,13 @@ function monthsBetween(a,b){
 }
 function addM(mk,n){var q=mk.split("-"),d=new Date(+q[0],+q[1]-1+n,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)}
 function incomeFor(mk){
-  var best=null;
-  state.income.forEach(function(i){if(i.from<=mk&&(!best||i.from>best.from))best=i});
-  return best?pa(best.amount):0;
+  if(state.incomeByMonth&&state.incomeByMonth[mk]!=null)return pa(state.incomeByMonth[mk]);
+  /* à défaut, on reprend le dernier mois renseigné */
+  var ks=Object.keys(state.incomeByMonth||{}).filter(function(k){return k<mk}).sort();
+  return ks.length?pa(state.incomeByMonth[ks[ks.length-1]]):0;
+}
+function incomeKnown(mk){
+  return !!(state.incomeByMonth&&state.incomeByMonth[mk]!=null);
 }
 var FIXOPEN="";
 function fixAmountFor(f,mk){
@@ -1812,7 +1818,7 @@ function buildPlan(){
     var flux=r2(rev+e.in-fx-e.out-living-fun);
     bal=r2(bal+flux);
     var acts=[],surplus=flux,alloc={od:0,cushion:0,debts:0,goals:0};
-    if(rev===0&&n>0&&!state.income.length){months.push({mk:mk,none:true});break}
+
     /* objectifs datés : ce qu'il faut mettre ce mois-ci pour tenir la date */
     var dated=goals.filter(function(g){return g.by&&g.target>0&&g.saved<g.target&&g.by>=mk})
       .sort(function(a,b){return a.by<b.by?-1:1});
@@ -1908,13 +1914,16 @@ function buildPlan(){
       if(surplus>0){saved=r2(saved+surplus);alloc.goals=r2(alloc.goals+surplus);acts.push({t:"sv",v:surplus,txt:"Et il te reste encore "+fmt(surplus)+" libres"});surplus=0}
     }
     if(flux<=0)acts.push({t:"no",v:0,txt:rev?"Ce mois-ci tu ne dégages rien : "+fmt(Math.abs(flux))+" de trop":"Tu ne m'as pas dit ce que tu gagnes ce mois-là"});
-    var got=0;
+    var got=0,spent=0;
     if(n===0)state.movements.forEach(function(x){
-      if(x.done&&x.dir==="in"&&!x.settled&&(x.dateReal||"").slice(0,7)===cm)got+=pa(x.amount);
+      if(!x.done)return;
+      var kk=(x.dateReal||"").slice(0,7);if(kk!==cm)return;
+      if(x.dir==="in"){if(!x.settled)got+=pa(x.amount)}
+      else spent+=pa(x.amount);
     });
-    months.push({mk:mk,first:n===0,got:r2(got),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
+    months.push({mk:mk,first:n===0,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
     if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
-    if(rev<=0&&n>0)break;
+    if(rev<=0&&n>=1&&!Object.keys(state.incomeByMonth||{}).length)break;
   }
   var missed=goals.filter(function(g){return g.by&&g.target>0&&(!g.eta||g.eta>g.by)});
   return {missed:missed,sched:sched,months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
@@ -1938,28 +1947,6 @@ function renderLiving(){
   document.getElementById("livingBox").innerHTML=h;
   var el=document.getElementById("livingIn");
   if(el)el.value=nb(state.living);
-}
-function renderIncome(){
-  var h="";
-  state.income.slice().sort(function(a,b){return a.from<b.from?-1:1}).forEach(function(i){
-    h+='<div class="irow" data-id="'+esc(i.id)+'"><span class="w">À partir de <b>'+esc(ml(i.from))+'</b></span>'+
-       '<input data-act="amount" inputmode="decimal" value="'+nb(i.amount)+'" aria-label="Montant"><span class="hint">/ mois</span>'+
-       '<button class="del" type="button" data-act="del" aria-label="Supprimer">×</button></div>';
-  });
-  document.getElementById("incomeList").innerHTML=h||
-    '<p class="hint" style="margin:0">Rien pour l\'instant. Dis-moi ce que tu gagnes aujourd\'hui, puis ajoute une ligne à partir de novembre quand ton salaire change.</p>';
-  var _li=document.getElementById("livingIn");
-  if(_li)_li.value=nb(state.living);
-}
-var ORDNAMES={od:"Combler mon découvert",cushion:"Mon argent de secours (coup dur)",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
-function renderOrder(){
-  var h="";
-  (state.order||[]).forEach(function(k,i){
-    h+='<div class="irow" data-ord="'+k+'"><span class="w"><b>'+(i+1)+'. '+esc(ORDNAMES[k]||k)+'</b></span>'+
-       '<button class="btn ghost sm" type="button" data-up="'+k+'"'+(i===0?" disabled":"")+' aria-label="Monter">↑</button>'+
-       '<button class="btn ghost sm" type="button" data-down="'+k+'"'+(i===state.order.length-1?" disabled":"")+' aria-label="Descendre">↓</button></div>';
-  });
-  document.getElementById("orderList").innerHTML=h;
 }
 function monthDetail(m){
   var mk=m.mk, prev=addM(mk,-1);
@@ -2005,15 +1992,14 @@ function monthDetail(m){
     '</div></details>';
 }
 function renderPlan(){
-  renderIncome();renderLiving();renderOrder();
+  renderLiving();
   var P=buildPlan();
   var sum=document.getElementById("planSummary"),host=document.getElementById("planMonths");
-  if(!state.income.length){
+  if(!Object.keys(state.incomeByMonth||{}).length){
     document.getElementById("planHint").textContent="";
-    sum.innerHTML='<div class="summary-card"><h3>Dis-moi d\'abord ce que tu gagnes</h3>'+
-      '<p class="hint" style="margin:0">Ajoute au moins une ligne au-dessus. À partir de là je te dirai, mois par mois : quand tu sors du découvert, qui tu peux rembourser, et ce que tu peux mettre de côté.</p></div>';
-    host.innerHTML="";return;
-  }
+    sum.innerHTML='<div class="summary-card"><h3>Dis-moi ce que tu gagnes ce mois-ci</h3>'+
+      '<p class="hint" style="margin:0">Écris-le dans la case du mois, juste en dessous. Je remplirai les mois suivants avec le même montant, et tu corriges quand ça change.</p></div>';
+  } else {
   document.getElementById("planHint").textContent="calculé sur ce que tu m'as déclaré";
   sum.innerHTML='<div class="summary-card"><h3>Où ça te mène</h3>'+
     '<div class="sline"><span>Ton découvert aujourd\'hui</span><b>'+fmt(P.startOd)+'</b></div>'+
@@ -2027,6 +2013,7 @@ function renderPlan(){
       return '<div class="sline"><span>'+esc(g.name)+' ('+fmt(g.target)+')</span><b>'+(g.eta?ml(g.eta):"au-delà de 3 ans")+'</b></div>';
     }).join("")+
     '</div>';
+  }
   var h="";
   P.months.slice(0,8).forEach(function(m){
     if(m.none)return;
@@ -2035,21 +2022,22 @@ function renderPlan(){
         (sub?'<small>'+esc(sub)+'</small>':"")+'</span>'+
         '<span class="v" style="color:'+(col||"var(--ink)")+'">'+val+'</span></div>';
     }
-    h+='<article class="pmonth"><header><b>'+esc(ml(m.mk))+'</b><span style="color:'+(m.bal<0?"var(--debit)":"var(--credit)")+'">compte : '+fmt(m.bal)+'</span></header><div class="pbody">'+
-      line("Ce que tu gagnes","","+"+fmt(m.rev),"var(--credit)",true)+
-      (m.extra?line("Autres rentrées que tu attends","","+"+fmt(m.extra),"var(--credit)"):"")+
-      (m.first&&m.got?line("Déjà encaissé ce mois-ci","resto, pourboires… déjà dans ton solde","+"+fmt(m.got),"var(--credit)"):"")+
-      line("Mes abonnements et prélèvements","Claude, salle de sport, crédit, PEL…","−"+fmt(m.fix),"var(--debit)")+
-      (m.due?line("Ce que je dois payer ce mois-ci","EMDR, Scalapay, Klarna…","−"+fmt(m.due),"var(--debit)"):"")+
+    h+='<article class="pmonth"><header><b>'+esc(ml(m.mk))+'</b>'+
+      (m.first?'<span style="color:var(--ink-2);font-size:12px">ce mois-ci</span>':"")+'</header><div class="pbody">'+
+      '<div class="prow strong"><span class="lb"><b>Ce que je gagne ce mois-ci</b>'+
+      '<small>'+(m.known?"c\'est toi qui l\'as dit":"reprise du mois précédent — corrige si besoin")+'</small></span>'+
+      '<span class="rt"><input class="monthinc" data-mk="'+esc(m.mk)+'" inputmode="decimal" value="'+(m.rev?nb(m.rev):"")+'" placeholder="0,00" aria-label="Revenus du mois"></span></div>'+
+      (m.got?line("Déjà encaissé en plus","resto, pourboires — noté par toi","+"+fmt(m.got),"var(--credit)"):"")+
+      (m.spent?line("Déjà dépensé ce mois-ci","","−"+fmt(m.spent),"var(--debit)"):"")+
+      line("Reste à payer ce mois-ci","prélèvements + échéances","−"+fmt(m.toPay),"var(--debit)")+
       (m.living?line("Ce que tu dépenses au quotidien","d\'après ce que tu notes","−"+fmt(m.living),"var(--debit)"):"")+
-
-      '<div class="prest"><b>'+(m.flux<0?"Il te manque":"Il reste")+'</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--ink)")+'">'+fmt(m.flux)+'</span></div>'+
+      '<div class="prest"><b>'+(m.flux<0?"Il te manque":"Il te reste")+'</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--ink)")+'">'+fmt(m.flux)+'</span></div>'+
       (m.flux>0?
-        (m.alloc.od?line("Combler mon découvert","","−"+fmt(m.alloc.od),"var(--debit)"):"")+
-        (m.alloc.cushion?line("Mon argent de secours","","−"+fmt(m.alloc.cushion),"var(--c-transport)"):"")+
-        (m.alloc.debts?line("Rembourser mes proches","","−"+fmt(m.alloc.debts),"var(--c-dette)"):"")+
-        (m.alloc.goals?line("Mettre de côté","permis, voiture, mariage…","−"+fmt(m.alloc.goals),"var(--credit)"):"")+
-        '<div class="prest final"><b>Il me reste vraiment</b><span class="v">'+fmt(m.rest)+'</span></div>'
+        (m.alloc.debts?line("→ Pour rembourser","","−"+fmt(m.alloc.debts),"var(--c-dette)"):"")+
+        (m.alloc.goals?line("→ Pour mes objectifs","permis, PEL, voiture…","−"+fmt(m.alloc.goals),"var(--credit)"):"")+
+        (m.alloc.od?line("→ Pour combler ton découvert","","−"+fmt(m.alloc.od),"var(--debit)"):"")+
+        (m.alloc.cushion?line("→ Argent de secours","","−"+fmt(m.alloc.cushion),"var(--c-transport)"):"")+
+        (m.rest>0?'<div class="prest final"><b>Libre</b><span class="v">'+fmt(m.rest)+'</span></div>':"")
       :"")+
       monthDetail(m);
     m.acts.forEach(function(a){
@@ -2061,6 +2049,8 @@ function renderPlan(){
   if(P.months.length>8)h+='<p class="hint" style="margin:13px 3px 0">Les mois suivants continuent sur la même lancée — les dates d\'objectif du résumé en tiennent compte jusqu\'à 3 ans.</p>';
   host.innerHTML=h;
 }
+var ECOL=["var(--e1)","var(--e2)","var(--e3)","var(--e4)","var(--e5)","var(--e6)"];
+var FIXOPEN="";
 var ECOL=["var(--e1)","var(--e2)","var(--e3)","var(--e4)","var(--e5)","var(--e6)"];
 var ORDNAMES={od:"Combler mon découvert",cushion:"Mon argent de secours (coup dur)",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
 function planIncome(){
@@ -2104,9 +2094,9 @@ function renderCalc(){
 function renderSchedule(){
   var host=document.getElementById("schedule"),hint=document.getElementById("schedHint");
   document.getElementById("debtMonthlyIn").value=nb(state.debtMonthly);
-  if(!state.income.length){
+  if(!Object.keys(state.incomeByMonth||{}).length){
     hint.textContent="";
-    host.innerHTML='<div class="empty">Dis-moi ce que tu gagnes dans <b>Mon plan</b>, et je te donne le calendrier exact : qui, combien, quel mois.</div>';
+    host.innerHTML='<div class="empty">Dis-moi ce que tu gagnes dans <b>Mon plan</b>, mois par mois, et je te donne le calendrier exact : qui, combien, quel mois.</div>';
     return;
   }
   var P=buildPlan();
@@ -2445,6 +2435,9 @@ document.getElementById("btnReset").addEventListener("click",function(){
 var planTab=document.getElementById("tab-plan");
 planTab.addEventListener("input",function(e){
   var el=e.target;
+  if(el.classList&&el.classList.contains("monthinc")){
+    state.incomeByMonth[el.getAttribute("data-mk")]=pa(el.value);save();return;
+  }
   if(el.id==="livingIn"){state.living=pa(el.value);save();return}
 
   var row=el.closest(".irow");if(!row)return;
@@ -2452,6 +2445,7 @@ planTab.addEventListener("input",function(e){
   if(el.getAttribute("data-act")==="amount"){it.amount=pa(el.value);save()}
 });
 planTab.addEventListener("change",function(e){
+  if(e.target.classList&&e.target.classList.contains("monthinc")){renderPlan();renderSchedule();renderSummary();return}
   var a=e.target.getAttribute("data-act");
   if(e.target.id==="livingIn"||a==="amount"){renderPlan();renderSchedule();renderSummary()}
 });
@@ -2465,28 +2459,10 @@ planTab.addEventListener("click",function(e){
     renderPlan();renderSchedule();renderSummary();save();
   });
 });
-document.getElementById("orderList").addEventListener("click",function(e){
-  var u=e.target.closest("[data-up]"),d=e.target.closest("[data-down]");
-  var k=u?u.getAttribute("data-up"):(d?d.getAttribute("data-down"):null);
-  if(!k)return;
-  var i=state.order.indexOf(k),j=u?i-1:i+1;
-  if(j<0||j>=state.order.length)return;
-  state.order[i]=state.order[j];state.order[j]=k;
-  renderPlan();renderSchedule();renderSummary();save();
-});
 document.getElementById("cushionOn").addEventListener("change",function(){
   state.cushionOn=this.checked;renderPlan();renderSchedule();renderSummary();save();
 });
 
-document.getElementById("incomeForm").addEventListener("submit",function(e){
-  e.preventDefault();
-  var f=document.getElementById("iFrom").value,v=pa(document.getElementById("iAmount").value);
-  if(!f||!v)return;
-  state.income=state.income.filter(function(x){return x.from!==f});
-  state.income.push({id:uid(),from:f,amount:v});
-  document.getElementById("iAmount").value="";
-  renderPlan();renderSchedule();save();
-});
 
 var calcPanel=document.getElementById("calcPanel");
 calcPanel.addEventListener("input",function(e){
