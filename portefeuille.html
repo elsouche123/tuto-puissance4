@@ -518,6 +518,7 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .irow .w{flex:1 1 auto;font-size:13.5px}
 .irow .w b{font-weight:600}
 .irow input{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
+#pledgeD,#pledgeS{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 #debtMonthlyIn{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 #livingIn{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 
@@ -691,6 +692,17 @@ details.detail[open] summary::before{content:"▾ "}
       </form>
       <div class="plan-line" style="margin-top:12px"><span class="lb">Ce qu'il me faut pour vivre<small>courses, essence, sorties — ton chiffre à toi</small></span>
         <span class="rt"><input id="livingIn" inputmode="decimal" aria-label="Pour vivre"><span class="am">/ mois</span></span></div>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><h2>Chaque mois, je m'engage à</h2><span class="hint">Ça part dès ce mois-ci, avant tout le reste.</span></div>
+    <div class="panel" style="padding:14px">
+      <div class="plan-line" style="padding-top:0"><span class="lb">Rembourser mes proches<small>du plus petit montant au plus gros</small></span>
+        <span class="rt"><input id="pledgeD" inputmode="decimal" aria-label="Pour mes proches"><span class="am">/ mois</span></span></div>
+      <div class="plan-line"><span class="lb">Mettre de côté<small>permis, voiture, mariage, appartement</small></span>
+        <span class="rt"><input id="pledgeS" inputmode="decimal" aria-label="Mise de côté"><span class="am">/ mois</span></span></div>
+      <p class="hint" style="margin:10px 0 0">Laisse à 0 et l'appli décide toute seule, dans l'ordre plus bas. Mets un montant et il part <b>dès septembre</b>, même si ton découvert n'est pas encore comblé.</p>
     </div>
   </div>
 
@@ -885,14 +897,15 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:11,
+  v:12,
   settings:{buffer:0,lockSavings:true},
   income:[],
   living:0,
   cushionOn:true,
   debtMonthly:0,
+  saveMonthly:0,
   balanceAsOf:"",
-  order:["od","cushion","debts","goals"],
+  order:["od","debts","goals","cushion"],
   envelopes:[
     {id:"e-cadeaux",name:"Cadeaux pour mon copain",amount:0},
     {id:"e-restau",name:"Restaurants",amount:0},
@@ -1033,6 +1046,7 @@ function migrate(s){
   o.living=pa(s.living);
   if(typeof s.cushionOn==="boolean")o.cushionOn=s.cushionOn;
   o.debtMonthly=pa(s.debtMonthly);
+  o.saveMonthly=pa(s.saveMonthly);
   o.balanceAsOf=/^\d{4}-\d{2}-\d{2}$/.test(s.balanceAsOf||"")?s.balanceAsOf:today();
   if(Array.isArray(s.order)){
     var ok=["od","cushion","debts","goals"],keep=s.order.filter(function(k){return ok.indexOf(k)>=0});
@@ -1048,7 +1062,7 @@ function migrate(s){
     return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid)}});
   if(Array.isArray(s.loans))o.loans=s.loans.filter(Boolean).map(function(l){
     return {id:String(l.id||uid()),name:String(l.name||""),rest:pa(l.rest),monthly:pa(l.monthly)}});
-  o.v=11;
+  o.v=12;
   return o;
 }
 function loadLocal(){try{var r=localStorage.getItem(LS);return r?migrate(JSON.parse(r)):null}catch(e){return null}}
@@ -1693,7 +1707,33 @@ function buildPlan(){
     bal=r2(bal+flux);
     var acts=[],surplus=flux,alloc={od:0,cushion:0,debts:0,goals:0};
     if(rev===0&&n>0&&!state.income.length){months.push({mk:mk,none:true});break}
-    var ORD=state.order||["od","cushion","debts","goals"];
+    /* engagements mensuels choisis : ils partent avant tout le reste */
+    var pledgeD=pa(state.debtMonthly), pledgeS=pa(state.saveMonthly);
+    if(pledgeD>0&&surplus>0&&debts.length){
+      var bud=Math.min(pledgeD,surplus),names=[];
+      while(debts.length&&bud>0){
+        var dd=debts[0],q2=Math.min(dd.rest,bud);
+        dd.rest=r2(dd.rest-q2);bud=r2(bud-q2);surplus=r2(surplus-q2);alloc.debts=r2(alloc.debts+q2);
+        names.push(dd.name+" "+fmt(q2)+(dd.rest>0?" (il restera "+fmt(dd.rest)+")":""));
+        sched.push({name:dd.name,mk:mk,amount:q2,rest:dd.rest,cleared:dd.rest<=0});
+        if(dd.rest<=0)debts.shift(); else break;
+      }
+      if(names.length)acts.push({t:"dt",v:0,txt:"Tu rembourses "+names.join(", ")});
+      if(!debts.length&&!debtDone)debtDone=mk;
+    }
+    if(pledgeS>0&&surplus>0){
+      var budS=Math.min(pledgeS,surplus),put0=[];
+      goals.forEach(function(g){
+        if(budS<=0||g.target<=0||g.saved>=g.target)return;
+        var q3=Math.min(g.target-g.saved,budS);
+        g.saved=r2(g.saved+q3);budS=r2(budS-q3);surplus=r2(surplus-q3);
+        saved=r2(saved+q3);alloc.goals=r2(alloc.goals+q3);
+        put0.push(g.name+" "+fmt(q3)+(g.saved>=g.target?" ✓ atteint":""));
+        if(g.saved>=g.target&&!g.eta)g.eta=mk;
+      });
+      if(put0.length)acts.push({t:"sv",v:0,txt:"Tu mets de côté : "+put0.join(", ")});
+    }
+    var ORD=state.order||["od","debts","goals","cushion"];
     function rank(k){var i=ORD.indexOf(k);return i<0?9:i}
     function before(k){ /* tout ce qui passe avant k est-il soldé ? */
       for(var z=0;z<rank(k);z++){
@@ -1789,6 +1829,8 @@ function renderEnv(){
   document.getElementById("cushionOn").checked=!!state.cushionOn;
 }
 function renderPlan(){
+  document.getElementById("pledgeD").value=nb(state.debtMonthly);
+  document.getElementById("pledgeS").value=nb(state.saveMonthly);
   renderIncome();renderEnv();renderOrder();
   var P=buildPlan();
   var sum=document.getElementById("planSummary"),host=document.getElementById("planMonths");
@@ -1903,7 +1945,13 @@ function renderSchedule(){
     return;
   }
   var byM={},order=[];
-  P.sched.forEach(function(x){if(!byM[x.mk]){byM[x.mk]=[];order.push(x.mk)}byM[x.mk].push(x)});
+  P.sched.forEach(function(x){
+    if(!byM[x.mk]){byM[x.mk]=[];order.push(x.mk)}
+    var g=byM[x.mk],prev=null;
+    g.forEach(function(y){if(y.name===x.name)prev=y});
+    if(prev){prev.amount=r2(prev.amount+x.amount);prev.rest=x.rest;prev.cleared=x.cleared}
+    else g.push({name:x.name,mk:x.mk,amount:x.amount,rest:x.rest,cleared:x.cleared});
+  });
   hint.textContent="tout soldé en "+(P.debtDone?ml(P.debtDone):"—");
   document.getElementById("debtMonthlyIn").value=nb(state.debtMonthly);
   var first=(state.order||[]).indexOf("debts");
@@ -2220,6 +2268,8 @@ var planTab=document.getElementById("tab-plan");
 planTab.addEventListener("input",function(e){
   var el=e.target;
   if(el.id==="livingIn"){state.living=pa(el.value);save();return}
+  if(el.id==="pledgeD"){state.debtMonthly=pa(el.value);save();return}
+  if(el.id==="pledgeS"){state.saveMonthly=pa(el.value);save();return}
   var row=el.closest(".irow");if(!row)return;
   if(el.getAttribute("data-act")==="eamount"){
     var en=find(state.envelopes,row.getAttribute("data-env"));
@@ -2231,7 +2281,7 @@ planTab.addEventListener("input",function(e){
 });
 planTab.addEventListener("change",function(e){
   var a=e.target.getAttribute("data-act");
-  if(e.target.id==="livingIn"||a==="amount"||a==="eamount"){renderPlan();renderSchedule();renderSummary()}
+  if(e.target.id==="livingIn"||e.target.id==="pledgeD"||e.target.id==="pledgeS"||a==="amount"||a==="eamount"){renderPlan();renderSchedule();renderSummary()}
 });
 planTab.addEventListener("click",function(e){
   var el=e.target.closest('[data-act="del"], [data-act="edel"]');if(!el)return;
