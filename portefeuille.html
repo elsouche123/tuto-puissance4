@@ -489,8 +489,12 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .pbody{padding:13px 15px}
 .prow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px;color:var(--ink-2)}
 .prow b{color:var(--ink);font-weight:600}
-.prow .v{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
-.prest{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:8px;padding-top:9px;border-top:1px solid var(--rule);font-size:13.5px}
+.prow .v{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}
+.prow .lb small{display:block;color:var(--ink-3);font-size:11px;line-height:1.35}
+.prow.strong .lb{font-weight:600}
+.prest{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:8px;padding-top:9px;border-top:1px solid var(--rule-strong);font-size:13.5px}
+.prest.final{margin-top:9px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);border-top:none}
+.prest.final .v{color:var(--accent)}
 .prest .v{font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:17px}
 .todo{display:flex;gap:9px;align-items:flex-start;margin-top:10px;padding:11px 12px;border-radius:10px;font-size:13.5px;line-height:1.45}
 .todo .ic{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-content:center;font-size:12px;font-weight:700;color:#fff}
@@ -1687,7 +1691,7 @@ function buildPlan(){
     var fx=(n===0?missTot:fixTot);
     var flux=r2(rev+e.in-fx-e.out-living-fun);
     bal=r2(bal+flux);
-    var acts=[],surplus=flux;
+    var acts=[],surplus=flux,alloc={od:0,cushion:0,debts:0,goals:0};
     if(rev===0&&n>0&&!state.income.length){months.push({mk:mk,none:true});break}
     var ORD=state.order||["od","cushion","debts","goals"];
     function rank(k){var i=ORD.indexOf(k);return i<0?9:i}
@@ -1703,13 +1707,13 @@ function buildPlan(){
     }
     /* 1. combler le découvert */
     if(od>0&&surplus>0&&before("od")){
-      var put=Math.min(od,surplus);od=r2(od-put);surplus=r2(surplus-put);
+      var put=Math.min(od,surplus);od=r2(od-put);surplus=r2(surplus-put);alloc.od=r2(alloc.od+put);
       acts.push({t:"od",v:put,txt:od<=0?"Tu sors du découvert — ton compte repasse à zéro":"Tu combles "+fmt(put)+" de ton découvert, il en restera "+fmt(od)});
       if(od<=0&&!odDone)odDone=mk;
     }
     /* 2. matelas d'urgence : trois mois d'abonnements, à cause de la période d'essai */
     if(surplus>0&&cushionTarget>0&&cushion<cushionTarget&&before("cushion")){
-      var pc=Math.min(cushionTarget-cushion,surplus);cushion=r2(cushion+pc);surplus=r2(surplus-pc);
+      var pc=Math.min(cushionTarget-cushion,surplus);cushion=r2(cushion+pc);surplus=r2(surplus-pc);alloc.cushion=r2(alloc.cushion+pc);
       acts.push({t:"cu",v:pc,txt:cushion>=cushionTarget
         ? "Ton matelas d'urgence est plein : "+fmt(cushionTarget)+" de côté, tu tiens 3 mois sans rien"
         : "Tu mets "+fmt(pc)+" dans ton matelas d'urgence ("+fmt(cushion)+" sur "+fmt(cushionTarget)+")"});
@@ -1721,7 +1725,7 @@ function buildPlan(){
       var cap=pa(state.debtMonthly), budget=cap>0?Math.min(cap,surplus):surplus;
       while(debts.length&&budget>0){
         var d=debts[0],put2=Math.min(d.rest,budget);
-        d.rest=r2(d.rest-put2);surplus=r2(surplus-put2);budget=r2(budget-put2);
+        d.rest=r2(d.rest-put2);surplus=r2(surplus-put2);budget=r2(budget-put2);alloc.debts=r2(alloc.debts+put2);
         paid.push(d.name+" "+fmt(put2)+(d.rest>0?" (il restera "+fmt(d.rest)+")":""));
         sched.push({name:d.name,mk:mk,amount:put2,rest:d.rest,cleared:d.rest<=0});
         if(d.rest<=0)debts.shift(); else break;
@@ -1735,15 +1739,15 @@ function buildPlan(){
       goals.forEach(function(g){
         if(surplus<=0||g.target<=0||g.saved>=g.target)return;
         var q=Math.min(g.target-g.saved,surplus);
-        g.saved=r2(g.saved+q);surplus=r2(surplus-q);saved=r2(saved+q);
+        g.saved=r2(g.saved+q);surplus=r2(surplus-q);saved=r2(saved+q);alloc.goals=r2(alloc.goals+q);
         put3.push(g.name+" "+fmt(q)+(g.saved>=g.target?" ✓ objectif atteint":""));
         if(g.saved>=g.target&&!g.eta)g.eta=mk;
       });
       if(put3.length)acts.push({t:"sv",v:0,txt:"Tu mets de côté : "+put3.join(", ")});
-      if(surplus>0){saved=r2(saved+surplus);acts.push({t:"sv",v:surplus,txt:"Et il te reste encore "+fmt(surplus)+" libres"});surplus=0}
+      if(surplus>0){saved=r2(saved+surplus);alloc.goals=r2(alloc.goals+surplus);acts.push({t:"sv",v:surplus,txt:"Et il te reste encore "+fmt(surplus)+" libres"});surplus=0}
     }
     if(flux<=0)acts.push({t:"no",v:0,txt:rev?"Ce mois-ci tu ne dégages rien : "+fmt(Math.abs(flux))+" de trop":"Tu ne m'as pas dit ce que tu gagnes ce mois-là"});
-    months.push({mk:mk,first:n===0,rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts});
+    months.push({mk:mk,first:n===0,rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
     if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>0)break;
   }
@@ -1808,14 +1812,26 @@ function renderPlan(){
   var h="";
   P.months.slice(0,8).forEach(function(m){
     if(m.none)return;
+    function line(lab,sub,val,col,strong){
+      return '<div class="prow'+(strong?" strong":"")+'"><span class="lb">'+(strong?"<b>"+esc(lab)+"</b>":esc(lab))+
+        (sub?'<small>'+esc(sub)+'</small>':"")+'</span>'+
+        '<span class="v" style="color:'+(col||"var(--ink)")+'">'+val+'</span></div>';
+    }
     h+='<article class="pmonth"><header><b>'+esc(ml(m.mk))+'</b><span style="color:'+(m.bal<0?"var(--debit)":"var(--credit)")+'">compte : '+fmt(m.bal)+'</span></header><div class="pbody">'+
-      '<div class="prow"><b>Ce que tu gagnes</b><span class="v" style="color:var(--credit)">+'+fmt(m.rev)+'</span></div>'+
-      (m.extra?'<div class="prow"><span>Autres rentrées notées</span><span class="v" style="color:var(--credit)">+'+fmt(m.extra)+'</span></div>':"")+
-      '<div class="prow"><span>Mes prélèvements</span><span class="v">−'+fmt(m.fix)+'</span></div>'+
-      (m.due?'<div class="prow"><span>Échéances du mois</span><span class="v">−'+fmt(m.due)+'</span></div>':"")+
-      (m.living?'<div class="prow"><span>Pour vivre</span><span class="v">−'+fmt(m.living)+'</span></div>':"")+
-      (m.fun?'<div class="prow"><span>Pour me faire plaisir</span><span class="v" style="color:var(--c-beaute)">−'+fmt(m.fun)+'</span></div>':"")+
-      '<div class="prest"><b>Il te reste</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--credit)")+'">'+fmt(m.flux)+'</span></div>'+
+      line("Ce que tu gagnes","","+"+fmt(m.rev),"var(--credit)",true)+
+      (m.extra?line("Autres rentrées notées","","+"+fmt(m.extra),"var(--credit)"):"")+
+      line("Mes abonnements et prélèvements","Claude, salle de sport, crédit, PEL…","−"+fmt(m.fix),"var(--debit)")+
+      (m.due?line("Ce que je dois payer ce mois-ci","EMDR, Scalapay, Klarna…","−"+fmt(m.due),"var(--debit)"):"")+
+      (m.living?line("Pour vivre","courses, essence, imprévus","−"+fmt(m.living),"var(--debit)"):"")+
+      (m.fun?line("Pour me faire plaisir","cadeaux, restaurants","−"+fmt(m.fun),"var(--c-beaute)"):"")+
+      '<div class="prest"><b>'+(m.flux<0?"Il te manque":"Il reste")+'</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--ink)")+'">'+fmt(m.flux)+'</span></div>'+
+      (m.flux>0?
+        (m.alloc.od?line("Combler mon découvert","","−"+fmt(m.alloc.od),"var(--debit)"):"")+
+        (m.alloc.cushion?line("Mon matelas d\'urgence","","−"+fmt(m.alloc.cushion),"var(--c-transport)"):"")+
+        (m.alloc.debts?line("Rembourser mes proches","","−"+fmt(m.alloc.debts),"var(--c-dette)"):"")+
+        (m.alloc.goals?line("Mettre de côté","permis, voiture, mariage…","−"+fmt(m.alloc.goals),"var(--credit)"):"")+
+        '<div class="prest final"><b>Il me reste vraiment</b><span class="v">'+fmt(m.rest)+'</span></div>'
+      :"")+
       (m.first?'<details class="detail"><summary>Quel prélèvement, quel jour</summary><div class="detail-list">'+
         state.fixed.slice().sort(function(a,b){
           var x=a.day?parseInt(a.day,10):99,y=b.day?parseInt(b.day,10):99;return x-y;
@@ -1824,12 +1840,16 @@ function renderPlan(){
           return '<div><span>'+esc(dd)+' · '+esc(f.label)+'</span><span class="num">'+fmt(f.amount)+'</span></div>';
         }).join("")+'</div></details>':"");
     m.acts.forEach(function(a){
+      if(a.t==="sv"&&!/:/.test(a.txt))return;
       h+='<div class="todo '+a.t+'"><span class="ic">'+(a.t==="od"?"!":(a.t==="cu"?"◆":(a.t==="dt"?"→":(a.t==="sv"?"✓":"·"))))+'</span><span>'+esc(a.txt)+'</span></div>';
     });
     h+='</div></article>';
   });
+  if(P.months.length>8)h+='<p class="hint" style="margin:13px 3px 0">Les mois suivants continuent sur la même lancée — les dates d\'objectif du résumé en tiennent compte jusqu\'à 3 ans.</p>';
   host.innerHTML=h;
 }
+var ECOL=["var(--e1)","var(--e2)","var(--e3)","var(--e4)","var(--e5)","var(--e6)"];
+var ORDNAMES={od:"Combler mon découvert",cushion:"Mon matelas d'urgence",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
 function planIncome(){
   var P=state.plan,cm=curMonth();
   return cm>=P.cdiFrom?{amount:pa(P.incomeCdi),label:P.cdiLabel}:{amount:pa(P.income),label:P.incomeLabel};
