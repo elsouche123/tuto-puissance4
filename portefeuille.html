@@ -1945,7 +1945,8 @@ function buildPlan(){
     if(rev<=0&&n>=1&&!Object.keys(state.incomeByMonth||{}).length)break;
   }
   var missed=goals.filter(function(g){return g.by&&g.target>0&&(!g.eta||g.eta>g.by)});
-  return {missed:missed,sched:sched,months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
+  var sgA=null;c.accs.forEach(function(a){if(a.id==="sg")sgA=a});
+  return {sgOd:r2(Math.max(0,sgA?-sgA.real:0)),missed:missed,sched:sched,months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
           goals:goals,fun:fun,living:living,startOd:r2(Math.max(0,-c.totalReal)),
           totalDebt:r2(state.debts.reduce(function(t,d){return t+Math.max(0,pa(d.amount)-pa(d.paid))},0)),saved:saved};
 }
@@ -2021,7 +2022,8 @@ function renderPlan(){
   } else {
   document.getElementById("planHint").textContent="calculé sur ce que tu m'as déclaré";
   sum.innerHTML='<div class="summary-card"><h3>Où ça te mène</h3>'+
-    '<div class="sline"><span>Ton découvert aujourd\'hui</span><b>'+fmt(P.startOd)+'</b></div>'+
+    '<div class="sline"><span>Ton découvert sur SG</span><b>'+fmt(P.sgOd)+'</b></div>'+
+    (P.startOd!==P.sgOd?'<div class="sline"><span>En comptant tes espèces et Revolut</span><b>'+fmt(P.startOd)+'</b></div>':"")+
     '<div class="sline"><span>Tu en sors</span><b>'+(P.odDone?ml(P.odDone):(P.startOd<=0?"déjà dehors":"pas dans les 3 prochaines années"))+'</b></div>'+
     '<div class="sline"><span>Ce que tu dois à tes proches</span><b>'+fmt(P.totalDebt)+'</b></div>'+
     '<div class="sline"><span>Tout remboursé</span><b>'+(P.debtDone?ml(P.debtDone):(P.totalDebt<=0?"rien à rendre":"pas encore"))+'</b></div>'+
