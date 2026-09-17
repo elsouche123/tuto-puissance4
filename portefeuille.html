@@ -542,12 +542,18 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .irow .w b{font-weight:600}
 .irow input{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 #pledgeD,#pledgeS{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
+#effortIn{width:104px;padding:7px 9px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right;font-weight:700}
 #debtMonthlyIn{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 #livingIn{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 
 /* mon mois */
 .plan-line{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--rule);font-size:13.5px}
 .plan-line:first-child{border-top:none}
+@media(max-width:470px){
+  #effortBox .plan-line,#livingBox .plan-line{flex-wrap:wrap;row-gap:9px}
+  #effortBox .plan-line .lb,#livingBox .plan-line .lb{flex:1 1 100%}
+  #effortBox .plan-line .rt,#livingBox .plan-line .rt{flex:1 1 100%;justify-content:flex-end}
+}
 .lb{display:flex;flex-direction:column;gap:2px;min-width:0}
 .lb small{color:var(--ink-3);font-size:11.5px;line-height:1.4}
 .plan-line .rt{display:flex;align-items:center;gap:8px;flex:none}
@@ -708,6 +714,10 @@ details.detail[open] summary::before{content:"▾ "}
 
 <section class="tabpanel" id="tab-plan" hidden>
   <div class="sect" style="margin-top:20px">
+    <div class="panel" style="padding:14px"><div id="effortBox"></div></div>
+  </div>
+
+  <div class="sect">
     <div class="panel" style="padding:14px"><div id="livingBox"></div></div>
   </div>
 
@@ -883,8 +893,9 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:15,
+  v:16,
   settings:{buffer:0,lockSavings:true},
+  effort:0,
   income:[],
   incomeByMonth:{},
   living:0,
@@ -1043,6 +1054,7 @@ function migrate(s){
   if(typeof s.cushionOn==="boolean")o.cushionOn=s.cushionOn;
   o.debtMonthly=pa(s.debtMonthly);
   o.saveMonthly=pa(s.saveMonthly);
+  o.effort=pa(s.effort);
   o.balanceAsOf=/^\d{4}-\d{2}-\d{2}$/.test(s.balanceAsOf||"")?s.balanceAsOf:today();
   if(Array.isArray(s.order)){
     var ok=["od","cushion","debts","goals"],keep=s.order.filter(function(k){return ok.indexOf(k)>=0});
@@ -1665,7 +1677,7 @@ function renderGoals(){
       '<div class="goal-top"><input class="nm" data-act="name" value="'+esc(g.name)+'"><button class="del" type="button" data-act="del" aria-label="Supprimer">×</button></div>'+
       '<div class="goal-fig"><span class="saved num">'+fmt(g.saved)+'</span><span class="of">sur <input class="fld num" data-act="target" inputmode="decimal" value="'+(g.target?nb(g.target):"")+'" placeholder="libre"> €</span></div>'+
       '<div class="goal-by"><span class="field-lbl">Je le veux pour</span><input type="month" data-act="by" value="'+esc(g.by||"")+'" aria-label="Date voulue">'+
-      (g.by&&g.target>pa(g.saved)?'<span class="need">'+fmt(Math.max(0,(pa(g.target)-pa(g.saved))/Math.max(1,monthsBetween(curMonth(),g.by)+1)))+' / mois</span>':"")+'</div>'+
+      (g.by&&g.target>pa(g.saved)?'<span class="need">il faudrait '+fmt(Math.max(0,(pa(g.target)-pa(g.saved))/Math.max(1,monthsBetween(curMonth(),g.by)+1)))+' / mois</span>':"")+'</div>'+
       '<div class="gbar"><span style="width:'+p.toFixed(1)+'%"></span></div>'+
       '<div class="hint">'+(g.target>0?Math.round(p)+" % · reste "+fmt(Math.max(0,pa(g.target)-pa(g.saved))):"Objectif libre")+'</div>'+
       '<div class="goal-act"><input class="fld num" data-act="amt" inputmode="decimal" placeholder="0,00" aria-label="Montant"><button class="btn sm" type="button" data-act="add">+ Mettre</button><button class="btn ghost sm" type="button" data-act="sub">− Reprendre</button></div>'+
@@ -1795,12 +1807,14 @@ function spentFree(){
   });
   return r2(t);
 }
+var EFFSHARE=0.5;
 function buildPlan(){
   var c=calc(),cm=curMonth();
   var fixTot=fixTotalFor(cm);
   var missTot=r2(missingFixed().reduce(function(t,f){return t+pa(f.amount)},0));
   var living=livingUsed(),fun=0;
-  var cushionTarget=state.cushionOn?r2(fixTot*3):0,cushion=0,cushionDone=null;
+  var pelNow=0;state.fixed.forEach(function(f){if(f.active!==false&&/PEL/i.test(f.label||""))pelNow+=fixAmountFor(f,cm)});
+  var cushionTarget=state.cushionOn?r2(Math.max(0,fixTot-pelNow)*3):0,cushion=0,cushionDone=null;
   var goals=state.goals.map(function(g){return {name:g.name,target:pa(g.target),saved:pa(g.saved),by:g.by||"",eta:null,short:0}});
   /* échéances déjà saisies, par mois */
   var byM={};
@@ -1832,7 +1846,19 @@ function buildPlan(){
       flux=r2(rev+e.in-fx-e.out-living);
     }
     bal=r2(bal+flux);
-    var acts=[],surplus=flux,alloc={od:0,cushion:0,debts:0,goals:0},who=[],what=[];
+    var acts=[],alloc={od:0,cushion:0,debts:0,goals:0},who=[],what=[];
+    var pot=r2(Math.max(0,flux)),kept=0;
+    /* combler le découvert n'est pas un virement à faire : c'est ton compte qui remonte tout seul */
+    if(od>0&&pot>0){
+      var put0=Math.min(od,pot);od=r2(od-put0);pot=r2(pot-put0);alloc.od=r2(alloc.od+put0);
+      acts.push({t:"od",v:put0,txt:od<=0?"Tu sors du découvert — ton compte repasse à zéro":"Tu combles "+fmt(put0)+" de ton découvert, il en restera "+fmt(od)});
+      if(od<=0&&!odDone)odDone=mk;
+    }
+    /* ce que je te demande vraiment de sortir ce mois-ci : jamais tout ce qui reste */
+    var effCap=pa(state.effort);
+    var budget=effCap>0?r2(Math.min(effCap,pot)):r2(pot*EFFSHARE);
+    kept=r2(pot-budget);
+    var surplus=budget;
 
     /* objectifs datés : ce qu'il faut mettre ce mois-ci pour tenir la date */
     var dated=goals.filter(function(g){return g.by&&g.target>0&&g.saved<g.target&&g.by>=mk})
@@ -1888,12 +1914,6 @@ function buildPlan(){
       }
       return true;
     }
-    /* 1. combler le découvert */
-    if(od>0&&surplus>0&&before("od")){
-      var put=Math.min(od,surplus);od=r2(od-put);surplus=r2(surplus-put);alloc.od=r2(alloc.od+put);
-      acts.push({t:"od",v:put,txt:od<=0?"Tu sors du découvert — ton compte repasse à zéro":"Tu combles "+fmt(put)+" de ton découvert, il en restera "+fmt(od)});
-      if(od<=0&&!odDone)odDone=mk;
-    }
     /* 2. argent de secours : trois mois d'abonnements, à cause de la période d'essai */
     if(surplus>0&&cushionTarget>0&&cushion<cushionTarget&&before("cushion")){
       var pc=Math.min(cushionTarget-cushion,surplus);cushion=r2(cushion+pc);surplus=r2(surplus-pc);alloc.cushion=r2(alloc.cushion+pc);
@@ -1929,8 +1949,10 @@ function buildPlan(){
         if(g.saved>=g.target&&!g.eta)g.eta=mk;
       });
       if(put3.length)acts.push({t:"sv",v:0,txt:"Tu mets de côté : "+put3.join(", ")});
-      if(surplus>0){saved=r2(saved+surplus);alloc.goals=r2(alloc.goals+surplus);acts.push({t:"sv",v:surplus,txt:"Et il te reste encore "+fmt(surplus)+" libres"});surplus=0}
+      if(surplus>0){kept=r2(kept+surplus);surplus=0}
     }
+    if(surplus>0){kept=r2(kept+surplus);surplus=0}
+    if(kept>0)acts.push({t:"fr",v:kept,txt:"Et "+fmt(kept)+" restent à toi, pour ta vie de tous les jours — tu n'as rien à justifier"});
     if(flux<=0)acts.push({t:"no",v:0,txt:rev?"Ce mois-ci tu ne dégages rien : "+fmt(Math.abs(flux))+" de trop":"Tu ne m'as pas dit ce que tu gagnes ce mois-là"});
     var got=0,spent=0;
     if(n===0)state.movements.forEach(function(x){
@@ -1940,15 +1962,54 @@ function buildPlan(){
       else spent+=pa(x.amount);
     });
     var pelAmt=0;state.fixed.forEach(function(f){if(/PEL/i.test(f.label))pelAmt+=fixAmountFor(f,mk)});
-    months.push({mk:mk,who:who,what:what,pel:r2(pelAmt),first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(surplus)});
+    months.push({mk:mk,who:who,what:what,pel:r2(pelAmt),first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(kept),kept:r2(kept),
+      effort:r2(alloc.debts+alloc.goals+alloc.cushion)});
     if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>=1&&!Object.keys(state.incomeByMonth||{}).length)break;
   }
   var missed=goals.filter(function(g){return g.by&&g.target>0&&(!g.eta||g.eta>g.by)});
   var sgA=null;c.accs.forEach(function(a){if(a.id==="sg")sgA=a});
-  return {sgOd:r2(Math.max(0,sgA?-sgA.real:0)),missed:missed,sched:sched,months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
+  return {pel:pelPlan(),effCap:pa(state.effort),sgOd:r2(Math.max(0,sgA?-sgA.real:0)),missed:missed,sched:sched,months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
           goals:goals,fun:fun,living:living,startOd:r2(Math.max(0,-c.totalReal)),
           totalDebt:r2(state.debts.reduce(function(t,d){return t+Math.max(0,pa(d.amount)-pa(d.paid))},0)),saved:saved};
+}
+function pelPlan(){
+  var now=0,next=0,from="";
+  state.fixed.forEach(function(f){
+    if(f.active===false)return;
+    if(!/PEL/i.test(f.label||""))return;
+    now=r2(now+pa(f.amount));
+    if(f.nextFrom&&pa(f.nextAmount)>0){
+      next=r2(next+pa(f.nextAmount));
+      if(!from||f.nextFrom<from)from=f.nextFrom;
+    } else next=r2(next+pa(f.amount));
+  });
+  return {now:now,next:next,from:from,up:!!(from&&next!==now)};
+}
+function renderEffort(P){
+  var el=document.getElementById("effortBox");if(!el)return;
+  var cap=pa(state.effort),pel=pelPlan();
+  var m=null;(P&&P.months||[]).forEach(function(x){if(!m&&x.effort>0)m=x});
+  var h='<div class="plan-line" style="padding-top:0"><span class="lb">Ce que je te demande de sortir chaque mois'+
+    '<small>remboursements + argent de côté. Laisse vide et je prends la moitié de ce qui reste : l\'autre moitié est à toi.</small></span>'+
+    '<span class="rt"><input id="effortIn" inputmode="decimal" placeholder="auto" aria-label="Ce que je peux sortir chaque mois"><span class="am">/ mois</span></span></div>'+
+    '<p class="hint" style="margin:8px 0 0">'+
+    (cap>0
+      ? 'Tu m\'as dit <b>'+fmt(cap)+' par mois</b> maximum. Je ne te proposerai jamais plus, même s\'il reste plus sur ton compte.'
+      : 'Je ne connais pas encore toutes tes dépenses du quotidien, donc je ne te demande jamais plus de <b>la moitié</b> de ce qui reste après tes prélèvements. Si c\'est encore trop, écris ton montant ici.')+
+    (m?' Prochain mois où tu sors quelque chose : <b>'+esc(ml(m.mk))+'</b>, <b>'+fmt(m.effort)+'</b>'+(m.kept>0?' — et <b>'+fmt(m.kept)+'</b> restent à toi.':'.'):'')+
+    '</p>';
+  if(pel.now>0||pel.next>0){
+    h+='<div class="plan-line"><span class="lb">Ton PEL'+
+      '<small>'+(pel.up
+        ? 'il augmente tout seul : '+fmt(pel.now)+' par mois aujourd\'hui, puis '+fmt(pel.next)+' par mois à partir de '+esc(ml(pel.from))
+        : fmt(pel.now)+' par mois, tous les mois')+'</small></span>'+
+      '<span class="rt"><span class="am" style="color:var(--ac-pel)">'+fmt(pel.up?pel.next:pel.now)+'</span><span class="hint">'+(pel.up?"à partir de "+esc(mshort(pel.from)):"/ mois")+'</span></span></div>';
+    if(pel.up)h+='<p class="hint" style="margin:8px 0 0">Ce virement part avant tout le reste : c\'est un prélèvement, pas de l\'argent qui reste. Pour changer la date ou le montant : onglet <b>À payer</b> → <b>Virement vers mon PEL</b>.</p>';
+  }
+  el.innerHTML=h;
+  var i=document.getElementById("effortIn");
+  if(i&&document.activeElement!==i)i.value=cap>0?nb(cap):"";
 }
 function renderLiving(){
   var l=livingLearned(),by=freeByMonth(),cm=curMonth(),h="";
@@ -2014,6 +2075,7 @@ function monthDetail(m){
 function renderPlan(){
   renderLiving();
   var P=buildPlan();
+  renderEffort(P);
   var sum=document.getElementById("planSummary"),host=document.getElementById("planMonths");
   if(!Object.keys(state.incomeByMonth||{}).length){
     document.getElementById("planHint").textContent="";
@@ -2026,10 +2088,16 @@ function renderPlan(){
     (P.startOd!==P.sgOd?'<div class="sline"><span>En comptant tes espèces et Revolut</span><b>'+fmt(P.startOd)+'</b></div>':"")+
     '<div class="sline"><span>Tu en sors</span><b>'+(P.odDone?ml(P.odDone):(P.startOd<=0?"déjà dehors":"pas dans les 3 prochaines années"))+'</b></div>'+
     '<div class="sline"><span>Ce que tu dois à tes proches</span><b>'+fmt(P.totalDebt)+'</b></div>'+
+    (P.pel.up?'<div class="sline"><span>Ton PEL passe à '+fmt(P.pel.next)+' / mois</span><b>'+ml(P.pel.from)+'</b></div>':
+     (P.pel.now>0?'<div class="sline"><span>Ton PEL, chaque mois</span><b>'+fmt(P.pel.now)+'</b></div>':""))+
     '<div class="sline"><span>Tout remboursé</span><b>'+(P.debtDone?ml(P.debtDone):(P.totalDebt<=0?"rien à rendre":"pas encore"))+'</b></div>'+
     (P.cushionTarget?'<div class="sline"><span>Argent de secours ('+fmt(P.cushionTarget)+')</span><b>'+(P.cushionDone?ml(P.cushionDone):"pas encore")+'</b></div>':"")+
     (P.missed&&P.missed.length?'<div class="sline" style="color:var(--debit)"><span><b>Pas tenable à la date voulue</b></span><b>'+
       esc(P.missed.map(function(g){return g.name}).join(", "))+'</b></div>':"")+
+    (P.missed&&P.missed.length&&P.pel.up&&P.pel.next>=300
+      ? '<p class="hint" style="margin:10px 0 0">Ce qui le repousse, c\'est ton PEL : '+fmt(P.pel.next)+
+        ' par mois à partir de '+ml(P.pel.from)+', prélevés avant tout le reste. Baisse-le dans <b>À payer → Virement vers mon PEL</b> et tout le reste avance.</p>'
+      : "")+
     P.goals.filter(function(g){return g.target>0}).map(function(g){
       return '<div class="sline"><span>'+esc(g.name)+' ('+fmt(g.target)+')</span><b>'+(g.eta?ml(g.eta):"au-delà de 3 ans")+'</b></div>';
     }).join("")+
@@ -2065,12 +2133,12 @@ function renderPlan(){
         (m.alloc.goals?line("→ Pour mes objectifs",(m.what||[]).join(" · "),"−"+fmt(m.alloc.goals),"var(--credit)"):"")+
         (m.alloc.od?line("→ Pour combler ton découvert","","−"+fmt(m.alloc.od),"var(--debit)"):"")+
         (m.alloc.cushion?line("→ Argent de secours","","−"+fmt(m.alloc.cushion),"var(--c-transport)"):"")+
-        (m.rest>0?'<div class="prest final"><b>Libre</b><span class="v">'+fmt(m.rest)+'</span></div>':"")
+        (m.kept>0?'<div class="prest final"><b>Et ça, ça reste à toi</b><span class="v">'+fmt(m.kept)+'</span></div>':"")
       :"")+
       monthDetail(m);
     m.acts.forEach(function(a){
       if(a.t==="sv"&&!/:/.test(a.txt))return;
-      h+='<div class="todo '+a.t+'"><span class="ic">'+(a.t==="od"?"!":(a.t==="cu"?"◆":(a.t==="dt"?"→":(a.t==="sv"?"✓":"·"))))+'</span><span>'+esc(a.txt)+'</span></div>';
+      h+='<div class="todo '+a.t+'"><span class="ic">'+(a.t==="od"?"!":(a.t==="cu"?"◆":(a.t==="dt"?"→":(a.t==="sv"?"✓":(a.t==="fr"?"♥":"·")))))+'</span><span>'+esc(a.txt)+'</span></div>';
     });
     h+='</div></article>';
   });
@@ -2091,11 +2159,16 @@ function renderCalc(){
   /* charges fixes pas encore versées au registre, pour ne rien compter deux fois */
   var pending=missingFixed(),chargesLeft=r2(pending.reduce(function(t,f){return t+pa(f.amount)},0));
   var PL=buildPlan();
-  var rest=0;
-  if(PL.months.length&&PL.months[0].acts)PL.months[0].acts.forEach(function(a){if(a.t==="sv")rest=a.v});
+  var rest=PL.months.length?r2(PL.months[0].alloc.goals):0;
   var stillPlanned = cm<=P.monthlyUntil;
-  var h='<div class="calc-res"><span class="lb"><b>Ce que tu peux mettre de côté ce mois-ci</b>'+
-     '<small>'+(rest>0?"d\'après ton plan, une fois le découvert comblé et tes proches remboursés":"rien pour l\'instant — vois l\'onglet Le reste, section Mon plan")+'</small></span>'+
+  var pel=pelPlan();
+  var h="";
+  if(pel.up)h+='<div class="warn-box" style="border-color:var(--ac-pel);color:var(--ink)"><b>Ton PEL augmente tout seul.</b> '+
+    fmt(pel.now)+' par mois aujourd\'hui, puis <b>'+fmt(pel.next)+' par mois à partir de '+ml(pel.from)+'</b>. '+
+    'C\'est un virement automatique : tu n\'as rien à faire. Pour changer la date ou le montant, va dans <b>À payer → Virement vers mon PEL</b>.</div>';
+  else if(pel.now>0)h+='<div class="warn-box" style="border-color:var(--ac-pel);color:var(--ink)"><b>Ton PEL.</b> '+fmt(pel.now)+' par mois, automatiquement, tous les mois.</div>';
+  h+='<div class="calc-res"><span class="lb"><b>Ce que tu peux mettre de côté ce mois-ci</b>'+
+     '<small>'+(rest>0?"d\'après ton plan, une fois le découvert comblé et tes proches remboursés":"rien pour l\'instant — vois l\'onglet Mon plan")+'</small></span>'+
      '<span class="big num">'+fmt(rest)+'</span></div>';
 
   if(c.totalReal<0){
@@ -2467,6 +2540,7 @@ planTab.addEventListener("input",function(e){
     state.incomeByMonth[el.getAttribute("data-mk")]=pa(el.value);save();return;
   }
   if(el.id==="livingIn"){state.living=pa(el.value);save();return}
+  if(el.id==="effortIn"){state.effort=pa(el.value);save();return}
 
   var row=el.closest(".irow");if(!row)return;
   var it=find(state.income,row.getAttribute("data-id"));if(!it)return;
@@ -2475,6 +2549,7 @@ planTab.addEventListener("input",function(e){
 planTab.addEventListener("change",function(e){
   if(e.target.classList&&e.target.classList.contains("monthinc")){renderPlan();renderSchedule();renderSummary();return}
   var a=e.target.getAttribute("data-act");
+  if(e.target.id==="effortIn"){renderPlan();renderSchedule();renderSummary();renderCalc();return}
   if(e.target.id==="livingIn"||a==="amount"){renderPlan();renderSchedule();renderSummary()}
 });
 planTab.addEventListener("click",function(e){
