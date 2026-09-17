@@ -542,7 +542,7 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .irow .w b{font-weight:600}
 .irow input{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 #pledgeD,#pledgeS{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
-#effortIn{width:104px;padding:7px 9px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right;font-weight:700}
+#odMarginIn,#effortIn{width:104px;padding:7px 9px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right;font-weight:700}
 #debtMonthlyIn{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 #livingIn{width:104px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:right}
 
@@ -893,9 +893,10 @@ function mv(id,label,acc,dir,amount,cat,date,month,maybe){
           month:month||"",dateReal:"",done:false,maybe:!!maybe};
 }
 var SEED = {
-  v:16,
+  v:17,
   settings:{buffer:0,lockSavings:true},
   effort:0,
+  odMargin:200,
   income:[],
   incomeByMonth:{},
   living:0,
@@ -1055,6 +1056,7 @@ function migrate(s){
   o.debtMonthly=pa(s.debtMonthly);
   o.saveMonthly=pa(s.saveMonthly);
   o.effort=pa(s.effort);
+  if(s.odMargin!=null)o.odMargin=pa(s.odMargin);
   o.balanceAsOf=/^\d{4}-\d{2}-\d{2}$/.test(s.balanceAsOf||"")?s.balanceAsOf:today();
   if(Array.isArray(s.order)){
     var ok=["od","cushion","debts","goals"],keep=s.order.filter(function(k){return ok.indexOf(k)>=0});
@@ -1366,10 +1368,15 @@ function adviceFor(extra){
   var order=state.order||["od","debts","goals","cushion"];
   for(var i=0;i<order.length;i++){
     var k=order[i];
-    if(k==="od"&&c.totalReal<0){
-      var q=Math.min(libre,r2(-c.totalReal));
-      return {t:"od",txt:covered+" Mets <b>"+fmt(q)+
-        "</b> à combler ton découvert — il te coûte des agios chaque mois."};
+    if(k==="od"){
+      var marge=r2(Math.max(0,c.totalOd-Math.max(0,-c.totalReal)));
+      if(marge<pa(state.odMargin)){
+        var q=Math.min(libre,r2(pa(state.odMargin)-marge));
+        return {t:"od",txt:covered+" Garde <b>"+fmt(q)+
+          "</b> sur le compte : il ne te reste que "+fmt(marge)+" avant ta limite de "+fmt(c.totalOd)+
+          ", et un prélèvement rejeté te coûterait des frais. Le reste du découvert, on s'en occupe plus tard."};
+      }
+      continue;
     }
     if(k==="debts"){
       var d=state.debts.map(function(x){return {n:x.name,r:r2(Math.max(0,pa(x.amount)-pa(x.paid)))}})
@@ -1829,9 +1836,11 @@ function buildPlan(){
   var debts=state.debts.map(function(d){return {name:d.name,start:r2(Math.max(0,pa(d.amount)-pa(d.paid))),rest:r2(Math.max(0,pa(d.amount)-pa(d.paid)))}})
     .filter(function(d){return d.rest>0}).sort(function(a,b){return a.rest-b.rest});
   var sched=[];
-  var od=r2(Math.max(0,-c.totalReal));      /* le trou à combler */
-  var bal=c.totalReal;
-  var months=[],odDone=null,debtDone=null,saved=0;
+  var odLimit=r2(c.totalOd);
+  var odMargin=r2(Math.min(pa(state.odMargin),odLimit));
+  var odFree=r2(Math.max(0,odLimit-odMargin));   /* jusqu'où le découvert peut descendre sans danger */
+  var bal=c.totalReal;                           /* le solde projeté de tes comptes courants */
+  var months=[],odDone=null,odMarginAt=null,debtDone=null,saved=0;
   for(var n=0;n<36;n++){
     var mk=addM(cm,n);
     var rev=incomeFor(mk), e=byM[mk]||{in:0,out:0};
@@ -1845,16 +1854,15 @@ function buildPlan(){
     } else {
       flux=r2(rev+e.in-fx-e.out-living);
     }
-    bal=r2(bal+flux);
+    /* ce qui bouge vraiment sur le compte ce mois-ci (au mois 0, « flux » part de la capacité) */
+    var net=(n===0?r2(flux-c.capacity):flux);
+    bal=r2(bal+net);
     var acts=[],alloc={od:0,cushion:0,debts:0,goals:0},who=[],what=[];
-    var pot=r2(Math.max(0,flux)),kept=0;
-    /* combler le découvert n'est pas un virement à faire : c'est ton compte qui remonte tout seul */
-    if(od>0&&pot>0){
-      var put0=Math.min(od,pot);od=r2(od-put0);pot=r2(pot-put0);alloc.od=r2(alloc.od+put0);
-      acts.push({t:"od",v:put0,txt:od<=0?"Tu sors du découvert — ton compte repasse à zéro":"Tu combles "+fmt(put0)+" de ton découvert, il en restera "+fmt(od)});
-      if(od<=0&&!odDone)odDone=mk;
-    }
-    /* ce que je te demande vraiment de sortir ce mois-ci : jamais tout ce qui reste */
+    /* on ne comble pas le découvert : on sort tout ce qu'on peut sans coller à la limite autorisée */
+    var pot=r2(Math.max(0,Math.min(Math.max(0,net),r2(bal+odFree)))),kept=0;
+    var heal=r2(Math.max(0,Math.max(0,net)-pot));   /* la part qui répare ton compte avant tout le reste */
+    if(heal>0)acts.push({t:"od",v:heal,txt:"D'abord "+fmt(heal)+" repartent dans ton compte : tu es trop près de ta limite de "+
+      fmt(odLimit)+" pour sortir cet argent. Ce n'est pas perdu, c'est ta marge qui revient."});
     var effCap=pa(state.effort);
     var budget=effCap>0?r2(Math.min(effCap,pot)):r2(pot*EFFSHARE);
     kept=r2(pot-budget);
@@ -1907,7 +1915,7 @@ function buildPlan(){
     function before(k){ /* tout ce qui passe avant k est-il soldé ? */
       for(var z=0;z<rank(k);z++){
         var w=ORD[z];
-        if(w==="od"&&od>0)return false;
+        if(w==="od")continue;   /* le découvert n'est plus une étape : il remonte tout seul */
         if(w==="cushion"&&cushionTarget>0&&cushion<cushionTarget)return false;
         if(w==="debts"&&debts.length)return false;
         if(w==="goals"&&goals.some(function(g){return g.target>0&&g.saved<g.target}))return false;
@@ -1952,6 +1960,14 @@ function buildPlan(){
       if(surplus>0){kept=r2(kept+surplus);surplus=0}
     }
     if(surplus>0){kept=r2(kept+surplus);surplus=0}
+    /* ce que tu sors quitte le compte ; ce que tu gardes y reste et fait remonter ton découvert */
+    bal=r2(bal-alloc.debts-alloc.goals-alloc.cushion);
+    var left=r2(odLimit+bal);                    /* ce qu'il te reste avant ta limite */
+    if(bal>=0&&!odDone)odDone=mk;
+    if(left>=odMargin&&!odMarginAt)odMarginAt=mk;
+    if(left<odMargin)acts.push({t:"od",v:0,txt:left<0
+      ? "Attention : tu dépasses ta limite de "+fmt(odLimit)+" de "+fmt(-left)+" — un prélèvement va être rejeté"
+      : "Il ne te reste que "+fmt(left)+" avant ta limite de "+fmt(odLimit)+" : c'est trop juste, ne sors rien de plus ce mois-ci"});
     if(kept>0)acts.push({t:"fr",v:kept,txt:"Et "+fmt(kept)+" restent à toi, pour ta vie de tous les jours — tu n'as rien à justifier"});
     if(flux<=0)acts.push({t:"no",v:0,txt:rev?"Ce mois-ci tu ne dégages rien : "+fmt(Math.abs(flux))+" de trop":"Tu ne m'as pas dit ce que tu gagnes ce mois-là"});
     var got=0,spent=0;
@@ -1962,14 +1978,15 @@ function buildPlan(){
       else spent+=pa(x.amount);
     });
     var pelAmt=0;state.fixed.forEach(function(f){if(/PEL/i.test(f.label))pelAmt+=fixAmountFor(f,mk)});
-    months.push({mk:mk,who:who,what:what,pel:r2(pelAmt),first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,acts:acts,alloc:alloc,rest:r2(kept),kept:r2(kept),
+    months.push({mk:mk,who:who,what:what,pel:r2(pelAmt),first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,left:left,heal:heal,acts:acts,alloc:alloc,rest:r2(kept),kept:r2(kept),
       effort:r2(alloc.debts+alloc.goals+alloc.cushion)});
-    if(od<=0&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
+    if(left>=odMargin&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>=1&&!Object.keys(state.incomeByMonth||{}).length)break;
   }
   var missed=goals.filter(function(g){return g.by&&g.target>0&&(!g.eta||g.eta>g.by)});
   var sgA=null;c.accs.forEach(function(a){if(a.id==="sg")sgA=a});
-  return {pel:pelPlan(),effCap:pa(state.effort),sgOd:r2(Math.max(0,sgA?-sgA.real:0)),missed:missed,sched:sched,months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
+  return {pel:pelPlan(),effCap:pa(state.effort),odLimit:odLimit,odMargin:odMargin,odFree:odFree,
+          odLeft:r2(Math.max(0,odLimit-Math.max(0,-c.totalReal))),odMarginAt:odMarginAt,sgOd:r2(Math.max(0,sgA?-sgA.real:0)),missed:missed,sched:sched,months:months,odDone:odDone,debtDone:debtDone,cushionDone:cushionDone,cushionTarget:cushionTarget,
           goals:goals,fun:fun,living:living,startOd:r2(Math.max(0,-c.totalReal)),
           totalDebt:r2(state.debts.reduce(function(t,d){return t+Math.max(0,pa(d.amount)-pa(d.paid))},0)),saved:saved};
 }
@@ -1999,6 +2016,15 @@ function renderEffort(P){
       : 'Je ne connais pas encore toutes tes dépenses du quotidien, donc je ne te demande jamais plus de <b>la moitié</b> de ce qui reste après tes prélèvements. Si c\'est encore trop, écris ton montant ici.')+
     (m?' Prochain mois où tu sors quelque chose : <b>'+esc(ml(m.mk))+'</b>, <b>'+fmt(m.effort)+'</b>'+(m.kept>0?' — et <b>'+fmt(m.kept)+'</b> restent à toi.':'.'):'')+
     '</p>';
+  var lim=r2((P&&P.odLimit)||0);
+  if(lim>0){
+    h+='<div class="plan-line"><span class="lb">La marge que je te garde sur ton découvert'+
+      '<small>je ne te demande de remonter ton compte que jusque-là. En dessous, un prélèvement peut passer au travers et la banque facture le rejet.</small></span>'+
+      '<span class="rt"><input id="odMarginIn" inputmode="decimal" aria-label="Marge de sécurité"><span class="am">sur '+fmt(lim)+'</span></span></div>'+
+      '<p class="hint" style="margin:8px 0 0">Sortir complètement du découvert n\'est <b>pas</b> un objectif de l\'appli. Tant qu\'il te reste '+
+      fmt(pa(state.odMargin))+' de libre avant ta limite, tout le reste part dans tes remboursements et ton permis.'+
+      (P&&P.odLeft<pa(state.odMargin)?' <b>Là tout de suite il ne t\'en reste que '+fmt(P.odLeft)+'</b> — c\'est ça, la corde au cou.':'')+'</p>';
+  }
   if(pel.now>0||pel.next>0){
     h+='<div class="plan-line"><span class="lb">Ton PEL'+
       '<small>'+(pel.up
@@ -2010,6 +2036,8 @@ function renderEffort(P){
   el.innerHTML=h;
   var i=document.getElementById("effortIn");
   if(i&&document.activeElement!==i)i.value=cap>0?nb(cap):"";
+  var j=document.getElementById("odMarginIn");
+  if(j&&document.activeElement!==j)j.value=nb(pa(state.odMargin));
 }
 function renderLiving(){
   var l=livingLearned(),by=freeByMonth(),cm=curMonth(),h="";
@@ -2086,7 +2114,9 @@ function renderPlan(){
   sum.innerHTML='<div class="summary-card"><h3>Où ça te mène</h3>'+
     '<div class="sline"><span>Ton découvert sur SG</span><b>'+fmt(P.sgOd)+'</b></div>'+
     (P.startOd!==P.sgOd?'<div class="sline"><span>En comptant tes espèces et Revolut</span><b>'+fmt(P.startOd)+'</b></div>':"")+
-    '<div class="sline"><span>Tu en sors</span><b>'+(P.odDone?ml(P.odDone):(P.startOd<=0?"déjà dehors":"pas dans les 3 prochaines années"))+'</b></div>'+
+    '<div class="sline"'+(P.odLeft<P.odMargin?' style="color:var(--debit)"':"")+'><span>Ce qu\'il te reste avant ta limite de '+fmt(P.odLimit)+'</span><b>'+fmt(P.odLeft)+'</b></div>'+
+    '<div class="sline"><span>Tu récupères '+fmt(P.odMargin)+' de marge</span><b>'+
+      (P.odLeft>=P.odMargin?"c\'est déjà le cas":(P.odMarginAt?ml(P.odMarginAt):"pas dans les 3 prochaines années"))+'</b></div>'+
     '<div class="sline"><span>Ce que tu dois à tes proches</span><b>'+fmt(P.totalDebt)+'</b></div>'+
     (P.pel.up?'<div class="sline"><span>Ton PEL passe à '+fmt(P.pel.next)+' / mois</span><b>'+ml(P.pel.from)+'</b></div>':
      (P.pel.now>0?'<div class="sline"><span>Ton PEL, chaque mois</span><b>'+fmt(P.pel.now)+'</b></div>':""))+
@@ -2129,12 +2159,15 @@ function renderPlan(){
         "−"+fmt(m.first?m.livingLeft:m.living),"var(--debit)"):"")+
       '<div class="prest"><b>'+(m.flux<0?"Il te manque":"Il te reste")+'</b><span class="v" style="color:'+(m.flux<0?"var(--debit)":"var(--ink)")+'">'+fmt(m.flux)+'</span></div>'+
       (m.flux>0?
+        (m.heal>0?line("→ Pour remonter ton compte","tu es trop près de ta limite pour sortir cet argent","−"+fmt(m.heal),"var(--ink-3)"):"")+
         (m.alloc.debts?line("→ Pour rembourser",(m.who||[]).join(" · "),"−"+fmt(m.alloc.debts),"var(--c-dette)"):"")+
         (m.alloc.goals?line("→ Pour mes objectifs",(m.what||[]).join(" · "),"−"+fmt(m.alloc.goals),"var(--credit)"):"")+
-        (m.alloc.od?line("→ Pour combler ton découvert","","−"+fmt(m.alloc.od),"var(--debit)"):"")+
         (m.alloc.cushion?line("→ Argent de secours","","−"+fmt(m.alloc.cushion),"var(--c-transport)"):"")+
-        (m.kept>0?'<div class="prest final"><b>Et ça, ça reste à toi</b><span class="v">'+fmt(m.kept)+'</span></div>':"")
-      :"")+
+        (m.kept>0?'<div class="prest final"><b>Et ça, ça reste à toi</b><span class="v">'+fmt(m.kept)+'</span></div>':"")+
+        line("Ton compte à la fin du mois",(m.left>=0?"il te restera "+fmt(m.left)+" avant ta limite":"au-delà de ta limite"),
+             fmt(m.bal),(m.left<pa(state.odMargin)?"var(--debit)":"var(--ink-2)"))
+      :line("Ton compte à la fin du mois",(m.left>=0?"il te restera "+fmt(m.left)+" avant ta limite":"au-delà de ta limite"),
+            fmt(m.bal),(m.left<pa(state.odMargin)?"var(--debit)":"var(--ink-2)")))+
       monthDetail(m);
     m.acts.forEach(function(a){
       if(a.t==="sv"&&!/:/.test(a.txt))return;
@@ -2148,7 +2181,7 @@ function renderPlan(){
 var ECOL=["var(--e1)","var(--e2)","var(--e3)","var(--e4)","var(--e5)","var(--e6)"];
 var FIXOPEN="";
 var ECOL=["var(--e1)","var(--e2)","var(--e3)","var(--e4)","var(--e5)","var(--e6)"];
-var ORDNAMES={od:"Combler mon découvert",cushion:"Mon argent de secours (coup dur)",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
+var ORDNAMES={od:"Garder de la marge sur mon découvert",cushion:"Mon argent de secours (coup dur)",debts:"Rembourser mes proches",goals:"Mes objectifs (permis, voiture…)"};
 function planIncome(){
   var P=state.plan,cm=curMonth();
   return cm>=P.cdiFrom?{amount:pa(P.incomeCdi),label:P.cdiLabel}:{amount:pa(P.income),label:P.incomeLabel};
@@ -2168,12 +2201,13 @@ function renderCalc(){
     'C\'est un virement automatique : tu n\'as rien à faire. Pour changer la date ou le montant, va dans <b>À payer → Virement vers mon PEL</b>.</div>';
   else if(pel.now>0)h+='<div class="warn-box" style="border-color:var(--ac-pel);color:var(--ink)"><b>Ton PEL.</b> '+fmt(pel.now)+' par mois, automatiquement, tous les mois.</div>';
   h+='<div class="calc-res"><span class="lb"><b>Ce que tu peux mettre de côté ce mois-ci</b>'+
-     '<small>'+(rest>0?"d\'après ton plan, une fois le découvert comblé et tes proches remboursés":"rien pour l\'instant — vois l\'onglet Mon plan")+'</small></span>'+
+     '<small>'+(rest>0?"d\'après ton plan, une fois ta marge de sécurité gardée et tes proches remboursés":"rien pour l\'instant — vois l\'onglet Mon plan")+'</small></span>'+
      '<span class="big num">'+fmt(rest)+'</span></div>';
 
-  if(c.totalReal<0){
-    h+='<div class="warn-box"><b>D\'abord ton découvert.</b> Tu es à '+fmt(c.totalReal)+' sur tes comptes courants. '+
-       'Remplir le coffre pendant que tu es à découvert te coûte des agios pour rien : ramène d\'abord SG à zéro, le coffre vient après.</div>';
+  var odLeft=r2(Math.max(0,c.totalOd-Math.max(0,-c.totalReal)));
+  if(odLeft<pa(state.odMargin)){
+    h+='<div class="warn-box"><b>Là, tu es au bord.</b> Il ne te reste que '+fmt(odLeft)+' avant ta limite de '+fmt(c.totalOd)+'. '+
+       'Remonte d\'abord jusqu\'à '+fmt(pa(state.odMargin))+' de marge — après ça, tout part dans tes remboursements et ton permis.</div>';
   }
 
   h+='<div class="put"><div class="lb"><b>'+(stillPlanned?"Ton versement prévu : "+fmt(P.monthly)+" par mois":"À toi de décider")+'</b>'+
@@ -2541,6 +2575,7 @@ planTab.addEventListener("input",function(e){
   }
   if(el.id==="livingIn"){state.living=pa(el.value);save();return}
   if(el.id==="effortIn"){state.effort=pa(el.value);save();return}
+  if(el.id==="odMarginIn"){state.odMargin=pa(el.value);save();return}
 
   var row=el.closest(".irow");if(!row)return;
   var it=find(state.income,row.getAttribute("data-id"));if(!it)return;
@@ -2549,7 +2584,7 @@ planTab.addEventListener("input",function(e){
 planTab.addEventListener("change",function(e){
   if(e.target.classList&&e.target.classList.contains("monthinc")){renderPlan();renderSchedule();renderSummary();return}
   var a=e.target.getAttribute("data-act");
-  if(e.target.id==="effortIn"){renderPlan();renderSchedule();renderSummary();renderCalc();return}
+  if(e.target.id==="effortIn"||e.target.id==="odMarginIn"){renderPlan();renderSchedule();renderSummary();renderCalc();return}
   if(e.target.id==="livingIn"||a==="amount"){renderPlan();renderSchedule();renderSummary()}
 });
 planTab.addEventListener("click",function(e){
