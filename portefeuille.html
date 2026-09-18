@@ -1735,7 +1735,17 @@ function monthPlan(){
           free:free,freeBest:freeBest,alloc:alloc,left:r2(free-alloc),leftBest:r2(freeBest-alloc)};
 }
 function nextPayday(){
-  var d=new Date(),pd=Math.min(31,Math.max(1,parseInt(state.plan.payDay,10)||5));
+  var d=new Date(),T=today();
+  /* la prochaine rentrée que tu m'as vraiment datée passe avant le jour de paie théorique */
+  var nxt="";
+  state.movements.forEach(function(m){
+    if(m.done||m.maybe||m.dir!=="in")return;
+    if(acc(m.account).kind==="epargne")return;
+    if(!m.datePlanned||m.datePlanned<T)return;
+    if(!nxt||m.datePlanned<nxt)nxt=m.datePlanned;
+  });
+  if(nxt){var q=nxt.split("-");return new Date(+q[0],+q[1]-1,+q[2])}
+  var pd=Math.min(31,Math.max(1,parseInt(state.plan.payDay,10)||5));
   var y=d.getFullYear(),m=d.getMonth();
   function mk(yy,mm){var last=new Date(yy,mm+1,0).getDate();return new Date(yy,mm,Math.min(pd,last))}
   var cand=mk(y,m);
