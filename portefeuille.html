@@ -1308,24 +1308,45 @@ function renderDays(c){
   }
 
   var run=c.capacity, realRun=c.totalReal, h="", n=0;
+  /* chaque compte est suivi séparément : un paiement part d'une carte précise, pas d'un total */
+  var aRun={},aReal={},aNeed={},aSaid={};
+  c.accs.forEach(function(a){if(a.kind!=="epargne"){aRun[a.id]=a.margin;aReal[a.id]=a.real;aNeed[a.id]=0}});
   evs.forEach(function(m){
     n++;
-    var amt=pa(m.amount), isIn=m.dir==="in";
+    var amt=pa(m.amount), isIn=m.dir==="in", aid=m.account, A=acc(aid), nm=A.short||A.name;
     run=r2(run+(isIn?amt:-amt));
     realRun=r2(realRun+(isIn?amt:-amt));
+    if(aRun[aid]!=null){aRun[aid]=r2(aRun[aid]+(isIn?amt:-amt));aReal[aid]=r2(aReal[aid]+(isIn?amt:-amt))}
+    var mine=(aRun[aid]==null?run:aRun[aid]);
+    var els=0,elsN=[];
+    Object.keys(aRun).forEach(function(k){
+      if(k===aid||aRun[k]<=0)return;
+      els=r2(els+aRun[k]);elsN.push((acc(k).short||acc(k).name)+" "+fmt(aRun[k]));
+    });
     var cls,verdict;
     if(isIn){
       cls="good";
-      verdict="Tu remontes à <b>"+fmt(run)+"</b>"+(realRun<0?", mais tu es encore dans le rouge de "+fmt(Math.abs(realRun))+".":".");
-    } else if(run<0){
+      verdict="Cet argent arrive sur <b>"+esc(nm)+"</b> — tu y auras "+fmt(mine)+
+        ". Au total tu remontes à <b>"+fmt(run)+"</b>"+(realRun<0?", mais tu es encore dans le rouge de "+fmt(Math.abs(realRun))+".":".");
+    } else if(mine<0){
       cls="ko";
-      verdict="<b>Il te manque "+fmt(Math.abs(run))+".</b> Ta banque peut refuser : il faut faire rentrer de l'argent avant.";
-    } else if(realRun<0){
+      if(aNeed[aid]!=null&&Math.abs(mine)>aNeed[aid])aNeed[aid]=Math.abs(mine);
+      verdict="<b>Il te manquera "+fmt(Math.abs(mine))+" sur "+esc(nm)+"</b> ce jour-là.";
+      if(!aSaid[aid]){
+        aSaid[aid]=1;
+        verdict+=" "+(els>0
+          ? "Vire depuis "+esc(elsN.join(" ou "))+" avant, sinon la banque refuse."
+          : "Et tu n'as rien ailleurs pour couvrir : la banque peut refuser.");
+      }
+    } else if(aReal[aid]!=null&&aReal[aid]<0){
       cls="warn2";
-      verdict="Ça passe. Il te restera <b>"+fmt(run)+"</b> — tu es à découvert de "+fmt(Math.abs(realRun))+" sur les "+fmt(c.totalOd)+" autorisés.";
+      verdict="Ça passe sur <b>"+esc(nm)+"</b>. Il te restera "+fmt(mine)+" — tu es à découvert de "+
+        fmt(Math.abs(aReal[aid]))+" sur les "+fmt(pa(A.overdraft))+" autorisés."+
+        (elsN.length?" À côté : "+esc(elsN.join(", "))+".":"");
     } else {
       cls="good";
-      verdict="Ça passe. Il te restera <b>"+fmt(run)+"</b>.";
+      verdict="Ça passe sur <b>"+esc(nm)+"</b>. Il te restera "+fmt(mine)+"."+
+        (elsN.length?" À côté : "+esc(elsN.join(", "))+".":"");
     }
     h+='<div class="step '+cls+'" data-id="'+esc(m.id)+'">'+
        '<span class="num2">'+n+'</span>'+
@@ -1338,9 +1359,15 @@ function renderDays(c){
   });
 
   var after=run, ac=after<0;
+  var byAcc=Object.keys(aRun).map(function(k){return (acc(k).short||acc(k).name)+" "+fmt(aRun[k])}).join(" · ");
+  var vir=Object.keys(aNeed).filter(function(k){return aNeed[k]>0})
+    .map(function(k){return "<b>"+fmt(aNeed[k])+"</b> vers "+esc(acc(k).short||acc(k).name)}).join(", ");
   var body='<h3>Ce qui arrive<span>prochain paiement en haut</span></h3>'+h+
     '<div class="dlow '+(ac?"bad":"ok")+'"><b>Une fois tout ça passé : '+fmt(after)+'</b>'+
-    (ac?" — il te manquera "+fmt(Math.abs(after))+" pour tout honorer.":" — c\'est ce qu\'il te restera.")+'</div>';
+    (ac?" — il te manquera "+fmt(Math.abs(after))+" pour tout honorer.":" — c\'est ce qu\'il te restera.")+
+    '<br><span class="hint">compte par compte : '+esc(byAcc)+'</span></div>'+
+    (vir?'<div class="dlow warn2" style="margin-top:8px"><b>À virer pour que tout passe :</b> '+vir+
+     '. C\'est le total à avoir déplacé, pas à chaque fois.</div>':"");
   if(float>0)body+='<div class="dfloat"><b>'+fmt(float)+' sans date connue</b> : '+
      esc(floatN.slice(0,5).join(", "))+(floatN.length>5?"…":"")+
      '. Coche-les le jour où elles passent, je retiendrai le jour pour la suite.</div>';
