@@ -1285,6 +1285,17 @@ function renderDays(c){
     if(!m.datePlanned||m.datePlanned<T||m.datePlanned>horizon)return;
     evs.push(m);
   });
+  /* les prélèvements dont je connais le jour, même sans ligne cochée : ils tombent quand même */
+  state.fixed.forEach(function(f){
+    if(!f.day)return;
+    if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===cm}))return;
+    var amt=fixAmountFor(f,cm); if(amt<=0)return;
+    var d=new Date(),last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    var iso=cm+"-"+pad(Math.min(parseInt(f.day,10)||1,last));
+    if(iso<T||iso>horizon)return;
+    evs.push({id:"fx-"+f.id,label:f.label,amount:amt,dir:"out",account:f.account||"sg",
+              datePlanned:iso,fixId:f.id,fixMonth:cm,done:false,maybe:false,virtual:true});
+  });
   evs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
 
   var float=0,floatN=[];
@@ -1296,8 +1307,9 @@ function renderDays(c){
     float+=pa(m.amount);floatN.push(m.label);
   });
   state.fixed.forEach(function(f){
+    if(f.day)return;   /* jour connu : il apparaît dans la liste datée */
     if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===cm}))return;
-    float+=pa(f.amount);floatN.push(f.label);
+    float+=fixAmountFor(f,cm);floatN.push(f.label);
   });
   float=r2(float);
 
@@ -2762,6 +2774,17 @@ document.getElementById("daysBox").addEventListener("change",function(e){
   var row=el.closest(".step");if(!row)return;
   var m=null,id=row.getAttribute("data-id");
   state.movements.forEach(function(x){if(x.id===id)m=x});
+  if(!m&&id.indexOf("fx-")===0){
+    /* prélèvement affiché depuis sa fiche : on crée sa ligne du mois avant de la cocher */
+    var f=find(state.fixed,id.slice(3)),cm=curMonth();
+    if(!f)return;
+    var dd=new Date(),last=new Date(dd.getFullYear(),dd.getMonth()+1,0).getDate();
+    var day=f.day?Math.min(Math.max(1,parseInt(f.day,10)),last):0;
+    m={id:uid(),label:f.label,account:f.account,dir:"out",amount:fixAmountFor(f,cm),cat:f.cat,
+       datePlanned:day?cm+"-"+pad(day):"",month:cm,dateReal:"",done:false,maybe:false,
+       fixId:f.id,fixMonth:cm,settled:false,free:false};
+    state.movements.push(m);
+  }
   if(!m)return;
   snapshot();
   var already=markPaid(m);
