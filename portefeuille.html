@@ -527,6 +527,10 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .wfinal{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:7px;padding:13px 14px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent)}
 .wfinal span{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);font-weight:700}
 .wfinal b{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:22px;color:var(--accent)}
+.pelsteps{margin:10px 0 4px;font-size:12.5px;color:var(--ink-2)}
+.pelsteps div{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--rule)}
+.pelsteps div:last-child{border-bottom:none;font-weight:700;color:var(--ink)}
+.pelsteps .num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 .wnote{margin:11px 0 0;font-size:12px;color:var(--ink-3)}
 .wnote.bad{color:var(--debit)}
 .prow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px;color:var(--ink-2)}
@@ -2061,6 +2065,24 @@ function buildPlan(){
           goals:goals,fun:fun,living:living,startOd:r2(Math.max(0,-c.totalReal)),
           totalDebt:r2(state.debts.reduce(function(t,d){return t+Math.max(0,pa(d.amount)-pa(d.paid))},0)),saved:saved};
 }
+/* où en sera le PEL dans n mois, au rythme des versements programmés */
+function pelProj(n){
+  var cm=curMonth(),bal=0;
+  state.accounts.forEach(function(a){if(a.id==="pel")bal=ps(a.start)});
+  state.movements.forEach(function(m){
+    if(m.account!=="pel"||!m.done)return;
+    if(m.settled)return;
+    bal+=(m.dir==="in"?pa(m.amount):-pa(m.amount));
+  });
+  var steps=[];
+  for(var k=0;k<n;k++){
+    var mk=addM(cm,k),v=0;
+    state.fixed.forEach(function(f){if(f.active!==false&&/PEL/i.test(f.label||""))v+=fixAmountFor(f,mk)});
+    bal=r2(bal+v);
+    steps.push({mk:mk,put:r2(v),bal:r2(bal)});
+  }
+  return {start:r2(steps.length?steps[0].bal-steps[0].put:bal),steps:steps,end:r2(bal)};
+}
 function pelPlan(){
   var now=0,next=0,from="";
   state.fixed.forEach(function(f){
@@ -2264,6 +2286,15 @@ function renderCalc(){
     fmt(pel.now)+' par mois aujourd\'hui, puis <b>'+fmt(pel.next)+' par mois à partir de '+ml(pel.from)+'</b>. '+
     'C\'est un virement automatique : tu n\'as rien à faire. Pour changer la date ou le montant, va dans <b>À payer → Virement vers mon PEL</b>.</div>';
   else if(pel.now>0)h+='<div class="warn-box" style="border-color:var(--ac-pel);color:var(--ink)"><b>Ton PEL.</b> '+fmt(pel.now)+' par mois, automatiquement, tous les mois.</div>';
+  var pj=pelProj(13);
+  if(pj.start>0||pj.end>pj.start){
+    h+='<div class="calc-res" style="border-color:var(--ac-pel)"><span class="lb"><b>Ton PEL dans un an</b>'+
+      '<small>aujourd\'hui '+fmt(pj.start)+', au rythme de tes versements programmés — hors intérêts</small></span>'+
+      '<span class="big num" style="color:var(--ac-pel)">'+fmt(pj.end)+'</span></div>'+
+      '<div class="pelsteps">'+pj.steps.filter(function(x,i){return i%3===0||i===pj.steps.length-1}).map(function(x){
+        return '<div><span>'+esc(ml(x.mk))+(x.put?' · +'+fmt(x.put):'')+'</span><span class="num">'+fmt(x.bal)+'</span></div>';
+      }).join("")+'</div>';
+  }
   h+='<div class="calc-res"><span class="lb"><b>Ce que tu peux mettre de côté ce mois-ci</b>'+
      '<small>'+(rest>0?"d\'après ton plan, une fois ta marge de sécurité gardée et tes proches remboursés":"rien pour l\'instant — vois l\'onglet Mon plan")+'</small></span>'+
      '<span class="big num">'+fmt(rest)+'</span></div>';
