@@ -676,6 +676,8 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="coach" id="coach"></div>
 
+  <button class="strip" type="button" id="savStrip" data-goto="more"></button>
+
   <button class="strip" type="button" id="subsStrip" data-goto="pay"></button>
 
   <div class="panel pad">
@@ -1188,6 +1190,17 @@ function renderAccounts(c){
     sv+='<div class="sv-row" style="--ac:'+accC(a.id)+'"><span class="nm">'+esc(a.name)+'</span>'+
       '<input data-sv="'+a.id+'" inputmode="decimal" value="'+nb(a.real)+'" aria-label="Solde '+esc(a.name)+'"></div>';
   });
+  var st=document.getElementById("savStrip");
+  if(st){
+    var parts=[];
+    state.accounts.forEach(function(a){
+      if(a.kind!=="epargne")return;
+      var r=0;c.accs.forEach(function(x){if(x.id===a.id)r=x.real});
+      parts.push(esc(a.short||a.name)+" "+fmt(r));
+    });
+    st.innerHTML='<span class="l"><b>Mon coffre</b><small>'+(parts.join(" · ")||"aucun livret")+
+      '</small></span><span class="r" style="color:var(--ac-pel)">'+fmt(tot)+'</span>';
+  }
   document.getElementById("savingsPanel").innerHTML=
     '<div class="sv-head"><span class="eyebrow">Mon épargne</span><span class="tot num">'+fmt(tot)+'</span></div>'+sv+
     '<p class="hint" style="margin:10px 0 0">Cet argent ne compte pas dans ton « dispo » : il est à toi, mais pas pour le quotidien. Corrige un solde en tapant dessus.</p>';
@@ -2427,6 +2440,14 @@ function showTab(){
     document.getElementById("tab-"+k).hidden=(on.indexOf(k)<0);
   });
 }
+document.getElementById("savStrip").addEventListener("click",function(){
+  var b=document.querySelector('#tabs button[data-tab="more"]');
+  if(b)b.click();
+  setTimeout(function(){
+    var e=document.getElementById("savingsPanel");
+    if(e)e.scrollIntoView({behavior:"smooth",block:"start"});
+  },90);
+});
 document.getElementById("subsStrip").addEventListener("click",function(){
   var b=document.querySelector('#tabs button[data-tab="pay"]');
   if(b)b.click();
