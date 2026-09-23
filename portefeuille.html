@@ -676,6 +676,8 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="coach" id="coach"></div>
 
+  <button class="strip" type="button" id="fracStrip" data-goto="reg" hidden></button>
+
   <button class="strip" type="button" id="savStrip" data-goto="more"></button>
 
   <button class="strip" type="button" id="subsStrip" data-goto="pay"></button>
@@ -1190,6 +1192,27 @@ function renderAccounts(c){
     sv+='<div class="sv-row" style="--ac:'+accC(a.id)+'"><span class="nm">'+esc(a.name)+'</span>'+
       '<input data-sv="'+a.id+'" inputmode="decimal" value="'+nb(a.real)+'" aria-label="Solde '+esc(a.name)+'"></div>';
   });
+  var fs=document.getElementById("fracStrip");
+  if(fs){
+    /* noms distincts de ceux du coffre : « var » est global à la fonction */
+    var fCm=curMonth(),fTot=0,fMois=0,fWho={};
+    state.movements.forEach(function(m){
+      if(m.done||m.maybe||m.dir!=="out")return;
+      if(m.cat!=="Paiement fractionné")return;
+      var v=pa(m.amount);fTot=r2(fTot+v);
+      if((m.datePlanned||"").slice(0,7)===fCm)fMois=r2(fMois+v);
+      var k=(m.label||"").split(/[—-]/)[0].trim().split(" ")[0];
+      fWho[k]=r2((fWho[k]||0)+v);
+    });
+    if(fTot>0){
+      fs.hidden=false;
+      var fNoms=Object.keys(fWho).sort(function(a,b){return fWho[b]-fWho[a]})
+        .map(function(k){return esc(k)+" "+fmt(fWho[k])}).slice(0,4).join(" · ");
+      fs.innerHTML='<span class="l"><b>Ce que je dois en plusieurs fois</b><small>'+fNoms+
+        (fMois>0?' — dont '+fmt(fMois)+' ce mois-ci':'')+'</small></span>'+
+        '<span class="r">'+fmt(fTot)+'</span>';
+    } else fs.hidden=true;
+  }
   var st=document.getElementById("savStrip");
   if(st){
     var parts=[];
@@ -2440,6 +2463,10 @@ function showTab(){
     document.getElementById("tab-"+k).hidden=(on.indexOf(k)<0);
   });
 }
+document.getElementById("fracStrip").addEventListener("click",function(){
+  var b=document.querySelector('#tabs button[data-tab="pay"]');
+  if(b)b.click();
+});
 document.getElementById("savStrip").addEventListener("click",function(){
   var b=document.querySelector('#tabs button[data-tab="more"]');
   if(b)b.click();
