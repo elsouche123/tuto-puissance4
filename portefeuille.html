@@ -654,6 +654,32 @@ details.detail[open] summary::before{content:"▾ "}
   .edit-toggle{display:inline-flex}
   .mv:not([data-open="true"]) .meta .edit{display:none}
 }
+.nowcard{margin-top:20px;padding:17px 16px;border-radius:var(--radius);background:var(--card);border:2px solid var(--accent);box-shadow:var(--shadow)}
+.nowcard .eyeb{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);font-weight:700}
+.nowcard h2{font-size:20px;margin:3px 0 11px;text-transform:capitalize}
+.nowcard .lead{font-size:14.5px;line-height:1.5;margin:0 0 13px;color:var(--ink)}
+.nowline{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--rule)}
+.nowline .k{display:flex;flex-direction:column;gap:1px;min-width:0}
+.nowline .k b{font-size:15px}
+.nowline .k small{color:var(--ink-3);font-size:11.5px}
+.nowline .v{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;font-size:17px;white-space:nowrap}
+.nowline.pel .v{color:var(--ac-pel)}
+.nowline.sv .v{color:var(--credit)}
+.nowline.dt .v{color:var(--c-dette)}
+.nowline.none .v{color:var(--ink-3);font-size:13px;font-family:"Public Sans",sans-serif;font-weight:400}
+.nowme{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:11px;padding:14px 15px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent)}
+.nowme span{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.nowme b{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:23px;color:var(--accent)}
+.mtab{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+.mtab th{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:700;text-align:right;padding:0 0 7px;white-space:nowrap}
+.mtab th:first-child{text-align:left}
+.mtab td{padding:10px 0 10px 7px;border-top:1px solid var(--rule);text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:13px;white-space:nowrap}
+.mtab td:first-child{text-align:left;font-family:inherit;font-size:13.5px;padding-left:0}
+.mtab td.pel{color:var(--ac-pel)}
+.mtab td.me{font-weight:700;color:var(--accent)}
+.mtab td.z{color:var(--ink-3)}
+.mtab tr.now td{background:var(--accent-soft)}
+.mtab tr.now td:first-child{font-weight:700}
 .flash{animation:fl .5s ease}
 @keyframes fl{0%{background:var(--accent-soft)}100%{background:transparent}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -757,19 +783,29 @@ details.detail[open] summary::before{content:"▾ "}
 </section>
 
 <section class="tabpanel" id="tab-plan" hidden>
-  <div class="sect" style="margin-top:20px">
-    <div class="panel" style="padding:14px"><div id="effortBox"></div></div>
-  </div>
+  <div id="planNow"></div>
 
   <div class="sect">
-    <div class="panel" style="padding:14px"><div id="livingBox"></div></div>
+    <div class="sect-head"><h2>Les mois qui viennent</h2><span class="hint">ce que je te demande de sortir, mois par mois</span></div>
+    <div class="panel" style="padding:14px 15px"><div id="planTable"></div></div>
   </div>
 
-  <div class="sect">
-    <div class="sect-head"><h2>Mon plan</h2><span class="hint" id="planHint"></span></div>
-    <div id="planSummary"></div>
-    <div id="planMonths"></div>
-  </div>
+  <details class="box" id="planDetail">
+    <summary>Voir le détail mois par mois, et où ça me mène</summary>
+    <div class="box-body" style="padding:14px">
+      <div class="sect-head" style="margin-bottom:9px"><h2 style="font-size:16px">Où ça me mène</h2><span class="hint" id="planHint"></span></div>
+      <div id="planSummary"></div>
+      <div id="planMonths"></div>
+    </div>
+  </details>
+
+  <details class="box">
+    <summary>Régler mon plan : mon maximum, ma marge, mon PEL</summary>
+    <div class="box-body" style="padding:14px">
+      <div id="effortBox"></div>
+      <div id="livingBox" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--rule)"></div>
+    </div>
+  </details>
 </section>
 
 <section class="tabpanel" id="tab-fix" hidden>
@@ -1026,6 +1062,10 @@ var LS="portefeuille.v3", state=null, filter="all", tab="today";
 var docRef=null, hydrated=false, saveTimer=null, writing=false, dirty=false, lastSent="", pendingRemote=null;
 
 var EUR=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"});
+var NUM=new Intl.NumberFormat("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2});
+function fmtn(n){return NUM.format(r2(n))}
+var ENT=new Intl.NumberFormat("fr-FR",{maximumFractionDigits:0});
+function ent(n){return ENT.format(Math.round(Number(n)||0))}
 var DS=new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"short"});
 var MY=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric"});
 var MO=new Intl.DateTimeFormat("fr-FR",{month:"long"});
@@ -2037,7 +2077,7 @@ function buildPlan(){
     /* ce qui bouge vraiment sur le compte ce mois-ci (au mois 0, « flux » part de la capacité) */
     var net=(n===0?r2(flux-c.capacity):flux);
     bal=r2(bal+net);
-    var acts=[],alloc={od:0,cushion:0,debts:0,goals:0},who=[],what=[];
+    var acts=[],alloc={od:0,cushion:0,debts:0,goals:0},who=[],what=[],gBy={};
     /* on ne comble pas le découvert : on sort tout ce qu'on peut sans coller à la limite autorisée */
     var pot=r2(Math.max(0,Math.min(Math.max(0,net),r2(bal+odFree)))),kept=0;
     var heal=r2(Math.max(0,Math.max(0,net)-pot));   /* la part qui répare ton compte avant tout le reste */
@@ -2057,6 +2097,7 @@ function buildPlan(){
       var q=Math.min(need,Math.max(0,surplus));
       if(q>0){
         g.saved=r2(g.saved+q);surplus=r2(surplus-q);saved=r2(saved+q);alloc.goals=r2(alloc.goals+q);
+        gBy[g.name]=r2((gBy[g.name]||0)+q);
         what.push(g.name+" "+fmt(q)+(g.saved>=g.target?" ✓":""));
         acts.push({t:"sv",v:0,txt:"Pour ton "+g.name.toLowerCase()+" de "+ml(g.by)+" : tu mets "+fmt(q)+
           (g.saved>=g.target?" ✓ objectif atteint":" ("+fmt(g.saved)+" sur "+fmt(g.target)+")")});
@@ -2085,6 +2126,7 @@ function buildPlan(){
         var q3=Math.min(g.target-g.saved,budS);
         g.saved=r2(g.saved+q3);budS=r2(budS-q3);surplus=r2(surplus-q3);
         saved=r2(saved+q3);alloc.goals=r2(alloc.goals+q3);
+        gBy[g.name]=r2((gBy[g.name]||0)+q3);
         put0.push(g.name+" "+fmt(q3)+(g.saved>=g.target?" ✓ atteint":""));
         if(g.saved>=g.target&&!g.eta)g.eta=mk;
       });
@@ -2132,6 +2174,7 @@ function buildPlan(){
         if(surplus<=0||g.target<=0||g.saved>=g.target)return;
         var q=Math.min(g.target-g.saved,surplus);
         g.saved=r2(g.saved+q);surplus=r2(surplus-q);saved=r2(saved+q);alloc.goals=r2(alloc.goals+q);
+        gBy[g.name]=r2((gBy[g.name]||0)+q);
         put3.push(g.name+" "+fmt(q)+(g.saved>=g.target?" ✓ objectif atteint":""));
         what.push(g.name+" "+fmt(q)+(g.saved>=g.target?" ✓":""));
         if(g.saved>=g.target&&!g.eta)g.eta=mk;
@@ -2158,7 +2201,7 @@ function buildPlan(){
       else spent+=pa(x.amount);
     });
     var pelAmt=0;state.fixed.forEach(function(f){if(/PEL/i.test(f.label))pelAmt+=fixAmountFor(f,mk)});
-    months.push({mk:mk,who:who,what:what,pel:r2(pelAmt),first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,left:left,heal:heal,acts:acts,alloc:alloc,rest:r2(kept),kept:r2(kept),
+    months.push({mk:mk,who:who,what:what,goalsBy:gBy,pel:r2(pelAmt),first:n===0,have:r2(have),livingLeft:livingLeft,got:r2(got),spent:r2(spent),known:incomeKnown(mk),toPay:r2(fx+e.out),rev:rev,extra:r2(e.in),fix:fx,due:r2(e.out),living:living,fun:fun,flux:flux,bal:bal,left:left,heal:heal,acts:acts,alloc:alloc,rest:r2(kept),kept:r2(kept),
       effort:r2(alloc.debts+alloc.goals+alloc.cushion)});
     if(left>=odMargin&&!debts.length&&goals.every(function(g){return g.target<=0||g.saved>=g.target})&&n>=2)break;
     if(rev<=0&&n>=1&&!Object.keys(state.incomeByMonth||{}).length)break;
@@ -2298,10 +2341,70 @@ function monthDetail(m){
       }).join(""):"")+
     '</div></details>';
 }
+function goalKey(P){
+  /* l'objectif que tu vises en premier : celui qui a une date */
+  var g=null;
+  (P.goals||[]).forEach(function(x){
+    if(x.target<=0)return;
+    if(!x.by)return;
+    if(!g||x.by<g.by)g=x;
+  });
+  return g?g.name:((P.goals||[]).filter(function(x){return x.target>0})[0]||{}).name||"";
+}
+function renderNow(P){
+  var host=document.getElementById("planNow");if(!host)return;
+  var m=P.months&&P.months[0];
+  if(!m){host.innerHTML="";return}
+  var key=goalKey(P), gb=m.goalsBy||{};
+  var lines=[];
+  function L(cls,lab,sub,val,zero){
+    lines.push('<div class="nowline '+cls+(zero?" none":"")+'"><span class="k"><b>'+esc(lab)+'</b>'+
+      (sub?'<small>'+esc(sub)+'</small>':"")+'</span><span class="v">'+val+'</span></div>');
+  }
+  if(m.pel>0)L("pel","Mon PEL","c'est de l'épargne, ça reste à toi",fmt(m.pel));
+  Object.keys(gb).forEach(function(k){ if(gb[k]>0)L("sv","Mon "+k.toLowerCase(),"",fmt(gb[k])) });
+  if(!Object.keys(gb).length)L("sv","Mon "+(key||"objectif").toLowerCase(),"","rien ce mois-ci",true);
+  if(m.alloc.debts>0)L("dt","Mes proches",(m.who||[]).join(" · "),fmt(m.alloc.debts));
+  else L("dt","Mes proches","","rien ce mois-ci",true);
+  var lead;
+  var mine=gb[key]||0;
+  if(mine>0)lead="Ce mois-ci, tu mets <b>"+fmt(mine)+"</b> pour ton "+esc((key||"objectif").toLowerCase())+
+    (m.alloc.debts>0?" et <b>"+fmt(m.alloc.debts)+"</b> pour tes proches.":". C'est tout ce que je te demande.");
+  else if(m.alloc.debts>0)lead="Ce mois-ci, tu mets <b>"+fmt(m.alloc.debts)+"</b> pour tes proches. Rien pour ton "+esc((key||"objectif").toLowerCase())+" : il n'y a pas la place.";
+  else lead="Ce mois-ci, je ne te demande <b>rien</b> : ce que tu as sert à payer ce qui tombe.";
+  host.innerHTML='<div class="nowcard"><span class="eyeb">Ce mois-ci</span><h2>'+esc(ml(m.mk))+'</h2>'+
+    '<p class="lead">'+lead+'</p>'+lines.join("")+
+    '<div class="nowme"><span>Il me reste pour moi</span><b>'+fmt(m.kept)+'</b></div></div>';
+
+  /* le tableau des mois qui viennent */
+  var t=document.getElementById("planTable");if(!t)return;
+  var rows=P.months.slice(0,7);
+  var anyPel=rows.some(function(x){return x.pel>0});
+  var h='<table class="mtab"><thead><tr><th>€</th>'+(anyPel?'<th>pel</th>':"")+'<th>'+
+        esc(key?key.toLowerCase():"objectif")+'</th><th>proches</th><th>à moi</th></tr></thead><tbody>';
+  rows.forEach(function(x,i){
+    var g=(x.goalsBy||{})[key]||0;
+    function c(v,cls){return '<td class="'+(v>0?(cls||""):"z")+'">'+(v>0?ent(v):"—")+'</td>'}
+    h+='<tr'+(i===0?' class="now"':'')+'><td>'+esc(ml(x.mk).replace(/ \d{4}$/,""))+'</td>'+
+       (anyPel?c(x.pel,"pel"):"")+c(g)+c(x.alloc.debts)+c(x.kept,"me")+'</tr>';
+  });
+  h+='</tbody></table>';
+  var other=[];
+  rows.forEach(function(x){Object.keys(x.goalsBy||{}).forEach(function(k){
+    if(k!==key&&other.indexOf(k)<0&&x.goalsBy[k]>0)other.push(k)})});
+  var notes=[];
+  if(other.length)notes.push("Une fois ton "+(key||"objectif").toLowerCase()+
+    " payé, ce qui y allait bascule sur ton "+other.join(", ").toLowerCase()+" — c'est la colonne « "+
+    (key||"objectif").toLowerCase()+" » qui passe à zéro, pas ton argent qui disparaît.");
+  notes.push("Arrondi à l'euro. Le détail au centime est plus bas.");
+  h+='<p class="hint" style="margin:10px 0 0">'+esc(notes.join(" "))+'</p>';
+  t.innerHTML=h;
+}
 function renderPlan(){
   renderLiving();
   var P=buildPlan();
   renderEffort(P);
+  renderNow(P);
   var sum=document.getElementById("planSummary"),host=document.getElementById("planMonths");
   if(!Object.keys(state.incomeByMonth||{}).length){
     document.getElementById("planHint").textContent="";
