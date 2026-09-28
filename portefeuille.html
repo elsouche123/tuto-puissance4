@@ -680,6 +680,17 @@ details.detail[open] summary::before{content:"▾ "}
 .mtab td.z{color:var(--ink-3)}
 .mtab tr.now td{background:var(--accent-soft)}
 .mtab tr.now td:first-child{font-weight:700}
+.sbtns{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.sbtn{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--rule-strong);background:var(--card);border-radius:10px;padding:7px 11px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-2);font-family:inherit}
+.sbtn:hover{border-color:var(--accent);color:var(--accent)}
+.sbtn .tickbox{width:19px;height:19px;border-width:2px;border-radius:6px}
+.sbtn.no:hover{border-color:var(--debit);color:var(--debit);background:var(--debit-soft)}
+.sbtn.no[data-arm="1"]{border-color:var(--debit);background:var(--debit);color:#fff}
+.stacts{flex:none;display:flex;flex-direction:column;align-items:center;gap:5px;align-self:center}
+.nogo{border:1.5px solid var(--rule-strong);background:var(--card);color:var(--ink-3);width:26px;height:26px;border-radius:8px;font:inherit;font-size:13px;line-height:1;cursor:pointer;padding:0}
+.nogo:hover{border-color:var(--debit);color:var(--debit);background:var(--debit-soft)}
+.nogo[data-arm="1"]{border-color:var(--debit);background:var(--debit);color:#fff;width:auto;padding:0 8px;font-size:11px;font-weight:700}
+.step .stacts,.due .stacts{margin-left:2px}
 .flash{animation:fl .5s ease}
 @keyframes fl{0%{background:var(--accent-soft)}100%{background:transparent}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -1116,7 +1127,7 @@ function migrate(s){
       datePlanned:/^\d{4}-\d{2}-\d{2}$/.test(m.datePlanned||"")?m.datePlanned:"",
       month:/^\d{4}-\d{2}$/.test(m.month||"")?m.month:"",
       dateReal:/^\d{4}-\d{2}-\d{2}$/.test(m.dateReal||"")?m.dateReal:"",
-      done:!!m.done,maybe:!!m.maybe,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free,settled:!!m.settled};
+      done:!!m.done,maybe:!!m.maybe,skip:!!m.skip,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free,settled:!!m.settled};
   }
   if(Array.isArray(s.movements)){
     var old=["m-avance","m-lissage"];
@@ -1201,6 +1212,7 @@ function calc(){
     var real=ps(a.start),pin=0,pout=0;
     state.movements.forEach(function(m){
       if(m.account!==a.id)return; var v=pa(m.amount);
+      if(m.skip)return;
       if(m.done){ if(!m.settled)real+=(m.dir==="in"?v:-v); }
       else if(m.maybe)return;
       else if(m.dir==="in")pin+=v; else pout+=v;
@@ -1216,7 +1228,7 @@ function calc(){
   var buffer=pa(state.settings.buffer);
   var fIn=0,fOut=0,lateIn=0,nIn=0,nOut=0,nMaybe=0,maybeOut=0,lateOut=0,undatedIn=0;
   state.movements.forEach(function(m){
-    if(m.done)return; if(acc(m.account).kind==="epargne")return; var v=pa(m.amount); var mk=mMonth(m);
+    if(m.done||m.skip)return; if(acc(m.account).kind==="epargne")return; var v=pa(m.amount); var mk=mMonth(m);
     if(m.maybe){nMaybe++; if(m.dir==="out")maybeOut+=v; return}
     var inMonth = m.datePlanned ? (m.datePlanned<=E) : (mk?mk<=CM:true);
     if(m.dir==="in"){ nIn++; if(inMonth){ if(m.datePlanned)fIn+=v; else undatedIn+=v } }
@@ -1257,7 +1269,7 @@ function renderAccounts(c){
     /* noms distincts de ceux du coffre : « var » est global à la fonction */
     var fCm=curMonth(),fTot=0,fMois=0,fWho={};
     state.movements.forEach(function(m){
-      if(m.done||m.maybe||m.dir!=="out")return;
+      if(m.done||m.maybe||m.skip||m.dir!=="out")return;
       if(m.cat!=="Paiement fractionné")return;
       var v=pa(m.amount);fTot=r2(fTot+v);
       if((m.datePlanned||"").slice(0,7)===fCm)fMois=r2(fMois+v);
@@ -1335,7 +1347,7 @@ function renderWallet(c){
   /* ---- helpers partagés avec « les mois suivants » ---- */
   var E=eom(),T=today();
   function dueThis(m){
-    if(m.done||m.maybe)return false;
+    if(m.done||m.maybe||m.skip)return false;
     if(acc(m.account).kind==="epargne")return false;
     var mk=mMonth(m);
     return m.datePlanned?(m.datePlanned<=E):(mk?mk<=cm:true);
@@ -1352,7 +1364,8 @@ function renderWallet(c){
       (m.datePlanned?"":" · date à confirmer")+'</small></span>'+
       '<span class="aw"><span class="a'+(m.dir==="in"?" in":"")+'">'+(m.dir==="in"?"+":"−")+fmt(m.amount)+'</span>'+
       (run===null?"":'<span class="run'+(neg?" bad":"")+'">reste '+fmt(run)+'</span>')+'</span>'+
-      '<input type="checkbox" class="tickbox" data-act="pay" aria-label="C\'est payé"></div>';
+      '<span class="stacts"><input type="checkbox" class="tickbox" data-act="pay" aria-label="C\'est payé">'+
+      '<button class="nogo" type="button" data-act="skip" title="Ça n\'est pas passé">✕</button></span></div>';
   }
   function chrono(a,b){
     var x=a.datePlanned||"9999-99",y=b.datePlanned||"9999-99";
@@ -1366,7 +1379,7 @@ function renderWallet(c){
   /* ---- les mois suivants ---- */
   var fut={},order=[];
   state.movements.forEach(function(m){
-    if(m.done||m.maybe)return;
+    if(m.done||m.maybe||m.skip)return;
     if(acc(m.account).kind==="epargne")return;
     if(dueThis(m))return;
     var k=mMonth(m)||"zzz";
@@ -1402,7 +1415,7 @@ function renderDays(c){
   var horizon=addDays(T,14);
   var evs=[];
   state.movements.forEach(function(m){
-    if(m.done||m.maybe)return;
+    if(m.done||m.maybe||m.skip)return;
     if(acc(m.account).kind==="epargne")return;
     if(!m.datePlanned||m.datePlanned<T||m.datePlanned>horizon)return;
     evs.push(m);
@@ -1422,7 +1435,7 @@ function renderDays(c){
 
   var float=0,floatN=[];
   state.movements.forEach(function(m){
-    if(m.done||m.maybe||m.dir!=="out")return;
+    if(m.done||m.maybe||m.skip||m.dir!=="out")return;
     if(acc(m.account).kind==="epargne")return;
     if(m.datePlanned)return;
     if((mMonth(m)||cm)>cm)return;
@@ -1487,8 +1500,11 @@ function renderDays(c){
        '<div class="sbody"><div class="stop"><b>'+esc(m.label)+'</b>'+
        '<span class="samt '+(isIn?"in":"out")+'">'+(isIn?"+":"−")+fmt(amt)+'</span></div>'+
        '<div class="swhen">'+esc(dayWord(m.datePlanned))+' · '+esc(acc(m.account).short||acc(m.account).name)+'</div>'+
-       '<div class="sverd">'+verdict+'</div></div>'+
-       '<input type="checkbox" class="tickbox" data-act="pay" aria-label="C\'est passé" style="align-self:center">'+
+       '<div class="sverd">'+verdict+'</div>'+
+       '<div class="sbtns">'+
+         '<label class="sbtn"><input type="checkbox" class="tickbox" data-act="pay" aria-label="C\'est passé"><span>'+(isIn?"Je l\'ai reçu":"C\'est passé")+'</span></label>'+
+         '<button class="sbtn no" type="button" data-act="skip">Pas passé</button>'+
+       '</div></div>'+
        '</div>';
   });
 
@@ -1608,7 +1624,7 @@ function renderCoach(c){
   /* grosses dépenses à venir dans les 3 mois */
   var soon=[];
   state.movements.forEach(function(m){
-    if(m.done||m.maybe||m.dir!=="out")return;
+    if(m.done||m.maybe||m.skip||m.dir!=="out")return;
     var k=mMonth(m);if(!k||k<=cm)return;
     if(k<=addM(cm,3)&&pa(m.amount)>=100)soon.push({k:k,l:m.label,v:pa(m.amount)});
   });
@@ -1730,7 +1746,8 @@ function rowHTML(m){
   var T=today(),late=!m.done&&m.datePlanned&&m.datePlanned<=T;
   var o="";state.accounts.forEach(function(a){o+='<option value="'+a.id+'"'+(a.id===m.account?" selected":"")+">"+esc(a.name)+"</option>"});
   var co="";CATS.forEach(function(k){co+='<option value="'+esc(k)+'"'+(k===m.cat?" selected":"")+">"+esc(k)+"</option>"});
-  var status=m.done?'<span class="chip done">Pointé'+(m.dateReal?" le "+dl(m.dateReal):"")+'</span>'
+  var status=m.skip?'<button type="button" class="chip late" data-act="unskip">Pas passé — remettre</button>'
+    :m.done?'<span class="chip done">Pointé'+(m.dateReal?" le "+dl(m.dateReal):"")+'</span>'
     :(m.maybe?'<button type="button" class="chip maybe" data-act="maybe">Peut-être</button>'
       :(late?'<button type="button" class="chip late" data-act="maybe">À échéance</button>'
         :'<button type="button" class="chip plan" data-act="maybe">Prévu</button>'));
@@ -1823,6 +1840,8 @@ function renderFixed(){
     var day=f.day?Math.min(parseInt(f.day,10),last):0;
     var st,when,cls;
     if(off){st="arrêté depuis "+mshort(f.until);when="";cls="off"}
+    else if(mv&&mv.skip){st="pas passé ce mois-ci";when="";cls="off";amt=0;
+      gt[g]=r2((gt[g]||0)-fixAmountFor(f,cm));tot=r2(tot-fixAmountFor(f,cm))}
     else if(mv&&mv.done){st="payé";when=mv.dateReal?"le "+dl(mv.dateReal):"";cls="ok";paid=r2(paid+amt)}
     else if(day){
       var iso=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(day);
@@ -1862,7 +1881,7 @@ function renderFrac(){
   var host=document.getElementById("fracList");if(!host)return;
   var cm=curMonth(),by={},tot=0;
   state.movements.forEach(function(m){
-    if(m.done||m.maybe||m.dir!=="out"||m.cat!=="Paiement fractionné")return;
+    if(m.done||m.maybe||m.skip||m.dir!=="out"||m.cat!=="Paiement fractionné")return;
     var k=(m.datePlanned||"").slice(0,7)||cm;
     (by[k]=by[k]||[]).push(m);tot=r2(tot+pa(m.amount));
   });
@@ -1922,7 +1941,7 @@ function nextPayday(){
   /* la prochaine rentrée que tu m'as vraiment datée passe avant le jour de paie théorique */
   var nxt="";
   state.movements.forEach(function(m){
-    if(m.done||m.maybe||m.dir!=="in")return;
+    if(m.done||m.maybe||m.skip||m.dir!=="in")return;
     if(acc(m.account).kind==="epargne")return;
     if(!m.datePlanned||m.datePlanned<T)return;
     if(!nxt||m.datePlanned<nxt)nxt=m.datePlanned;
@@ -1942,7 +1961,7 @@ function renderPayday(){
   var npISO=np.getFullYear()+"-"+pad(np.getMonth()+1)+"-"+pad(np.getDate());
   var cm=curMonth(),due=0;
   state.movements.forEach(function(m){
-    if(m.done||m.maybe||m.dir!=="out")return;
+    if(m.done||m.maybe||m.skip||m.dir!=="out")return;
     if(acc(m.account).kind==="epargne")return;
     var ok=m.datePlanned?(m.datePlanned<=npISO):(mMonth(m)?mMonth(m)<=cm:true);
     if(ok)due+=pa(m.amount);
@@ -2046,7 +2065,7 @@ function buildPlan(){
   /* échéances déjà saisies, par mois */
   var byM={};
   state.movements.forEach(function(m){
-    if(m.done||m.maybe)return;
+    if(m.done||m.maybe||m.skip)return;
     if(acc(m.account).kind==="epargne")return;
     var k=mMonth(m)||cm;
     if(k<cm)k=cm;
@@ -2306,7 +2325,7 @@ function monthDetail(m){
   }).filter(function(r){return r.now>0||r.was>0}).sort(function(a,b){return a.day-b.day});
   var changed=rows.filter(function(r){return r.now!==r.was});
   var ech=state.movements.filter(function(x){
-    if(x.done||x.maybe)return false;
+    if(x.done||x.maybe||x.skip)return false;
     if(acc(x.account).kind==="epargne")return false;
     return (mMonth(x)||"")===mk;
   }).sort(function(a,b){var p=a.datePlanned||"9999",q=b.datePlanned||"9999";return p<q?-1:p>q?1:0});
@@ -2691,6 +2710,7 @@ rows.addEventListener("click",function(e){
   var m=find(state.movements,row.getAttribute("data-id"));if(!m)return;
   var a=el.getAttribute("data-act");
   if(a==="open"){var open=row.getAttribute("data-open")==="true";row.setAttribute("data-open",open?"false":"true");el.textContent=open?"Modifier":"Fermer";return}
+  if(a==="unskip"){m.skip=false;renderAll();save();return}
   if(a==="maybe"){m.maybe=!m.maybe;renderRows();renderSummary();save()}
   else if(a==="del")armDel(el,function(){state.movements=state.movements.filter(function(x){return x.id!==m.id});renderRows();renderSummary();save()});
 });
@@ -3015,6 +3035,36 @@ document.getElementById("padPlus").addEventListener("click",function(){padAdd("i
 document.getElementById("padMinus").addEventListener("click",function(){padAdd("out")});
 document.getElementById("padAmt").addEventListener("keydown",function(e){if(e.key==="Enter")padAdd("in")});
 
+function skipRow(id){
+  var cm=curMonth();
+  if(id.indexOf("fx-")===0){
+    var f=find(state.fixed,id.slice(3));if(!f)return null;
+    var dd=new Date(),last=new Date(dd.getFullYear(),dd.getMonth()+1,0).getDate();
+    var day=f.day?Math.min(Math.max(1,parseInt(f.day,10)),last):0;
+    var m={id:uid(),label:f.label,account:f.account,dir:"out",amount:fixAmountFor(f,cm),cat:f.cat,
+      datePlanned:day?cm+"-"+pad(day):"",month:cm,dateReal:"",done:false,maybe:false,skip:true,
+      fixId:f.id,fixMonth:cm,settled:false,free:false};
+    state.movements.push(m);return m;
+  }
+  var mv=null;state.movements.forEach(function(x){if(x.id===id)mv=x});
+  if(!mv)return null;
+  mv.skip=true;mv.done=false;mv.dateReal="";
+  return mv;
+}
+function onSkip(e){
+  var el=e.target.closest('[data-act="skip"]');if(!el)return;
+  var row=el.closest(".step")||el.closest(".due");if(!row)return;
+  if(el.getAttribute("data-arm")!=="1"){
+    el.setAttribute("data-arm","1");el.textContent="Pas passé ?";
+    setTimeout(function(){if(el.isConnected){el.removeAttribute("data-arm");el.textContent="✕"}},3500);
+    return;
+  }
+  snapshot();
+  var m=skipRow(row.getAttribute("data-id"));
+  if(!m)return;
+  toast("« "+m.label+" » : noté comme pas passé");
+  renderAll();save();
+}
 function markPaid(m){
   m.done=true;m.maybe=false;
   m.dateReal=(m.datePlanned&&m.datePlanned<=today())?m.datePlanned:today();
@@ -3061,6 +3111,8 @@ document.getElementById("daysBox").addEventListener("change",function(e){
   renderAll();save();
 });
 document.getElementById("future").addEventListener("change",onTick);
+document.getElementById("future").addEventListener("click",onSkip);
+document.getElementById("daysBox").addEventListener("click",onSkip);
 document.getElementById("myEntries").addEventListener("click",function(e){
   var el=e.target.closest('[data-act="del"], [data-act="untick"]');if(!el)return;
   var row=el.closest(".entry");if(!row)return;
