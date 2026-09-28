@@ -691,6 +691,9 @@ details.detail[open] summary::before{content:"▾ "}
 .nogo:hover{border-color:var(--debit);color:var(--debit);background:var(--debit-soft)}
 .nogo[data-arm="1"]{border-color:var(--debit);background:var(--debit);color:#fff;width:auto;padding:0 8px;font-size:11px;font-weight:700}
 .step .stacts,.due .stacts{margin-left:2px}
+.searchbar{display:flex;align-items:center;gap:10px;margin-top:13px}
+.searchbar input{flex:1 1 auto;padding:11px 13px;font-size:15px;border-radius:11px;border:1.5px solid var(--rule-strong)}
+.searchbar .qn{flex:none;font-size:12.5px;color:var(--ink-2);white-space:nowrap}
 .flash{animation:fl .5s ease}
 @keyframes fl{0%{background:var(--accent-soft)}100%{background:transparent}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -713,25 +716,11 @@ details.detail[open] summary::before{content:"▾ "}
 <div class="wrap">
 
 <section class="tabpanel" id="tab-today">
-  <div class="wcards" id="wcards"></div>
-
   <div class="dispo" id="dispoBig">
     <span class="lbl">Je peux utiliser</span>
     <span class="val num" id="dispoVal">—</span>
     <span class="sub" id="dispoSub"></span>
   </div>
-
-  <div id="adviceBox"></div>
-
-  <div id="daysBox"></div>
-
-  <div class="coach" id="coach"></div>
-
-  <button class="strip" type="button" id="fracStrip" data-goto="reg" hidden></button>
-
-  <button class="strip" type="button" id="savStrip" data-goto="more"></button>
-
-  <button class="strip" type="button" id="subsStrip" data-goto="pay"></button>
 
   <div class="panel pad">
     <div class="pad-amt"><input id="padAmt" inputmode="decimal" placeholder="0" aria-label="Montant"><span>€</span></div>
@@ -747,19 +736,43 @@ details.detail[open] summary::before{content:"▾ "}
     </div>
   </div>
 
+  <div class="wcards" id="wcards"></div>
+
+
+  <div id="adviceBox"></div>
+
+  <div id="daysBox"></div>
+
+  <details class="box">
+    <summary>Mon mois en résumé</summary>
+    <div class="box-body" style="padding:0"><div class="coach" id="coach" style="margin:0;border:none;box-shadow:none;border-radius:0"></div></div>
+  </details>
+
+  <button class="strip" type="button" id="fracStrip" data-goto="reg" hidden></button>
+
+  <button class="strip" type="button" id="savStrip" data-goto="more"></button>
+
+  <button class="strip" type="button" id="subsStrip" data-goto="pay"></button>
+
+
   <details class="box" id="paidBox">
     <summary><span id="paidSummary">Déjà payé ce mois-ci</span></summary>
     <div class="box-body" style="padding:0"><div id="myEntries"></div><p class="hint" id="notedCount" style="padding:12px 14px;margin:0"></p></div>
   </details>
 
-  <div class="sect">
-    <div class="sect-head"><h2>Les mois suivants</h2><span class="hint">Le « reste » ne compte que l'argent que tu m'as dit — note tes salaires à venir pour voir la suite en vrai.</span></div>
-    <div id="future"></div>
-  </div>
+  <details class="box">
+    <summary>Ce qui tombe les mois d'après</summary>
+    <div class="box-body" style="padding:12px 14px">
+      <p class="hint" style="margin:0 0 10px">Le « reste » ne compte que l'argent que tu m'as dit — note tes salaires à venir pour voir la suite en vrai.</p>
+      <div id="future"></div>
+    </div>
+  </details>
 
-  <div class="sect">
-    <div class="panel pay">
-      <h2>Je veux dépenser…</h2>
+  <details class="box">
+    <summary>Je veux dépenser… est-ce que ça passe ?</summary>
+    <div class="box-body" style="padding:12px 14px">
+    <div class="panel pay" style="border:none;box-shadow:none;padding:0">
+      <h2 style="display:none">Je veux dépenser…</h2>
       <p class="hint" style="margin:0">Tape un montant : je te dis si ça rentre, et ce que ça te coûte ailleurs.</p>
       <div class="pay-row">
         <span class="money-in"><input id="payAmount" inputmode="decimal" placeholder="0,00" aria-label="Montant à payer"><span class="eur">€</span></span>
@@ -770,7 +783,8 @@ details.detail[open] summary::before{content:"▾ "}
         <p id="vText"></p>
       </div>
     </div>
-  </div>
+    </div>
+  </details>
 
   <details class="box" id="detailBox">
     <summary>Voir le détail : mes comptes, mes prévisions, où part mon argent</summary>
@@ -852,6 +866,7 @@ details.detail[open] summary::before{content:"▾ "}
       <input class="fld" id="nDate" type="date" aria-label="Date prévue">
       <button class="btn" type="submit">Ajouter</button>
     </form>
+    <div class="searchbar"><input class="fld" id="q" type="search" placeholder="Chercher une ligne — ex. Sephora, EMDR, Uber…" aria-label="Chercher"><span class="qn" id="qCount"></span></div>
     <div class="filters" id="filters">
       <button data-f="all" aria-pressed="true">Tout</button>
       <button data-f="todo" aria-pressed="false">À pointer</button>
@@ -912,7 +927,7 @@ details.detail[open] summary::before{content:"▾ "}
   </div>
 </section>
 
-<details class="box">
+<details class="box" id="setBox">
   <summary>Réglages : soldes de départ, découvert, export</summary>
   <div class="box-body">
     <div>
@@ -1308,8 +1323,8 @@ function renderWallet(c){
        '<div class="n">'+esc(a.short||a.name)+'</div>'+
        '<input data-wc="'+a.id+'" inputmode="decimal" value="'+nb(a.real)+'" aria-label="Solde '+esc(a.name)+'"></div>';
   });
-  h+='<p class="hint" style="grid-column:1/-1;margin:2px 2px 0">Soldes constatés le <b>'+esc(dl(state.balanceAsOf)||"—")+
-     '</b> : tout ce qui est passé avant est déjà dedans. Si un solde ne colle plus avec ta banque, <b>retape-le</b> — je repars de ce chiffre-là.</p>';
+  h+='<p class="hint" style="grid-column:1/-1;margin:2px 2px 0">Relevé le <b>'+esc(dl(state.balanceAsOf)||"—")+
+     '</b>. Si ça ne colle plus avec ta banque, <b>retape le chiffre</b>.</p>';
   document.getElementById("wcards").innerHTML=h;
 
   var st=c.capacity<0?"bad":(c.capacity<80?"tight":"ok");
@@ -1734,7 +1749,11 @@ function renderCats(){
   ks.forEach(function(k){h+='<div class="catrow" style="--c:'+catC(k)+'"><span style="color:'+catC(k)+';font-weight:600">'+esc(k)+'</span><span class="catbar"><span style="width:'+((by[k]/tot)*100).toFixed(1)+'%"></span></span><span class="num">'+fmt(by[k])+'</span></div>'});
   host.innerHTML=h;
 }
+var QRY="";
+function norm(x){return String(x==null?"":x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
 function match(m){
+  if(QRY&&norm(m.label).indexOf(QRY)<0&&norm(m.cat).indexOf(QRY)<0&&
+     norm(acc(m.account).name).indexOf(QRY)<0&&norm(nb(m.amount)).indexOf(QRY)<0)return false;
   if(filter==="all")return true;
   if(filter==="todo")return !m.done;
   if(filter==="done")return m.done;
@@ -1771,7 +1790,12 @@ function rowHTML(m){
 function renderRows(){
   var list=state.movements.filter(match);
   var host=document.getElementById("rows");
-  if(!list.length){host.innerHTML='<div class="empty">'+(state.movements.length?"Aucune ligne dans ce filtre.":"Ajoute ta première ligne au-dessus.")+"</div>";return}
+  var qc=document.getElementById("qCount");
+  if(qc){
+    var tq=0;list.forEach(function(m){tq+=(m.dir==="in"?pa(m.amount):-pa(m.amount))});
+    qc.textContent=(QRY&&list.length)?(list.length+(list.length>1?" lignes · ":" ligne · ")+fmt(tq)):"";
+  }
+  if(!list.length){host.innerHTML='<div class="empty">'+(QRY?'Rien qui ressemble à « '+esc(QRY)+' ».':(state.movements.length?"Aucune ligne dans ce filtre.":"Ajoute ta première ligne au-dessus."))+"</div>";return}
   var groups={},order=[];
   list.forEach(function(m){var k=mMonth(m)||"zzz";if(!groups[k]){groups[k]=[];order.push(k)}groups[k].push(m)});
   order.sort();
@@ -2727,6 +2751,7 @@ document.getElementById("addForm").addEventListener("submit",function(e){
   document.getElementById("nLabel").focus();
   renderRows();renderSummary();save();
 });
+document.getElementById("q").addEventListener("input",function(){QRY=norm(this.value.trim());renderRows()});
 document.getElementById("filters").addEventListener("click",function(e){
   var b=e.target.closest("button[data-f]");if(!b)return;
   filter=b.getAttribute("data-f");
@@ -2871,7 +2896,7 @@ document.getElementById("debtForm").addEventListener("submit",function(e){
   renderDebts();save();
 });
 
-document.querySelector(".box-body").addEventListener("input",function(e){
+document.querySelector("#setBox .box-body").addEventListener("input",function(e){
   var el=e.target;
   if(el.hasAttribute("data-acc"))acc(el.getAttribute("data-acc")).start=ps(el.value);
   else if(el.id==="sOverdraft")acc("sg").overdraft=pa(el.value);
