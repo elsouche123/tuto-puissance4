@@ -1186,7 +1186,7 @@ function migrate(s){
     .map(function(g){return {id:String(g.id||uid()),name:String(g.name||""),target:pa(g.target),saved:pa(g.saved),
       by:/^\d{4}-\d{2}$/.test(g.by||"")?g.by:""}});
   if(Array.isArray(s.debts))o.debts=s.debts.filter(Boolean).map(function(d){
-    return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid)}});
+    return {id:String(d.id||uid()),name:String(d.name||""),amount:pa(d.amount),paid:pa(d.paid),prio:pa(d.prio)}});
   if(Array.isArray(s.loans))o.loans=s.loans.filter(Boolean).map(function(l){
     return {id:String(l.id||uid()),name:String(l.name||""),rest:pa(l.rest),monthly:pa(l.monthly)}});
   /* reprise des anciens revenus « à partir de » en valeurs mensuelles */
@@ -1571,8 +1571,8 @@ function adviceFor(extra){
       continue;
     }
     if(k==="debts"){
-      var d=state.debts.map(function(x){return {n:x.name,r:r2(Math.max(0,pa(x.amount)-pa(x.paid)))}})
-        .filter(function(x){return x.r>0}).sort(function(a,b){return a.r-b.r})[0];
+      var d=state.debts.map(function(x){return {n:x.name,r:r2(Math.max(0,pa(x.amount)-pa(x.paid))),p:pa(x.prio)}})
+        .filter(function(x){return x.r>0}).sort(debtOrder)[0];
       if(d){
         var q2=Math.min(libre,d.r);
         return {t:"dt",txt:covered+" Rembourse <b>"+esc(d.n)+"</b> : "+fmt(q2)+
@@ -1691,8 +1691,8 @@ function renderSummary(){
 function tradeOff(v){
   /* ce que ces euros coûtent ailleurs */
   var out=[];
-  var ds=state.debts.map(function(x){return {n:x.name,r:r2(Math.max(0,pa(x.amount)-pa(x.paid)))}})
-    .filter(function(x){return x.r>0}).sort(function(a,b){return a.r-b.r});
+  var ds=state.debts.map(function(x){return {n:x.name,r:r2(Math.max(0,pa(x.amount)-pa(x.paid))),p:pa(x.prio)}})
+    .filter(function(x){return x.r>0}).sort(debtOrder);
   if(ds.length){
     var left=v,names=[];
     for(var i=0;i<ds.length&&left>=ds[i].r;i++){names.push(ds[i].n);left=r2(left-ds[i].r)}
@@ -2078,6 +2078,7 @@ function spentFree(){
   return r2(t);
 }
 var EFFSHARE=0.5;
+function debtOrder(a,b){var p=(a.p||0)-(b.p||0);return p?p:a.r-b.r}
 function buildPlan(){
   var c=calc(),cm=curMonth();
   var fixTot=fixTotalFor(cm);
@@ -2096,8 +2097,8 @@ function buildPlan(){
     if(!byM[k])byM[k]={in:0,out:0};
     if(m.dir==="in")byM[k].in+=pa(m.amount); else byM[k].out+=pa(m.amount);
   });
-  var debts=state.debts.map(function(d){return {name:d.name,start:r2(Math.max(0,pa(d.amount)-pa(d.paid))),rest:r2(Math.max(0,pa(d.amount)-pa(d.paid)))}})
-    .filter(function(d){return d.rest>0}).sort(function(a,b){return a.rest-b.rest});
+  var debts=state.debts.map(function(d){return {name:d.name,start:r2(Math.max(0,pa(d.amount)-pa(d.paid))),rest:r2(Math.max(0,pa(d.amount)-pa(d.paid))),p:pa(d.prio)}})
+    .filter(function(d){return d.rest>0}).sort(function(a,b){return debtOrder({p:a.p,r:a.rest},{p:b.p,r:b.rest})});
   var sched=[];
   var odLimit=r2(c.totalOd);
   var odMargin=r2(Math.min(pa(state.odMargin),odLimit));
