@@ -248,6 +248,9 @@ button.chip{cursor:pointer;font-family:inherit}
 .encard form input{flex:1 1 auto;min-width:0;padding:11px 12px;border:1px solid var(--rule-strong);
   border-radius:10px;background:var(--card-2);color:var(--ink);font-size:1rem}
 .encard form input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.encard .advline{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;
+  border-top:1px solid var(--rule);font-size:.9rem;color:var(--ink)}
+.encard .advline input{width:20px;height:20px;flex:none;accent-color:var(--accent)}
 .encard form button{flex:none;padding:11px 16px;border:0;border-radius:10px;background:var(--accent);
   color:var(--on-accent);font-weight:700;font-size:.95rem;white-space:nowrap}
 /* lists (fixed / goals / debts) */
@@ -1039,6 +1042,7 @@ var SEED = {
   balanceAsOf:"",
   order:["od","debts","goals","cushion"],
   resto:{rate:10,min:50,goal:60,hours:{}},
+  adv:{},
   envelopes:[
     {id:"e-cadeaux",name:"Cadeaux pour mon copain",amount:0},
     {id:"e-restau",name:"Restaurants",amount:0},
@@ -1202,6 +1206,11 @@ function migrate(s){
     var ok=["od","cushion","debts","goals"],keep=s.order.filter(function(k){return ok.indexOf(k)>=0});
     ok.forEach(function(k){if(keep.indexOf(k)<0)keep.push(k)});
     o.order=keep;
+  }
+  if(s.adv&&typeof s.adv==="object"){
+    var av={};
+    Object.keys(s.adv).forEach(function(k){if(/^\d{4}-\d{2}$/.test(k)&&s.adv[k])av[k]=true});
+    o.adv=av;
   }
   if(s.resto&&typeof s.resto==="object"){
     var rh={};
@@ -2702,7 +2711,7 @@ function envUsed(e){
   });
   return r2(t);
 }
-function lowAhead(days){
+function lowAhead(days,adv){
   var T=today(),H=addDays(T,days||60),c=calc(),bal=0,evs=[];
   c.accs.forEach(function(a){if(a.kind!=="epargne")bal+=a.real});
   bal=r2(bal);
@@ -2735,32 +2744,71 @@ function lowAhead(days){
     })(mk);
     var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
   }
+  if(adv){
+    var amk=curMonth(),best=null;
+    evs.forEach(function(e){if(e.d.slice(0,7)===amk&&e.v>0&&(!best||e.v>best.v))best=e});
+    if(best){
+      var moitie=r2(best.v/2),d15=amk+"-15";
+      if(d15>=T&&d15<best.d){evs.push({d:d15,v:moitie}); best.v=r2(best.v-moitie)}
+    }
+  }
   evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
   var mn=bal,mnd=T;
   evs.forEach(function(e){bal=r2(bal+e.v); if(bal<mn){mn=bal;mnd=e.d}});
   return {min:mn,date:mnd,end:bal};
 }
+function advMontant(){
+  var mk=curMonth(),T=today(),H=addDays(T,60),mx=0;
+  var inc=pa((state.incomeByMonth||{})[mk]); if(inc>mx)mx=inc;
+  state.movements.forEach(function(m){
+    if(m.dir!=="in"||m.done||m.skip||m.maybe)return;
+    if(acc(m.account).kind==="epargne")return;
+    if(((m.datePlanned||"").slice(0,7))!==mk)return;
+    if(pa(m.amount)>mx)mx=pa(m.amount);
+  });
+  return r2(mx/2);
+}
+function advOn(){ return !!((state.adv||{})[curMonth()]) }
 function renderEtat(){
   var host=document.getElementById("verdictBox"); if(!host)return;
-  var c=calc(),od=pa(c.totalOd),L=lowAhead(60),mn=L.min,reste=r2(od+mn),cls,titre,txt;
+  var c=calc(),od=pa(c.totalOd),on=advOn(),av=advMontant();
+  var L=lowAhead(60,on),mn=L.min,reste=r2(od+mn),cls,titre,txt;
   var quand=dayWord(L.date);
   if(mn>=0){
     cls=""; titre="Tu es bien";
-    txt="Tu ne passes pas en négatif d'ici deux mois. Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+
-        ", et tu ne touches pas à ton découvert.";
+    txt="Tu ne passes pas en négatif d'ici deux mois. Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+".";
   } else if(mn>-od){
-    cls=reste<100?"warn":"warn"; titre=reste<100?"Ça passe, mais c'est très juste":"Ça passe";
+    cls="warn"; titre=reste<100?"Ça passe, mais c'est très juste":"Ça passe";
     txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+". Il te resterait <b>"+fmt(reste)+
-        "</b> de découvert."+(reste<100?" Un imprévu et tu es rejetée.":" Pas besoin d'avance.");
+        "</b> de découvert."+(reste<100?" Un imprévu et tu es rejetée.":"");
   } else {
-    cls="ko"; titre="Demande ton avance de 600 €";
+    cls="ko"; titre="Il te manque de l'argent";
     txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+", au-delà de tes "+fmt(od)+
         " autorisés. Il te manque <b>"+fmt(r2(-mn-od))+"</b>.";
+  }
+  var sim="";
+  if(!on&&av>0){
+    var L2=lowAhead(60,true);
+    sim='<p class="cap" style="margin:8px 0 0">'+
+        (L2.min>mn? "Avec l'avance, ton plus bas serait <b>"+fmt(L2.min)+"</b>"+
+                    (L2.min>-od?" — ça suffirait.":" — ça ne suffirait pas.")
+                  : "L'avance ne changerait rien à ton plus bas.")+'</p>';
   }
   host.innerHTML='<div class="encard"><div class="ln"><h3>'+esc(titre)+'</h3>'+
     '<span class="cap">d\'ici 2 mois</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:100%"></i></div>'+
-    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p></div>';
+    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p>'+sim+
+    (av>0?'<label class="advline"><input type="checkbox" id="advBox"'+(on?" checked":"")+'>'+
+      '<span>J\'ai demandé mon avance sur salaire — <b>'+fmt(av)+'</b> le 15</span></label>':"")+
+    '</div>';
+  var cb=document.getElementById("advBox");
+  if(cb)cb.addEventListener("change",function(){
+    snapshot();
+    if(!state.adv)state.adv={};
+    if(cb.checked)state.adv[curMonth()]=true; else delete state.adv[curMonth()];
+    renderAll();save();
+    toast(cb.checked?"Avance de "+fmt(advMontant())+" prise en compte":"Avance retirée");
+  });
 }
 function hrs(v){
   v=Math.max(0,r2(v));
