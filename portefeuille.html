@@ -754,6 +754,8 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="wcards" id="wcards"></div>
 
+  <div id="restoBox"></div>
+
   <div id="envBox"></div>
 
 
@@ -1034,6 +1036,7 @@ var SEED = {
   saveMonthly:0,
   balanceAsOf:"",
   order:["od","debts","goals","cushion"],
+  resto:{rate:10,min:50,goal:60,hours:{}},
   envelopes:[
     {id:"e-cadeaux",name:"Cadeaux pour mon copain",amount:0},
     {id:"e-restau",name:"Restaurants",amount:0},
@@ -1196,6 +1199,11 @@ function migrate(s){
     var ok=["od","cushion","debts","goals"],keep=s.order.filter(function(k){return ok.indexOf(k)>=0});
     ok.forEach(function(k){if(keep.indexOf(k)<0)keep.push(k)});
     o.order=keep;
+  }
+  if(s.resto&&typeof s.resto==="object"){
+    var rh={};
+    Object.keys(s.resto.hours||{}).forEach(function(k){if(/^\d{4}-\d{2}$/.test(k))rh[k]=pa(s.resto.hours[k])});
+    o.resto={rate:pa(s.resto.rate)||10,min:pa(s.resto.min)||50,goal:pa(s.resto.goal)||60,hours:rh};
   }
   if(Array.isArray(s.envelopes))o.envelopes=s.envelopes.filter(Boolean).map(function(e){
     return {id:String(e.id||uid()),name:String(e.name||""),amount:pa(e.amount)}});
@@ -2691,6 +2699,56 @@ function envUsed(e){
   });
   return r2(t);
 }
+function hrs(v){v=r2(v);return Math.abs(v-Math.round(v))<0.005?String(Math.round(v)):hrs(v)}
+function deMois(mk){var n=ml(mk);return (/^[aeiouâéèêî]/i.test(n)?"d'":"de ")+n}
+function restoSt(){ if(!state.resto)state.resto={rate:10,min:50,goal:60,hours:{}}; return state.resto }
+function restoPayMk(mk){ var y=+mk.slice(0,4),m=+mk.slice(5,7)+1; if(m>12){m=1;y++} return y+"-"+pad(m) }
+function restoSync(mk){
+  var r=restoSt(),h=pa(r.hours[mk]),v=r2(h*(pa(r.rate)||10)),pm=restoPayMk(mk),id="resto-"+pm,mv=null;
+  state.movements.forEach(function(x){if(x.id===id)mv=x});
+  if(!mv){
+    mv={id:id,account:"revolut",dir:"in",cat:"Revenu",dateReal:"",done:false,maybe:false,skip:false,
+        settled:false,fixId:"",fixMonth:"",free:false,env:""};
+    state.movements.push(mv);
+  }
+  mv.amount=v; mv.datePlanned=pm+"-05"; mv.month=pm;
+  mv.label="Salaire du restaurant — "+hrs(h)+" h "+deMois(mk);
+  return mv;
+}
+function renderResto(){
+  var host=document.getElementById("restoBox"); if(!host)return;
+  var r=restoSt(),mk=curMonth(),h=pa(r.hours[mk]),goal=pa(r.goal)||60,mini=pa(r.min)||50;
+  var gagne=r2(h*(pa(r.rate)||10)),pct=goal?Math.min(100,Math.round(h/goal*100)):0;
+  var cls=h>=goal?"":h>=mini?"warn":"ko";
+  var manque=r2(Math.max(0,mini-h));
+  host.innerHTML='<div class="encard">'+
+    '<div class="ln"><h3>Restaurant — '+esc(ml(mk))+'</h3>'+
+      '<span class="cap">'+hrs(h)+' h sur '+hrs(goal)+'</span></div>'+
+    '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
+    '<div class="ln"><span class="cap">'+
+      (manque>0?"Il me manque "+hrs(manque)+" h":"C\'est bon, je suis tranquille")+
+      '</span><b class="big'+(manque>0?" done":"")+'">'+fmt(gagne)+'</b></div>'+
+    '<p class="cap" style="margin:6px 0 0">Payé le 5 '+esc(ml(restoPayMk(mk)))+
+      ' · minimum '+hrs(mini)+' h · objectif '+hrs(goal)+' h</p>'+
+    '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… h" '+
+      'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
+  '</div>';
+}
+document.getElementById("restoBox").addEventListener("submit",function(ev){
+  var f=ev.target.closest("[data-resto]"); if(!f)return;
+  ev.preventDefault();
+  var inp=f.querySelector("input");
+  if(!inp.value.trim()){inp.focus();return}
+  var v=pa(inp.value);
+  snapshot();
+  var r=restoSt(),mk=curMonth();
+  r.hours[mk]=v; restoSync(mk);
+  inp.value="";
+  renderAll(); save();
+  var mini=pa(r.min)||50,manque=r2(mini-v);
+  toast(manque>0 ? "Encore "+hrs(manque)+" h pour être tranquille"
+                 : hrs(v)+" h — "+fmt(r2(v*(pa(r.rate)||10)))+" le 5 "+ml(restoPayMk(mk)));
+});
 function renderEnvs(){
   var host=document.getElementById("envBox");if(!host)return;
   var h=(state.envelopes||[]).filter(function(e){return pa(e.amount)>0}).map(function(e){
@@ -2724,7 +2782,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
