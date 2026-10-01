@@ -2711,7 +2711,7 @@ function envUsed(e){
   });
   return r2(t);
 }
-function lowAhead(days,adv){
+function lowAhead(days,adv,from){
   var T=today(),H=addDays(T,days||60),c=calc(),bal=0,evs=[];
   c.accs.forEach(function(a){if(a.kind!=="epargne")bal+=a.real});
   bal=r2(bal);
@@ -2753,8 +2753,9 @@ function lowAhead(days,adv){
     }
   }
   evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
-  var mn=bal,mnd=T;
-  evs.forEach(function(e){bal=r2(bal+e.v); if(bal<mn){mn=bal;mnd=e.d}});
+  var mn=(from&&from>T)?1e9:bal,mnd=T;
+  evs.forEach(function(e){bal=r2(bal+e.v); if((!from||e.d>=from)&&bal<mn){mn=bal;mnd=e.d}});
+  if(mn===1e9){mn=bal;mnd=T}
   return {min:mn,date:mnd,end:bal};
 }
 function advMontant(){
@@ -2787,12 +2788,18 @@ function renderEtat(){
         " autorisés. Il te manque <b>"+fmt(r2(-mn-od))+"</b>.";
   }
   var sim="";
-  if(!on&&av>0){
-    var L2=lowAhead(60,true);
-    sim='<p class="cap" style="margin:8px 0 0">'+
-        (L2.min>mn? "Avec l'avance, ton plus bas serait <b>"+fmt(L2.min)+"</b>"+
-                    (L2.min>-od?" — ça suffirait.":" — ça ne suffirait pas.")
-                  : "L'avance ne changerait rien à ton plus bas.")+'</p>';
+  if(av>0){
+    var d15=curMonth()+"-15",jour=dayWord(d15);
+    var A=lowAhead(60,false,d15),B=lowAhead(60,true,d15),conseil,ic;
+    if(on){ ic="✔️"; conseil="tu l'as demandée, elle est comptée dans le calcul ci-dessus."; }
+    else if(A.min>=-od){ ic="✅"; conseil="<b>ne la demande pas</b> — après le 15 ton plus bas est "+fmt(A.min)+
+                               ", tu tiens sans."; }
+    else if(B.min>=-od){ ic="📌"; conseil="<b>demande-la</b> — sans elle tu descends à "+fmt(A.min)+
+                               ", avec elle tu remontes à "+fmt(B.min)+"."; }
+    else { ic="⚠️"; conseil="<b>demande-la quand même</b>, mais elle ne suffira pas : il manquerait encore "+
+                               fmt(r2(-B.min-od))+"."; }
+    sim='<p class="cap" style="margin:10px 0 0;line-height:1.45">'+ic+' <b>'+esc(jour.charAt(0).toUpperCase()+jour.slice(1))+
+        '</b>, jour de ta demande d\'avance : '+conseil+'</p>';
   }
   host.innerHTML='<div class="encard"><div class="ln"><h3>'+esc(titre)+'</h3>'+
     '<span class="cap">d\'ici 2 mois</span></div>'+
