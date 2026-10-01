@@ -234,6 +234,22 @@ button.chip{cursor:pointer;font-family:inherit}
 @media(max-width:700px){.amt{justify-content:flex-start}.amt input{text-align:left;max-width:180px}}
 .empty{padding:30px 18px;text-align:center;color:var(--ink-2);border:1px dashed var(--rule-strong);border-radius:var(--radius);font-size:13.5px}
 
+.encard{background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);padding:14px 16px;margin:12px 0;box-shadow:var(--shadow)}
+.encard h3{margin:0;font-size:1rem;color:var(--ink)}
+.encard .cap{font-size:.84rem;color:var(--ink-2)}
+.encard .bar{height:10px;border-radius:99px;background:var(--rule);overflow:hidden;margin:10px 0 8px}
+.encard .bar i{display:block;height:100%;border-radius:99px;background:var(--credit);transition:width .3s}
+.encard .bar i.warn{background:var(--warn)}
+.encard .bar i.ko{background:var(--debit)}
+.encard .ln{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.encard .big{font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--credit)}
+.encard .big.done{color:var(--debit)}
+.encard form{display:flex;gap:8px;margin-top:12px}
+.encard form input{flex:1 1 auto;min-width:0;padding:11px 12px;border:1px solid var(--rule-strong);
+  border-radius:10px;background:var(--card-2);color:var(--ink);font-size:1rem}
+.encard form input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.encard form button{flex:none;padding:11px 16px;border:0;border-radius:10px;background:var(--accent);
+  color:var(--on-accent);font-weight:700;font-size:.95rem;white-space:nowrap}
 /* lists (fixed / goals / debts) */
 .banner{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:13px 15px;border-radius:12px;background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);font-size:13.5px;margin-bottom:13px}
 .sub{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"day info amt edit" "day edit2 edit2 edit2";gap:4px 11px;align-items:center;padding:11px 13px;border:1px solid var(--rule);border-top:none;background:var(--card)}
@@ -738,6 +754,8 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="wcards" id="wcards"></div>
 
+  <div id="envBox"></div>
+
 
   <div id="adviceBox"></div>
 
@@ -1142,7 +1160,7 @@ function migrate(s){
       datePlanned:/^\d{4}-\d{2}-\d{2}$/.test(m.datePlanned||"")?m.datePlanned:"",
       month:/^\d{4}-\d{2}$/.test(m.month||"")?m.month:"",
       dateReal:/^\d{4}-\d{2}-\d{2}$/.test(m.dateReal||"")?m.dateReal:"",
-      done:!!m.done,maybe:!!m.maybe,skip:!!m.skip,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free,settled:!!m.settled};
+      done:!!m.done,maybe:!!m.maybe,skip:!!m.skip,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free,settled:!!m.settled,env:m.env||""};
   }
   if(Array.isArray(s.movements)){
     var old=["m-avance","m-lissage"];
@@ -2664,7 +2682,49 @@ function selects(){
   var q=document.getElementById("quick");
   if(!q.dataset.b){q.dataset.b="1";q.innerHTML=[10,20,50,100].map(function(v){return '<button type="button" data-v="'+v+'">'+v+' €</button>'}).join("")}
 }
-function renderAll(){selects();renderPadAcc();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function envUsed(e){
+  var mk=curMonth(),t=0;
+  state.movements.forEach(function(m){
+    if(m.env!==e.id||m.skip)return;
+    if((m.datePlanned||"").slice(0,7)!==mk&&(m.month||"")!==mk)return;
+    t+=pa(m.amount);
+  });
+  return r2(t);
+}
+function renderEnvs(){
+  var host=document.getElementById("envBox");if(!host)return;
+  var h=(state.envelopes||[]).filter(function(e){return pa(e.amount)>0}).map(function(e){
+    var bud=pa(e.amount),used=envUsed(e),left=r2(bud-used),pct=bud?Math.min(100,Math.round(used/bud*100)):0;
+    var cls=pct>=100?"ko":pct>=75?"warn":"";
+    return '<div class="encard" data-env="'+esc(e.id)+'">'+
+      '<div class="ln"><h3>'+esc(e.name)+'</h3><span class="cap">'+fmt(used)+' sur '+fmt(bud)+'</span></div>'+
+      '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
+      '<div class="ln"><span class="cap">'+(left>0?"Il me reste":"J\'ai dépassé de")+'</span>'+
+      '<b class="big'+(left>0?"":" done")+'">'+fmt(Math.abs(left))+'</b></div>'+
+      (left<=0?'<p class="cap" style="margin:8px 0 0">C\'est fini pour ce mois-ci.</p>':"")+
+      '<form data-env-add="'+esc(e.id)+'"><input inputmode="decimal" placeholder="J\'ai pris… €" '+
+      'aria-label="Montant pris dans '+esc(e.name)+'"><button type="submit">Noter</button></form>'+
+      '</div>';
+  }).join("");
+  host.innerHTML=h;
+}
+document.getElementById("envBox").addEventListener("submit",function(ev){
+  var f=ev.target.closest("[data-env-add]");if(!f)return;
+  ev.preventDefault();
+  var inp=f.querySelector("input"),v=pa(inp.value);
+  if(!v){inp.focus();return}
+  var e=find(state.envelopes||[],f.getAttribute("data-env-add"));if(!e)return;
+  snapshot();
+  var T=today();
+  state.movements.push({id:uid(),label:e.name,account:PADACC,dir:"out",amount:v,cat:"Autre",
+    datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
+    fixId:"",fixMonth:"",free:true,env:e.id});
+  inp.value="";
+  renderAll();save();
+  var left=r2(pa(e.amount)-envUsed(e));
+  toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
+});
+function renderAll(){selects();renderPadAcc();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
