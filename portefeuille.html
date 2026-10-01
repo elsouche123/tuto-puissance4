@@ -2752,6 +2752,34 @@ function lowAhead(days,adv,from){
       if(d15>=T&&d15<best.d){evs.push({d:d15,v:moitie}); best.v=r2(best.v-moitie)}
     }
   }
+  /* le train de vie et les enveloppes : ils ne sont pas prélevés, mais ils sortent */
+  var mk2=curMonth(),lastMk2=H.slice(0,7),vu={},cm0=curMonth();
+  var budEnv=0; (state.envelopes||[]).forEach(function(e){budEnv+=pa(e.amount)});
+  while(mk2<=lastMk2&&!vu[mk2]){
+    vu[mk2]=1;
+    (function(k){
+      var vie=pa(state.living)+budEnv;
+      if(k===cm0){
+        var dejaV=0;
+        state.movements.forEach(function(m){
+          if(m.dir!=="out"||m.skip||!m.done)return;
+          if(acc(m.account).kind==="epargne")return;
+          if(!m.free&&!m.env)return;
+          if(((m.dateReal||m.datePlanned||"").slice(0,7))!==k)return;
+          dejaV+=pa(m.amount);
+        });
+        vie=Math.max(0,r2(vie-dejaV));
+      }
+      if(vie<=0)return;
+      var last=new Date(+k.slice(0,4),+k.slice(5,7),0).getDate(),jours=[],i;
+      for(i=7;i<=last;i+=7)jours.push(k+"-"+pad(i));
+      jours=jours.filter(function(d){return d>=T&&d<=H});
+      if(!jours.length)return;
+      var part=r2(vie/jours.length);
+      jours.forEach(function(d){evs.push({d:d,v:-part})});
+    })(mk2);
+    var y2=+mk2.slice(0,4),mo2=+mk2.slice(5,7)+1; if(mo2>12){mo2=1;y2++} mk2=y2+"-"+pad(mo2);
+  }
   evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
   var mn=(from&&from>T)?1e9:bal,mnd=T;
   evs.forEach(function(e){bal=r2(bal+e.v); if((!from||e.d>=from)&&bal<mn){mn=bal;mnd=e.d}});
