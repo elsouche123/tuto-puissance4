@@ -2700,7 +2700,7 @@ function envUsed(e){
   });
   return r2(t);
 }
-function hrs(v){v=r2(v);return Math.abs(v-Math.round(v))<0.005?String(Math.round(v)):hrs(v)}
+function hrs(v){v=r2(v);return Math.abs(v-Math.round(v))<0.005?String(Math.round(v)):nb(v)}
 function deMois(mk){var n=ml(mk);return (/^[aeiouâéèêî]/i.test(n)?"d'":"de ")+n}
 function restoSt(){ if(!state.resto)state.resto={rate:10,min:50,goal:60,hours:{}}; return state.resto }
 function restoPayMk(mk){ var y=+mk.slice(0,4),m=+mk.slice(5,7)+1; if(m>12){m=1;y++} return y+"-"+pad(m) }
