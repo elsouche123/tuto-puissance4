@@ -2711,12 +2711,13 @@ function envUsed(e){
   });
   return r2(t);
 }
-function lowAhead(days,adv,from){
+function lowAhead(days,adv,from,avecIncertain){
   var T=today(),H=addDays(T,days||60),c=calc(),bal=0,evs=[];
   c.accs.forEach(function(a){if(a.kind!=="epargne")bal+=a.real});
   bal=r2(bal);
   state.movements.forEach(function(m){
-    if(m.done||m.maybe||m.skip)return;
+    if(m.done||m.skip)return;
+    if(m.maybe&&!(avecIncertain&&m.dir==="in"))return;
     if(acc(m.account).kind==="epargne")return;
     if(!m.datePlanned||m.datePlanned<T||m.datePlanned>H)return;
     evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount)});
@@ -2829,10 +2830,16 @@ function renderEtat(){
     sim='<p class="cap" style="margin:10px 0 0;line-height:1.45">'+ic+' <b>'+esc(jour.charAt(0).toUpperCase()+jour.slice(1))+
         '</b>, jour de ta demande d\'avance : '+conseil+'</p>';
   }
+  var inc="";
+  var LI=lowAhead(60,on,null,true);
+  if(LI.min>mn+1){
+    inc='<p class="cap" style="margin:8px 0 0">Si tes cours incertains tombent, ton plus bas serait <b>'+
+        fmt(LI.min)+'</b>'+(mn<-od&&LI.min>=-od?" — ça suffirait à te sauver.":".")+'</p>';
+  }
   host.innerHTML='<div class="encard"><div class="ln"><h3>'+esc(titre)+'</h3>'+
     '<span class="cap">d\'ici 2 mois</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:100%"></i></div>'+
-    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p>'+sim+
+    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p>'+inc+sim+
     (av>0?'<label class="advline"><input type="checkbox" id="advBox"'+(on?" checked":"")+'>'+
       '<span>J\'ai demandé mon avance sur salaire — <b>'+fmt(av)+'</b> le 15</span></label>':"")+
     '</div>';
