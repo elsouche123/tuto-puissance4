@@ -1046,6 +1046,7 @@ var SEED = {
   accounts:[
     {id:"sg",name:"Société Générale",tag:"Banque",start:-630.86,overdraft:700,kind:"courant",short:"SG"},
     {id:"revolut",name:"Revolut",tag:"Salaires",start:0,overdraft:0,kind:"courant",short:"Revolut"},
+    {id:"revolut-ep",name:"Revolut — mon épargne",tag:"Épargne",start:0,overdraft:0,kind:"epargne",short:"Revolut épargne"},
     {id:"cash",name:"Espèces",tag:"Liquide",start:0,overdraft:0,kind:"courant",short:"Espèces"},
     {id:"ldd",name:"Livret Dévelop. Durable",tag:"Épargne",start:0.92,overdraft:0,kind:"epargne",short:"LDD"},
     {id:"ljeune",name:"Livret Jeune",tag:"Épargne",start:10.20,overdraft:0,kind:"epargne",short:"Livret Jeune"},
@@ -1103,7 +1104,7 @@ var SEED = {
   ]
 };
 
-var ACCIDS=["sg","revolut","cash","ldd","ljeune","pel"];
+var ACCIDS=["sg","revolut","revolut-ep","cash","ldd","ljeune","pel"];
 var TABG={today:["today"],pay:["reg","fix"],more:["plan","save"],debts:["debt"]};
 var LS="portefeuille.v3", state=null, filter="all", tab="today";
 var docRef=null, hydrated=false, saveTimer=null, writing=false, dirty=false, lastSent="", pendingRemote=null;
