@@ -2700,7 +2700,18 @@ function envUsed(e){
   });
   return r2(t);
 }
-function hrs(v){v=r2(v);return Math.abs(v-Math.round(v))<0.005?String(Math.round(v)):nb(v)}
+function hrs(v){
+  v=Math.max(0,r2(v));
+  var t=Math.round(v*60),h=Math.floor(t/60),m=t%60;
+  return m? h+" h "+pad(m) : h+" h";
+}
+function parseHM(v){
+  var s=String(v==null?"":v).toLowerCase().replace(/\s/g,"").replace(/[h:.]/g,",");
+  var q=s.split(","), h=parseInt(q[0],10), m=0;
+  if(!isFinite(h))h=0;
+  if(q.length>1&&q[1]!=="")  { m=parseInt(q[1].slice(0,2),10); if(!isFinite(m))m=0 }
+  return r2(Math.abs(h)+Math.abs(m)/60);
+}
 function deMois(mk){var n=ml(mk);return (/^[aeiouâéèêî]/i.test(n)?"d'":"de ")+n}
 function restoSt(){ if(!state.resto)state.resto={rate:10,min:50,goal:60,hours:{}}; return state.resto }
 function restoPayMk(mk){ var y=+mk.slice(0,4),m=+mk.slice(5,7)+1; if(m>12){m=1;y++} return y+"-"+pad(m) }
@@ -2713,25 +2724,24 @@ function restoSync(mk){
     state.movements.push(mv);
   }
   mv.amount=v; mv.datePlanned=pm+"-05"; mv.month=pm;
-  mv.label="Salaire du restaurant — "+hrs(h)+" h "+deMois(mk);
+  mv.label="Salaire du restaurant — "+hrs(h)+" "+deMois(mk);
   return mv;
 }
 function renderResto(){
   var host=document.getElementById("restoBox"); if(!host)return;
   var r=restoSt(),mk=curMonth(),h=pa(r.hours[mk]),goal=pa(r.goal)||60,mini=pa(r.min)||50;
   var gagne=r2(h*(pa(r.rate)||10)),pct=goal?Math.min(100,Math.round(h/goal*100)):0;
-  var cls=h>=goal?"":h>=mini?"warn":"ko";
-  var manque=r2(Math.max(0,mini-h));
+  var cls=h>=goal?"":h>=mini?"warn":"ko",manque=r2(Math.max(0,mini-h));
   host.innerHTML='<div class="encard">'+
     '<div class="ln"><h3>Restaurant — '+esc(ml(mk))+'</h3>'+
-      '<span class="cap">'+hrs(h)+' h sur '+hrs(goal)+'</span></div>'+
+      '<span class="cap">'+hrs(h)+' sur '+hrs(goal)+'</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">'+
-      (manque>0?"Il me manque "+hrs(manque)+" h":"C\'est bon, je suis tranquille")+
+      (manque>0?"Il me manque "+hrs(manque):"C\'est bon, je suis tranquille")+
       '</span><b class="big'+(manque>0?" done":"")+'">'+fmt(gagne)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0">Payé le 5 '+esc(ml(restoPayMk(mk)))+
-      ' · minimum '+hrs(mini)+' h · objectif '+hrs(goal)+' h</p>'+
-    '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… h" '+
+      ' · minimum '+hrs(mini)+' · objectif '+hrs(goal)+'</p>'+
+    '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 2h18" '+
       'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
   '</div>';
 }
@@ -2740,15 +2750,15 @@ document.getElementById("restoBox").addEventListener("submit",function(ev){
   ev.preventDefault();
   var inp=f.querySelector("input");
   if(!inp.value.trim()){inp.focus();return}
-  var v=pa(inp.value);
+  var v=parseHM(inp.value);
   snapshot();
   var r=restoSt(),mk=curMonth();
   r.hours[mk]=v; restoSync(mk);
   inp.value="";
   renderAll(); save();
   var mini=pa(r.min)||50,manque=r2(mini-v);
-  toast(manque>0 ? "Encore "+hrs(manque)+" h pour être tranquille"
-                 : hrs(v)+" h — "+fmt(r2(v*(pa(r.rate)||10)))+" le 5 "+ml(restoPayMk(mk)));
+  toast(hrs(v)+" — "+fmt(r2(v*(pa(r.rate)||10)))+
+        (manque>0? " · encore "+hrs(manque)+" pour être tranquille" : " · objectif atteint"));
 });
 function renderEnvs(){
   var host=document.getElementById("envBox");if(!host)return;
