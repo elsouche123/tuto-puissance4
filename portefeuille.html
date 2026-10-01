@@ -754,6 +754,8 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="wcards" id="wcards"></div>
 
+  <div id="verdictBox"></div>
+
   <div id="restoBox"></div>
 
   <div id="envBox"></div>
@@ -2700,6 +2702,66 @@ function envUsed(e){
   });
   return r2(t);
 }
+function lowAhead(days){
+  var T=today(),H=addDays(T,days||60),c=calc(),bal=0,evs=[];
+  c.accs.forEach(function(a){if(a.kind!=="epargne")bal+=a.real});
+  bal=r2(bal);
+  state.movements.forEach(function(m){
+    if(m.done||m.maybe||m.skip)return;
+    if(acc(m.account).kind==="epargne")return;
+    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>H)return;
+    evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount)});
+  });
+  var mk=curMonth(),lastMk=H.slice(0,7),seen={};
+  while(mk<=lastMk&&!seen[mk]){
+    seen[mk]=1;
+    (function(k){
+      state.fixed.forEach(function(f){
+        if(!f.day)return;
+        if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===k}))return;
+        var amt=fixAmountFor(f,k); if(amt<=0)return;
+        var last=new Date(+k.slice(0,4),+k.slice(5,7),0).getDate();
+        var dd=k+"-"+pad(Math.min(parseInt(f.day,10)||1,last));
+        if(dd<T||dd>H)return;
+        evs.push({d:dd,v:-amt});
+      });
+      /* le salaire mensuel : il tombe l'avant-dernier jour du mois */
+      var inc=pa((state.incomeByMonth||{})[k]);
+      if(inc>0){
+        var l2=new Date(+k.slice(0,4),+k.slice(5,7),0).getDate();
+        var dd2=k+"-"+pad(Math.max(1,l2-1));
+        if(dd2>=T&&dd2<=H)evs.push({d:dd2,v:inc});
+      }
+    })(mk);
+    var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
+  }
+  evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
+  var mn=bal,mnd=T;
+  evs.forEach(function(e){bal=r2(bal+e.v); if(bal<mn){mn=bal;mnd=e.d}});
+  return {min:mn,date:mnd,end:bal};
+}
+function renderEtat(){
+  var host=document.getElementById("verdictBox"); if(!host)return;
+  var c=calc(),od=pa(c.totalOd),L=lowAhead(60),mn=L.min,reste=r2(od+mn),cls,titre,txt;
+  var quand=dayWord(L.date);
+  if(mn>=0){
+    cls=""; titre="Tu es bien";
+    txt="Tu ne passes pas en négatif d'ici deux mois. Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+
+        ", et tu ne touches pas à ton découvert.";
+  } else if(mn>-od){
+    cls=reste<100?"warn":"warn"; titre=reste<100?"Ça passe, mais c'est très juste":"Ça passe";
+    txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+". Il te resterait <b>"+fmt(reste)+
+        "</b> de découvert."+(reste<100?" Un imprévu et tu es rejetée.":" Pas besoin d'avance.");
+  } else {
+    cls="ko"; titre="Demande ton avance de 600 €";
+    txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+", au-delà de tes "+fmt(od)+
+        " autorisés. Il te manque <b>"+fmt(r2(-mn-od))+"</b>.";
+  }
+  host.innerHTML='<div class="encard"><div class="ln"><h3>'+esc(titre)+'</h3>'+
+    '<span class="cap">d\'ici 2 mois</span></div>'+
+    '<div class="bar"><i class="'+cls+'" style="width:100%"></i></div>'+
+    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p></div>';
+}
 function hrs(v){
   v=Math.max(0,r2(v));
   var t=Math.round(v*60),h=Math.floor(t/60),m=t%60;
@@ -2793,7 +2855,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderEtat();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
