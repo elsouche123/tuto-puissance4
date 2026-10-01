@@ -248,6 +248,9 @@ button.chip{cursor:pointer;font-family:inherit}
 .encard form input{flex:1 1 auto;min-width:0;padding:11px 12px;border:1px solid var(--rule-strong);
   border-radius:10px;background:var(--card-2);color:var(--ink);font-size:1rem}
 .encard form input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.encard .virline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+.encard .virline button{flex:none;padding:10px 14px;border:0;border-radius:10px;background:var(--accent);
+  color:var(--on-accent);font-weight:700;font-size:.92rem;white-space:nowrap}
 .encard .advline{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;
   border-top:1px solid var(--rule);font-size:.9rem;color:var(--ink)}
 .encard .advline input{width:20px;height:20px;flex:none;accent-color:var(--accent)}
@@ -756,6 +759,8 @@ details.detail[open] summary::before{content:"▾ "}
   </div>
 
   <div class="wcards" id="wcards"></div>
+
+  <div id="virBox"></div>
 
   <div id="verdictBox"></div>
 
@@ -2711,6 +2716,68 @@ function envUsed(e){
   });
   return r2(t);
 }
+function dispoAilleurs(){
+  var T=today(),H=addDays(T,30),c=calc(),out=[];
+  c.accs.forEach(function(a){
+    if(a.kind==="epargne"||a.id==="sg")return;
+    if(a.real<=0)return;
+    var reserve=0;
+    state.movements.forEach(function(m){
+      if(m.account!==a.id||m.done||m.skip||m.maybe||m.dir!=="out")return;
+      if(!m.datePlanned||m.datePlanned<T||m.datePlanned>H)return;
+      reserve+=pa(m.amount);
+    });
+    var libre=r2(Math.max(0,a.real-reserve));
+    if(libre>0.5)out.push({id:a.id,nom:a.short||a.name,solde:a.real,reserve:r2(reserve),libre:libre});
+  });
+  return out;
+}
+function virerVersSG(fromId,v){
+  var fa=acc(fromId),ta=acc("sg"),T=today();
+  state.movements.push({id:uid(),label:"Vers "+(ta.short||ta.name),account:fa.id,dir:"out",amount:v,
+    cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
+    fixId:"",fixMonth:"",free:true,settled:false,env:""});
+  state.movements.push({id:uid(),label:"Depuis "+(fa.short||fa.name),account:"sg",dir:"in",amount:v,
+    cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
+    fixId:"",fixMonth:"",free:true,settled:false,env:""});
+}
+function renderVir(){
+  var host=document.getElementById("virBox"); if(!host)return;
+  var c=calc(),sg=null;
+  c.accs.forEach(function(a){if(a.id==="sg")sg=a});
+  if(!sg){host.innerHTML="";return}
+  var manque=r2(Math.max(0,-sg.real)),src=dispoAilleurs(),libreTot=0;
+  src.forEach(function(x){libreTot+=x.libre}); libreTot=r2(libreTot);
+  if(!src.length){
+    host.innerHTML='<div class="encard"><div class="ln"><h3>Rien à virer</h3>'+
+      '<span class="cap">SG '+fmt(sg.real)+'</span></div>'+
+      '<div class="bar"><i class="'+(manque>0?"ko":"")+'" style="width:100%"></i></div>'+
+      '<p class="cap" style="margin:8px 0 0">'+
+      (manque>0?"Il te faudrait <b>"+fmt(manque)+"</b> pour revenir à zéro, mais tu n'as rien de libre ailleurs."
+               :"Tout ton argent est déjà sur SG.")+'</p></div>';
+    return;
+  }
+  var apres=r2(sg.real+libreTot),lignes="";
+  src.forEach(function(x){
+    lignes+='<div class="virline"><span>Depuis <b>'+esc(x.nom)+'</b>'+
+      (x.reserve>0?' <span class="cap">('+fmt(x.reserve)+' gardés pour tes paiements)</span>':'')+'</span>'+
+      '<button type="button" data-vir="'+esc(x.id)+'" data-v="'+x.libre+'">Virer '+fmt(x.libre)+'</button></div>';
+  });
+  host.innerHTML='<div class="encard"><div class="ln"><h3>À virer sur SG</h3>'+
+    '<span class="cap">SG '+fmt(sg.real)+'</span></div>'+
+    '<div class="bar"><i class="'+(apres>=0?"":"ko")+'" style="width:100%"></i></div>'+
+    '<div class="ln"><span class="cap">Ton SG passerait à</span><b class="big'+(apres>=0?"":" done")+'">'+
+      fmt(apres)+'</b></div>'+lignes+
+    (manque>0&&apres<0?'<p class="cap" style="margin:8px 0 0">Même en virant tout, tu resterais à '+
+      fmt(apres)+'.</p>':"")+'</div>';
+}
+document.getElementById("virBox").addEventListener("click",function(ev){
+  var b=ev.target.closest("[data-vir]"); if(!b)return;
+  var v=pa(b.getAttribute("data-v")); if(v<=0)return;
+  snapshot(); virerVersSG(b.getAttribute("data-vir"),v);
+  renderAll(); save();
+  toast(fmt(v)+" viré sur SG");
+});
 function lowAhead(days,adv,from,avecIncertain){
   var T=today(),H=addDays(T,days||60),c=calc(),bal=0,evs=[];
   c.accs.forEach(function(a){if(a.kind!=="epargne")bal+=a.real});
@@ -2945,7 +3012,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderEtat();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderEtat();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
