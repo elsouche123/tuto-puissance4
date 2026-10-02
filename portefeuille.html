@@ -2935,7 +2935,10 @@ function deMois(mk){var n=ml(mk);return (/^[aeiouâéèêî]/i.test(n)?"d'":"de 
 function restoSt(){ if(!state.resto)state.resto={rate:10,min:50,goal:60,hours:{}}; return state.resto }
 function restoPayMk(mk){ var y=+mk.slice(0,4),m=+mk.slice(5,7)+1; if(m>12){m=1;y++} return y+"-"+pad(m) }
 function restoSync(mk){
-  var r=restoSt(),h=pa(r.hours[mk]),v=r2(h*(pa(r.rate)||10)),pm=restoPayMk(mk),id="resto-"+pm,mv=null;
+  var r=restoSt(),h=pa(r.hours[mk]);
+  /* tant que le mois court, on table sur l'objectif si elle est encore en dessous */
+  var base=(mk===curMonth()&&h<pa(r.goal))?pa(r.goal):h;
+  var v=r2(base*(pa(r.rate)||10)),pm=restoPayMk(mk),id="resto-"+pm,mv=null;
   state.movements.forEach(function(x){if(x.id===id)mv=x});
   if(!mv){
     mv={id:id,account:"revolut",dir:"in",cat:"Revenu",dateReal:"",done:false,maybe:false,skip:false,
@@ -2943,7 +2946,7 @@ function restoSync(mk){
     state.movements.push(mv);
   }
   mv.amount=v; mv.datePlanned=pm+"-05"; mv.month=pm;
-  mv.label="Salaire du restaurant — "+hrs(h)+" "+deMois(mk);
+  mv.label="Salaire du restaurant — "+(base>h?hrs(base)+" visées ":hrs(h)+" ")+deMois(mk);
   return mv;
 }
 function renderResto(){
