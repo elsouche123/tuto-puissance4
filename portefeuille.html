@@ -1072,6 +1072,7 @@ var SEED = {
   odMargin:200,
   income:[],
   incomeByMonth:{},
+  vieAcc:"sg",
   living:0,
   cushionOn:true,
   debtMonthly:0,
@@ -1180,6 +1181,8 @@ function ml(mk){if(!mk)return"Sans date";var p=mk.split("-");var d=new Date(+p[0
 function uid(){return"x"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 /* le découvert autorisé d'un compte à une date donnée :
    odFrom/odNext permettent de dire « 700 aujourd'hui, 400 à partir du 6 octobre » */
+/* le compte avec lequel elle vit : SG paie les factures, Revolut le reste */
+function compteVie(){ return ACCIDS.indexOf(state.vieAcc)>=0?state.vieAcc:"sg" }
 function odFor(a,iso){
   if(!a)return 0;
   if(a.odFrom&&a.odNext!=null&&iso>=a.odFrom)return pa(a.odNext);
@@ -1246,6 +1249,7 @@ function migrate(s){
   if(Array.isArray(s.income))o.income=s.income.filter(Boolean).map(function(i){
     return {id:String(i.id||uid()),from:/^\d{4}-\d{2}$/.test(i.from||"")?i.from:curMonth(),amount:pa(i.amount)}});
   o.living=pa(s.living);
+  if(ACCIDS.indexOf(s.vieAcc)>=0)o.vieAcc=s.vieAcc;
   if(typeof s.cushionOn==="boolean")o.cushionOn=s.cushionOn;
   o.debtMonthly=pa(s.debtMonthly);
   o.saveMonthly=pa(s.saveMonthly);
@@ -2810,7 +2814,7 @@ function virerVersSG(fromId,v){
    mouvements prévus, charges fixes pas encore matérialisées, salaire
    mensuel, et le train de vie étalé sur les semaines qui restent. */
 function evsPaie(accId,D1,D2){
-  var evs=[],vieAcc=state.vieAcc||"sg",salAcc=state.salaryAcc||"revolut";
+  var evs=[],vieAcc=compteVie(),salAcc=state.salaryAcc||"revolut";
   function pris(id){ return (!accId||id===accId) && acc(id).kind!=="epargne" }
   state.movements.forEach(function(m){
     if(m.done||m.skip||m.maybe)return;
@@ -3062,7 +3066,7 @@ function renderBudget(){
       (B.parJour<=0?" done":"")+'">'+fmt(B.parJour)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">'+phrase+'</p>'+
     '<p class="cap" style="margin:4px 0 0">Budget du mois '+fmt(B.total)+
-      ' · déjà dépensé '+fmt(B.deja)+'</p>'+
+      ' · déjà dépensé '+fmt(B.deja)+' · avec ta carte '+esc(acc(compteVie()).short||acc(compteVie()).name)+'</p>'+
     '<form data-dep="1"><input inputmode="decimal" placeholder="J\'ai dépensé… ex. 18" '+
       'aria-label="Montant dépensé"><input data-note="1" placeholder="Quoi ? (facultatif)" '+
       'aria-label="Libellé"><button type="submit">Noter</button></form>'+
@@ -3075,7 +3079,7 @@ document.getElementById("budgetBox").addEventListener("submit",function(ev){
   if(!v){inp.focus();return}
   var note=f.querySelector("[data-note]").value.trim(),T=today();
   snapshot();
-  state.movements.push({id:uid(),label:note||"Dépense du jour",account:"sg",dir:"out",amount:v,
+  state.movements.push({id:uid(),label:note||"Dépense du jour",account:compteVie(),dir:"out",amount:v,
     cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
     fixId:"",fixMonth:"",free:true,settled:false,env:""});
   inp.value="";f.querySelector("[data-note]").value="";
@@ -3189,6 +3193,23 @@ function renderPaie(){
     etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Rien à mettre de côté ce mois-ci</b></div>'+
       '<p class="cap">'+esc(P.raisonEp)+'</p></div>';
   }
+
+  /* ce qui reste là où elle vit : c'est son argent, le seul qu'elle
+     puisse dépenser sans rien vérifier */
+  n++;
+  var cv=acc(compteVie()),memeCompte=compteVie()===P.p.compte,B=budgetJour();
+  var quotidien=memeCompte?r2(Math.max(0,B.reste)):0;
+  etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Pour toi : '+fmt(r2(P.reste+quotidien))+
+      (memeCompte?' sur '+esc(cv.short||cv.name):"")+'</b></div>'+
+    '<p class="cap">'+
+    (quotidien>0
+      ? "Dont <b>"+fmt(quotidien)+"</b> de budget du quotidien"+
+        (P.reste>=1?" et <b>"+fmt(P.reste)+"</b> de rab":"")+". Tes factures et tes remboursements sont "+
+        "déjà partis ailleurs : ce qui est sur "+esc(cv.short||cv.name)+", tu le dépenses sans vérifier."
+      : P.reste<1
+        ? "Rien de libre ce mois-ci : tout est déjà affecté."
+        : "C'est ton argent, tu le dépenses sans vérifier jusqu'au "+dl(P.D2)+".")+
+    '</p></div>';
 
   var alerte="";
   if(P.secours){
@@ -3560,7 +3581,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var e=find(state.envelopes||[],f.getAttribute("data-env-add"));if(!e)return;
   snapshot();
   var T=today();
-  state.movements.push({id:uid(),label:e.name,account:PADACC,dir:"out",amount:v,cat:"Autre",
+  state.movements.push({id:uid(),label:e.name,account:compteVie(),dir:"out",amount:v,cat:"Autre",
     datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
     fixId:"",fixMonth:"",free:true,env:e.id});
   inp.value="";
