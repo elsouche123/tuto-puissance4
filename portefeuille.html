@@ -1148,6 +1148,18 @@ function eom(){var d=new Date(),e=new Date(d.getFullYear(),d.getMonth()+1,0);ret
 function dl(iso){if(!iso)return"";var p=iso.split("-");var d=new Date(+p[0],+p[1]-1,+p[2]);return isNaN(d)?iso:DS.format(d)}
 function ml(mk){if(!mk)return"Sans date";var p=mk.split("-");var d=new Date(+p[0],+p[1]-1,1);return isNaN(d)?mk:MY.format(d)}
 function uid(){return"x"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+/* le découvert autorisé d'un compte à une date donnée :
+   odFrom/odNext permettent de dire « 700 aujourd'hui, 400 à partir du 6 octobre » */
+function odFor(a,iso){
+  if(!a)return 0;
+  if(a.odFrom&&a.odNext!=null&&iso>=a.odFrom)return pa(a.odNext);
+  return pa(a.overdraft);
+}
+function odAt(iso){
+  var t=0;
+  state.accounts.forEach(function(a){ if(a.kind!=="epargne")t+=odFor(a,iso) });
+  return r2(t);
+}
 function acc(id){for(var i=0;i<state.accounts.length;i++)if(state.accounts[i].id===id)return state.accounts[i];return state.accounts[0]}
 /* month a movement belongs to */
 function mMonth(m){ if(m.done&&m.dateReal)return m.dateReal.slice(0,7); if(m.datePlanned)return m.datePlanned.slice(0,7); return m.month||"" }
@@ -1168,7 +1180,8 @@ function migrate(s){
   }
   if(Array.isArray(s.accounts))o.accounts=o.accounts.map(function(d){
     var f=null;for(var i=0;i<s.accounts.length;i++)if(s.accounts[i]&&s.accounts[i].id===d.id)f=s.accounts[i];
-    return f?{id:d.id,name:f.name||d.name,tag:d.tag,short:d.short,kind:d.kind,start:ps(f.start),overdraft:pa(f.overdraft)}:d});
+    return f?{id:d.id,name:f.name||d.name,tag:d.tag,short:d.short,kind:d.kind,start:ps(f.start),
+              overdraft:pa(f.overdraft),odFrom:f.odFrom||"",odNext:f.odNext==null?null:pa(f.odNext)}:d});
   function clean(m){
     return {id:String(m.id||uid()),label:String(m.label==null?"":m.label).slice(0,140),
       account:ACCIDS.indexOf(m.account)>=0?m.account:"sg",
@@ -1277,7 +1290,7 @@ function calc(){
       else if(m.maybe)return;
       else if(m.dir==="in")pin+=v; else pout+=v;
     });
-    var od=pa(a.overdraft);
+    var od=odFor(a,today());
     return {id:a.id,name:a.name,tag:a.tag,kind:a.kind,short:a.short||a.name,od:od,real:r2(real),pin:r2(pin),pout:r2(pout),
             projected:r2(real+pin-pout),margin:r2(real+od),odUsed:r2(Math.max(0,-real))};
   });
@@ -1548,7 +1561,7 @@ function renderDays(c){
     } else if(aReal[aid]!=null&&aReal[aid]<0){
       cls="warn2";
       verdict="Ça passe sur <b>"+esc(nm)+"</b>. Il te restera "+fmt(mine)+" — tu es à découvert de "+
-        fmt(Math.abs(aReal[aid]))+" sur les "+fmt(pa(A.overdraft))+" autorisés."+
+        fmt(Math.abs(aReal[aid]))+" sur les "+fmt(odFor(A,today()))+" autorisés."+
         (elsN.length?" À côté : "+esc(elsN.join(", "))+".":"");
     } else {
       cls="good";
@@ -2122,6 +2135,9 @@ function spentFree(){
   });
   return r2(t);
 }
+/* en dessous de cette marge, un seul imprévu suffit à déclencher un rejet
+   (20 € de frais de rejet + 8 € de commission d'intervention) : on demande l'avance */
+var MARGE_MINI=150;
 var EFFSHARE=0.5;
 function debtOrder(a,b){var p=(a.p||0)-(b.p||0);return p?p:a.r-b.r}
 function buildPlan(){
@@ -2735,13 +2751,16 @@ function dispoAilleurs(){
   return out;
 }
 function virerVersSG(fromId,v){
+  /* free:false — un virement d'un de mes comptes à l'autre n'est pas une dépense :
+     s'il compte comme telle, il mange le budget du quotidien dans les prévisions
+     et fausse le train de vie que livingLearned() apprend de mes mois passés. */
   var fa=acc(fromId),ta=acc("sg"),T=today();
   state.movements.push({id:uid(),label:"Vers "+(ta.short||ta.name),account:fa.id,dir:"out",amount:v,
     cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
-    fixId:"",fixMonth:"",free:true,settled:false,env:""});
+    fixId:"",fixMonth:"",free:false,settled:false,env:""});
   state.movements.push({id:uid(),label:"Depuis "+(fa.short||fa.name),account:"sg",dir:"in",amount:v,
     cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
-    fixId:"",fixMonth:"",free:true,settled:false,env:""});
+    fixId:"",fixMonth:"",free:false,settled:false,env:""});
 }
 /* ── Jour de paie : où va chaque euro ──────────────────────────────── */
 /* Les événements qui touchent un compte donné (ou tous si accId est vide),
@@ -3061,11 +3080,13 @@ function lowAhead(days,adv,from,avecIncertain){
     var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
   }
   if(adv){
-    var amk=curMonth(),best=null;
-    evs.forEach(function(e){if(e.d.slice(0,7)===amk&&e.v>0&&(!best||e.v>best.v))best=e});
-    if(best){
-      var moitie=r2(best.v/2),d15=amk+"-15";
-      if(d15>=T&&d15<best.d){evs.push({d:d15,v:moitie}); best.v=r2(best.v-moitie)}
+    /* une avance ne peut tirer en avant qu'une rentrée POSTÉRIEURE au 15 :
+       demander une avance sur de l'argent déjà reçu le 5 n'a aucun sens */
+    var amk=curMonth(),d15=amk+"-15",best=null;
+    evs.forEach(function(e){if(e.d>d15&&e.v>0&&(!best||e.v>best.v))best=e});
+    if(best&&d15>=T){
+      var moitie=r2(best.v/2);
+      evs.push({d:d15,v:moitie}); best.v=r2(best.v-moitie);
     }
   }
   /* le train de vie et les enveloppes : ils ne sont pas prélevés, mais ils sortent */
@@ -3097,18 +3118,33 @@ function lowAhead(days,adv,from,avecIncertain){
     var y2=+mk2.slice(0,4),mo2=+mk2.slice(5,7)+1; if(mo2>12){mo2=1;y2++} mk2=y2+"-"+pad(mo2);
   }
   evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
-  var mn=(from&&from>T)?1e9:bal,mnd=T;
-  evs.forEach(function(e){bal=r2(bal+e.v); if((!from||e.d>=from)&&bal<mn){mn=bal;mnd=e.d}});
+  /* deux creux à suivre : le solde le plus bas, et surtout la marge la plus
+     faible — avec un découvert autorisé qui change de montant en cours de route,
+     ce n'est pas forcément le même jour. C'est la marge qui dit si ça passe. */
+  var dep=(from&&from>T),mn=dep?1e9:bal,mnd=T;
+  var mm=dep?1e9:r2(bal+odAt(T)),mms=bal,mmd=T;
+  evs.forEach(function(e){
+    bal=r2(bal+e.v);
+    if(from&&e.d<from)return;
+    if(bal<mn){mn=bal;mnd=e.d}
+    var mg=r2(bal+odAt(e.d));
+    if(mg<mm){mm=mg;mms=bal;mmd=e.d}
+  });
   if(mn===1e9){mn=bal;mnd=T}
-  return {min:mn,date:mnd,end:bal};
+  if(mm===1e9){mm=r2(bal+odAt(T));mms=bal;mmd=T}
+  return {min:mn,date:mnd,end:bal,marge:mm,margeDate:mmd,margeSolde:mms};
 }
 function advMontant(){
-  var mk=curMonth(),T=today(),H=addDays(T,60),mx=0;
-  var inc=pa((state.incomeByMonth||{})[mk]); if(inc>mx)mx=inc;
+  /* la moitié de la plus grosse rentrée qui tombe APRÈS le 15 : c'est la seule
+     sur laquelle une avance change quelque chose */
+  var mk=curMonth(),d15=mk+"-15",mx=0;
+  var fin=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
+  var inc=pa((state.incomeByMonth||{})[mk]);
+  if(inc>0&&(mk+"-"+pad(Math.max(1,fin-1)))>d15&&inc>mx)mx=inc;
   state.movements.forEach(function(m){
     if(m.dir!=="in"||m.done||m.skip||m.maybe)return;
     if(acc(m.account).kind==="epargne")return;
-    if(((m.datePlanned||"").slice(0,7))!==mk)return;
+    if(!m.datePlanned||m.datePlanned<=d15||m.datePlanned.slice(0,7)!==mk)return;
     if(pa(m.amount)>mx)mx=pa(m.amount);
   });
   return r2(mx/2);
@@ -3116,13 +3152,13 @@ function advMontant(){
 function advOn(){ return !!((state.adv||{})[curMonth()]) }
 function renderEtat(){
   var host=document.getElementById("verdictBox"); if(!host)return;
-  var c=calc(),od=pa(c.totalOd),on=advOn(),av=advMontant();
-  var L=lowAhead(60,on),mn=L.min,reste=r2(od+mn),cls,titre,txt;
-  var quand=dayWord(L.date);
-  if(mn>=0){
+  var c=calc(),on=advOn(),av=advMontant();
+  var L=lowAhead(60,on),mn=L.margeSolde,od=odAt(L.margeDate),reste=L.marge,cls,titre,txt;
+  var quand=dayWord(L.margeDate);
+  if(L.min>=0){
     cls=""; titre="Tu es bien";
-    txt="Tu ne passes pas en négatif d'ici deux mois. Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+".";
-  } else if(mn>-od){
+    txt="Tu ne passes pas en négatif d'ici deux mois. Ton plus bas : <b>"+fmt(L.min)+"</b> "+dayWord(L.date)+".";
+  } else if(reste>0){
     cls="warn"; titre=reste<100?"Ça passe, mais c'est très juste":"Ça passe";
     txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+". Il te resterait <b>"+fmt(reste)+
         "</b> de découvert."+(reste<100?" Un imprévu et tu es rejetée.":"");
@@ -3136,20 +3172,24 @@ function renderEtat(){
     var d15=curMonth()+"-15",jour=dayWord(d15);
     var A=lowAhead(60,false,d15),B=lowAhead(60,true,d15),conseil,ic;
     if(on){ ic="✔️"; conseil="tu l'as demandée, elle est comptée dans le calcul ci-dessus."; }
-    else if(A.min>=-od){ ic="✅"; conseil="<b>ne la demande pas</b> — après le 15 ton plus bas est "+fmt(A.min)+
-                               ", tu tiens sans."; }
-    else if(B.min>=-od){ ic="📌"; conseil="<b>demande-la</b> — sans elle tu descends à "+fmt(A.min)+
-                               ", avec elle tu remontes à "+fmt(B.min)+"."; }
+    else if(A.marge>=MARGE_MINI){ ic="✅"; conseil="<b>ne la demande pas</b> — après le 15 ton plus bas est "+fmt(A.margeSolde)+
+                               ", il te resterait "+fmt(A.marge)+" de découvert : tu tiens sans."; }
+    else if(A.marge>=0){ ic="📌"; conseil="<b>demande-la</b> — tu passerais, mais de justesse : "+fmt(A.margeSolde)+
+                               " "+dayWord(A.margeDate)+", avec seulement "+fmt(A.marge)+" de marge. Un imprévu et c'est le rejet ("+
+                               fmt(28)+" de frais)."; }
+    else if(B.marge>=0){ ic="📌"; conseil="<b>demande-la</b> — sans elle tu descends à "+fmt(A.margeSolde)+
+                               ", au-delà de ta limite ; avec elle tu remontes à "+fmt(B.margeSolde)+"."; }
     else { ic="⚠️"; conseil="<b>demande-la quand même</b>, mais elle ne suffira pas : il manquerait encore "+
-                               fmt(r2(-B.min-od))+"."; }
+                               fmt(r2(-B.marge))+"."; }
     sim='<p class="cap" style="margin:10px 0 0;line-height:1.45">'+ic+' <b>'+esc(jour.charAt(0).toUpperCase()+jour.slice(1))+
         '</b>, jour de ta demande d\'avance : '+conseil+'</p>';
   }
   var inc="";
   var LI=lowAhead(60,on,null,true);
-  if(LI.min>mn+1){
-    inc='<p class="cap" style="margin:8px 0 0">Si tes cours incertains tombent, ton plus bas serait <b>'+
-        fmt(LI.min)+'</b>'+(mn<-od&&LI.min>=-od?" — ça suffirait à te sauver.":".")+'</p>';
+  if(LI.marge>reste+1){
+    inc='<p class="cap" style="margin:8px 0 0">Si tes cours incertains tombent, il te resterait <b>'+
+        fmt(LI.marge)+'</b> de découvert au lieu de '+fmt(reste)+
+        (reste<0&&LI.marge>=0?" — ça suffirait à te sauver.":".")+'</p>';
   }
   host.innerHTML='<div class="encard"><div class="ln"><h3>'+esc(titre)+'</h3>'+
     '<span class="cap">d\'ici 2 mois</span></div>'+
