@@ -622,6 +622,8 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .plan-line .rt input{width:96px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
 .plan-line .rt input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .am{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:600;min-width:98px;text-align:right}
+.sortie{margin:10px 0 0!important;padding:8px 10px;border-radius:9px;line-height:1.45;
+  background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .pcard .pstep{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
 .pcard .phead{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .pcard .phead b{font-size:1.02rem}
@@ -3188,6 +3190,19 @@ function lowAhead(days,adv,from,avecIncertain){
   if(mm===1e9){mm=r2(bal+odAt(T));mms=bal;mmd=T}
   return {min:mn,date:mnd,end:bal,marge:mm,margeDate:mmd,margeSolde:mms};
 }
+/* le dernier jour où elle est encore dans le rouge, en suivant son plan :
+   c'est la seule chose qu'elle veut vraiment savoir — quand est-ce que ça s'arrête */
+function dernierNegatif(days){
+  var T=today(),H=addDays(T,days||240),c=calc(),bal=0,dernier="",vu=false;
+  c.accs.forEach(function(a){if(a.kind!=="epargne")bal+=a.real});
+  bal=r2(bal);
+  if(bal<0){dernier=T;vu=true}
+  evsPaie(null,T,H).forEach(function(e){
+    bal=r2(bal+e.v);
+    if(bal<0){dernier=e.d;vu=true}
+  });
+  return vu?{date:dernier,fin:bal}:null;
+}
 function advMontant(){
   /* la moitié de la plus grosse rentrée qui tombe APRÈS le 15 : c'est la seule
      sur laquelle une avance change quelque chose */
@@ -3238,6 +3253,14 @@ function renderEtat(){
     sim='<p class="cap" style="margin:10px 0 0;line-height:1.45">'+ic+' <b>'+esc(jour.charAt(0).toUpperCase()+jour.slice(1))+
         '</b>, jour de ta demande d\'avance : '+conseil+'</p>';
   }
+  var sortie="",DN=dernierNegatif(240);
+  if(DN&&DN.date>today()){
+    var j=Math.round((new Date(DN.date)-new Date(today()))/864e5);
+    sortie='<p class="cap sortie">🎯 Ton <b>dernier jour à découvert</b> : '+dl(DN.date)+
+      ' — dans '+j+' jour'+(j>1?"s":"")+'. Après, tu ne repasses plus en négatif.</p>';
+  } else if(!DN){
+    sortie='<p class="cap sortie">🎯 Tu n\'es plus à découvert, et tu n\'y repasses pas.</p>';
+  }
   var inc="";
   var LI=lowAhead(60,on,null,true);
   if(LI.marge>reste+1){
@@ -3248,7 +3271,7 @@ function renderEtat(){
   host.innerHTML='<div class="encard"><div class="ln"><h3>'+esc(titre)+'</h3>'+
     '<span class="cap">d\'ici 2 mois</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:100%"></i></div>'+
-    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p>'+inc+sim+
+    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p>'+sortie+inc+sim+
     (av>0?'<label class="advline"><input type="checkbox" id="advBox"'+(on?" checked":"")+'>'+
       '<span>J\'ai demandé mon avance sur salaire — <b>'+fmt(av)+'</b> le 15</span></label>':"")+
     '</div>';
