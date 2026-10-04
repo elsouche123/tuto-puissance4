@@ -622,6 +622,9 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .plan-line .rt input{width:96px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
 .plan-line .rt input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .am{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:600;min-width:98px;text-align:right}
+h2.sect{font:600 .78rem/1.2 system-ui;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);margin:26px 2px 8px}
+h2.sect:first-of-type{margin-top:18px}
 .sortie{margin:10px 0 0!important;padding:8px 10px;border-radius:9px;line-height:1.45;
   background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .pcard .pstep{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
@@ -775,18 +778,18 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="wcards" id="wcards"></div>
 
+  <h2 class="sect">Ce que je fais maintenant</h2>
   <div id="paieBox"></div>
-
   <div id="virBox"></div>
 
+  <h2 class="sect">Où j'en suis</h2>
   <div id="verdictBox"></div>
-
   <div id="budgetBox"></div>
-
-  <div id="restoBox"></div>
-
   <div id="envBox"></div>
 
+  <h2 class="sect">Mon travail et mes projets</h2>
+  <div id="restoBox"></div>
+  <div id="projBox"></div>
 
   <div id="adviceBox"></div>
 
@@ -1551,14 +1554,23 @@ function renderDays(c){
   evs.forEach(function(m){
     n++;
     var amt=pa(m.amount), isIn=m.dir==="in", aid=m.account, A=acc(aid), nm=A.short||A.name;
-    run=r2(run+(isIn?amt:-amt));
+    /* le découvert autorisé peut changer de montant en route : la marge se
+       recalcule à la date de CHAQUE ligne, pas une fois pour toutes */
+    var dte=m.datePlanned||m.dateReal||today();
     realRun=r2(realRun+(isIn?amt:-amt));
-    if(aRun[aid]!=null){aRun[aid]=r2(aRun[aid]+(isIn?amt:-amt));aReal[aid]=r2(aReal[aid]+(isIn?amt:-amt))}
+    run=r2(realRun+odAt(dte));
+    if(aReal[aid]!=null){
+      aReal[aid]=r2(aReal[aid]+(isIn?amt:-amt));
+      aRun[aid]=r2(aReal[aid]+odFor(A,dte));
+    }
     var mine=(aRun[aid]==null?run:aRun[aid]);
     var els=0,elsN=[];
     Object.keys(aRun).forEach(function(k){
-      if(k===aid||aRun[k]<=0)return;
-      els=r2(els+aRun[k]);elsN.push((acc(k).short||acc(k).name)+" "+fmt(aRun[k]));
+      if(k===aid)return;
+      var mk2=r2(aReal[k]+odFor(acc(k),dte));
+      aRun[k]=mk2;
+      if(mk2<=0)return;
+      els=r2(els+mk2);elsN.push((acc(k).short||acc(k).name)+" "+fmt(mk2));
     });
     var cls,verdict;
     if(isIn){
@@ -1578,7 +1590,7 @@ function renderDays(c){
     } else if(aReal[aid]!=null&&aReal[aid]<0){
       cls="warn2";
       verdict="Ça passe sur <b>"+esc(nm)+"</b>. Il te restera "+fmt(mine)+" — tu es à découvert de "+
-        fmt(Math.abs(aReal[aid]))+" sur les "+fmt(odFor(A,today()))+" autorisés."+
+        fmt(Math.abs(aReal[aid]))+" sur les "+fmt(odFor(A,dte))+" autorisés."+
         (elsN.length?" À côté : "+esc(elsN.join(", "))+".":"");
     } else {
       cls="good";
@@ -1670,6 +1682,9 @@ function adviceFor(extra){
   return {t:"sv",txt:covered+" <b>"+fmt(libre)+"</b> sont libres."};
 }
 function renderAdvice(){
+  /* le verdict dit déjà où elle en est, en mieux */
+  var box=document.getElementById("adviceBox");
+  if(box&&document.getElementById("verdictBox")){box.innerHTML="";return}
   var a=adviceFor(0),c=calc();
   document.getElementById("adviceBox").innerHTML=
     '<div class="advice '+a.t+'"><span class="ic2">'+(a.t==="cover"?"!":(a.t==="od"?"!":(a.t==="dt"?"→":(a.t==="cu"?"◆":"✓"))))+'</span>'+
@@ -3057,6 +3072,61 @@ document.getElementById("budgetBox").addEventListener("submit",function(ev){
   renderAll();save();
   toast(fmt(v)+" noté — il te reste "+fmt(budgetJour().parJour)+" par jour");
 });
+/* ── Mes projets ───────────────────────────────────────────────────
+   Ce pour quoi elle met de côté. Pas de répartition inventée entre les
+   objectifs : l'épargne est commune, on affiche le total et les cibles. */
+function epargneTotale(){
+  var t=0,c=calc();
+  c.accs.forEach(function(a){if(a.kind==="epargne")t+=a.real});
+  return r2(t);
+}
+function epargneDans(mois){
+  var T=today(),H=addDays(T,Math.round(30.44*(mois||6))),t=epargneTotale();
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe)return;
+    if(acc(m.account).kind!=="epargne")return;
+    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>H)return;
+    t+=(m.dir==="in"?1:-1)*pa(m.amount);
+  });
+  var mk=curMonth(),last=H.slice(0,7),vu={};
+  while(mk<=last&&!vu[mk]){
+    vu[mk]=1;
+    (function(k){
+      state.fixed.forEach(function(f){
+        if(!f.day||acc(f.account).kind==="epargne")return;
+        if(!/PEL|pargne/i.test(f.label))return;
+        if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===k}))return;
+        var amt=fixAmountFor(f,k); if(amt<=0)return;
+        var fin=new Date(+k.slice(0,4),+k.slice(5,7),0).getDate();
+        var dd=k+"-"+pad(Math.min(parseInt(f.day,10)||1,fin));
+        if(dd>=T&&dd<=H)t+=amt;
+      });
+    })(mk);
+    var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
+  }
+  return r2(t);
+}
+function renderProjets(){
+  var host=document.getElementById("projBox"); if(!host)return;
+  var gs=state.goals||[]; if(!gs.length){host.innerHTML="";return}
+  var now=epargneTotale(),dans8=epargneDans(8),lignes="",vise=0,aChiffrer=0;
+  gs.forEach(function(g){
+    var t=pa(g.target);
+    if(t>0)vise+=t; else aChiffrer++;
+    lignes+='<div class="pline"><span>'+esc(g.name)+
+      (g.by?' <span class="cap">· pour '+esc(ml(g.by))+'</span>':"")+'</span><b>'+
+      (t>0?fmt(t):'<span class="cap">montant à définir</span>')+'</b></div>';
+  });
+  host.innerHTML='<div class="encard pcard"><div class="ln"><h3>Mes projets</h3>'+
+    '<span class="cap">ce pour quoi je mets de côté</span></div>'+
+    '<div class="ln"><span class="cap">Mon épargne aujourd\'hui</span>'+
+      '<b class="big">'+fmt(now)+'</b></div>'+
+    lignes+
+    '<p class="cap" style="margin:10px 0 0;line-height:1.45">Tu vises <b>'+fmt(vise)+'</b>'+
+      (aChiffrer?' — et '+aChiffrer+' projet'+(aChiffrer>1?'s':'')+' sans montant, dis-le-moi quand tu veux.':'.')+
+      ' En suivant ton plan, ton épargne atteint <b>'+fmt(dans8)+'</b> dans 8 mois.</p>'+
+  '</div>';
+}
 function renderPaie(){
   var host=document.getElementById("paieBox"); if(!host)return;
   var P=planPaie();
@@ -3142,6 +3212,9 @@ document.getElementById("paieBox").addEventListener("click",function(ev){
 });
 function renderVir(){
   var host=document.getElementById("virBox"); if(!host)return;
+  /* quand la carte de paie est là, c'est elle qui dit quoi virer :
+     deux cartes « vire X sur SG » côte à côte, c'est le bazar */
+  if(planPaie()){host.innerHTML="";return}
   var c=calc(),sg=null;
   c.accs.forEach(function(a){if(a.id==="sg")sg=a});
   if(!sg){host.innerHTML="";return}
@@ -3458,7 +3531,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderEtat();renderBudget();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderEtat();renderBudget();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
