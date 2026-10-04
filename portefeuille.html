@@ -760,6 +760,8 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="wcards" id="wcards"></div>
 
+  <div id="paieBox"></div>
+
   <div id="virBox"></div>
 
   <div id="verdictBox"></div>
@@ -2741,6 +2743,252 @@ function virerVersSG(fromId,v){
     cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
     fixId:"",fixMonth:"",free:true,settled:false,env:""});
 }
+/* ── Jour de paie : où va chaque euro ──────────────────────────────── */
+/* Les événements qui touchent un compte donné (ou tous si accId est vide),
+   entre deux dates. Même matière que lowAhead, mais compte par compte :
+   mouvements prévus, charges fixes pas encore matérialisées, salaire
+   mensuel, et le train de vie étalé sur les semaines qui restent. */
+function evsPaie(accId,D1,D2){
+  var evs=[],vieAcc=state.vieAcc||"sg",salAcc=state.salaryAcc||"revolut";
+  function pris(id){ return (!accId||id===accId) && acc(id).kind!=="epargne" }
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe)return;
+    if(!pris(m.account))return;
+    if(!m.datePlanned||m.datePlanned<D1||m.datePlanned>D2)return;
+    evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount),l:m.label});
+  });
+  var mk=D1.slice(0,7),dernier=D2.slice(0,7),vu={};
+  while(mk<=dernier&&!vu[mk]){
+    vu[mk]=1;
+    (function(k){
+      var fin=new Date(+k.slice(0,4),+k.slice(5,7),0).getDate();
+      state.fixed.forEach(function(f){
+        if(!f.day||!pris(f.account))return;
+        if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===k}))return;
+        var amt=fixAmountFor(f,k); if(amt<=0)return;
+        var dd=k+"-"+pad(Math.min(parseInt(f.day,10)||1,fin));
+        if(dd<D1||dd>D2)return;
+        evs.push({d:dd,v:-amt,l:f.label});
+      });
+      var inc=pa((state.incomeByMonth||{})[k]);
+      if(inc>0&&pris(salAcc)){
+        var dd2=k+"-"+pad(Math.max(1,fin-1));
+        if(dd2>=D1&&dd2<=D2)evs.push({d:dd2,v:inc,l:"Mon salaire"});
+      }
+      if(pris(vieAcc)){
+        var budEnv=0; (state.envelopes||[]).forEach(function(e){budEnv+=pa(e.amount)});
+        var vie=pa(state.living)+budEnv;
+        if(k===curMonth()){
+          var deja=0;
+          state.movements.forEach(function(m){
+            if(m.dir!=="out"||m.skip||!m.done)return;
+            if(acc(m.account).kind==="epargne")return;
+            if(!m.free&&!m.env)return;
+            if(((m.dateReal||m.datePlanned||"").slice(0,7))!==k)return;
+            deja+=pa(m.amount);
+          });
+          vie=Math.max(0,r2(vie-deja));
+        }
+        if(vie>0){
+          var js=[],i;
+          for(i=7;i<=fin;i+=7)js.push(k+"-"+pad(i));
+          js=js.filter(function(x){return x>=D1&&x<=D2});
+          if(js.length){
+            var part=r2(vie/js.length);
+            js.forEach(function(x){evs.push({d:x,v:-part,l:"Mon quotidien"})});
+          }
+        }
+      }
+    })(mk);
+    var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
+  }
+  evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
+  return evs;
+}
+/* le plus bas qu'un compte touche entre deux dates, en partant de « depart » */
+/* sansDepart : ne pas compter le solde de départ comme un creux — on s'en sert
+   pour le compte où la paie tombe, dont le solde d'avant la paie n'a plus d'intérêt */
+function miniPaie(accId,D1,D2,depart,depuis,sansDepart){
+  var b=depart,mn=(sansDepart||(depuis&&depuis>D1))?1e9:depart,md=D1;
+  evsPaie(accId,D1,D2).forEach(function(e){
+    b=r2(b+e.v);
+    if((!depuis||e.d>=depuis)&&b<mn){mn=b;md=e.d}
+  });
+  if(mn===1e9){mn=b;md=D2}
+  return {min:mn,date:md,fin:r2(b)};
+}
+/* la paie qui arrive : une grosse rentrée, d'il y a 3 jours à dans 12 jours */
+function prochainePaie(){
+  var T=today(),D1=addDays(T,-3),H=addDays(T,12),out=null;
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe||m.dir!=="in")return;
+    if(acc(m.account).kind==="epargne")return;
+    if(pa(m.amount)<300||!m.datePlanned)return;
+    if(m.datePlanned<D1||m.datePlanned>H)return;
+    if(!out||m.datePlanned<out.date)
+      out={date:m.datePlanned,montant:pa(m.amount),compte:m.account,label:m.label,id:m.id};
+  });
+  return out;
+}
+/* la paie d'après : c'est elle qui ferme la période à couvrir */
+function paieSuivante(apres){
+  var fin=addDays(apres,70),best=null,i;
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe||m.dir!=="in")return;
+    if(acc(m.account).kind==="epargne")return;
+    if(pa(m.amount)<300||!m.datePlanned)return;
+    if(m.datePlanned<=apres||m.datePlanned>fin)return;
+    if(!best||m.datePlanned<best)best=m.datePlanned;
+  });
+  var mk=apres.slice(0,7);
+  for(i=0;i<3;i++){
+    if(pa((state.incomeByMonth||{})[mk])>=300){
+      var f=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
+      var dd=mk+"-"+pad(Math.max(1,f-1));
+      if(dd>apres&&dd<=fin&&(!best||dd<best))best=dd;
+    }
+    var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
+  }
+  return best||addDays(apres,30);
+}
+/* le prochain virement vers l'épargne déjà prévu (sortie + jumeau entrant) */
+function prochaineMiseDeCote(){
+  var T=today(),best=null;
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.dir!=="out")return;
+    if(acc(m.account).kind==="epargne")return;
+    if(!m.datePlanned||m.datePlanned<T)return;
+    var jum=null;
+    state.movements.forEach(function(x){
+      if(jum||x.done||x.skip||x.dir!=="in")return;
+      if(x.datePlanned!==m.datePlanned||pa(x.amount)!==pa(m.amount))return;
+      if(acc(x.account).kind!=="epargne")return;
+      jum=x;
+    });
+    if(!jum)return;
+    if(!best||m.datePlanned<best.date)
+      best={date:m.datePlanned,amount:pa(m.amount),sortie:m.id,entree:jum.id,vers:jum.account};
+  });
+  return best;
+}
+function planPaie(){
+  var P=prochainePaie(); if(!P)return null;
+  var T=today(),D1=(T<P.date?T:P.date),D2=paieSuivante(P.date),c=calc();
+  var sgReal=0,glob=0;
+  c.accs.forEach(function(a){ if(a.kind==="epargne")return; glob+=a.real; if(a.id==="sg")sgReal=a.real });
+  glob=r2(glob);
+  var cpReal=0; c.accs.forEach(function(a){if(a.id===P.compte)cpReal=a.real});
+  var sg=miniPaie("sg",D1,D2,sgReal,P.date);
+  /* pour l'épargne, ce qui compte c'est le creux UNE FOIS la paie tombée :
+     si elle tombe aujourd'hui, le solde d'avant ne doit pas servir de creux */
+  var g=miniPaie(null,D1,D2,glob,P.date,P.date<=T);
+  /* ce que le compte de paie peut lâcher sans tomber en négatif lui-même */
+  var cp=miniPaie(P.compte,D1,D2,cpReal,P.date,true);
+  var dispo=Math.floor(Math.max(0,cp.min));
+  var besoinSG=Math.ceil(Math.max(0,-sg.min));
+  var virSG=Math.min(besoinSG,dispo);
+  var rembs=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.dir!=="out")return;
+    if(!/^rembourser/i.test(m.label||""))return;
+    if(m.account!==P.compte)return;
+    if(!m.datePlanned||m.datePlanned<P.date||m.datePlanned>D2)return;
+    rembs.push({date:m.datePlanned,amount:pa(m.amount),label:m.label,compte:m.account});
+  });
+  rembs.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0});
+  var rembTot=0; rembs.forEach(function(x){rembTot+=x.amount}); rembTot=r2(rembTot);
+  /* ce qu'elle peut mettre de côté : le plus bas que tous ses comptes courants
+     touchent sur la période — en dessous, elle repasserait en négatif */
+  var epargne=Math.floor(Math.max(0,Math.min(g.min,dispo-virSG)));
+  var avance=prochaineMiseDeCote();
+  if(avance&&epargne>avance.amount)epargne=Math.floor(avance.amount);
+  return {p:P,D1:D1,D2:D2,sg:sg,sgReal:sgReal,glob:glob,g:g,cp:cp,dispo:dispo,
+          besoinSG:besoinSG,virSG:virSG,manqueSG:r2(besoinSG-virSG),
+          rembs:rembs,rembTot:rembTot,epargne:epargne,avance:avance,
+          reste:r2(dispo-virSG-epargne)};
+}
+/* mettre de côté maintenant : c'est pris en avance sur le virement déjà prévu */
+function mettreDeCote(fromId,versId,v){
+  var fa=acc(fromId),ta=acc(versId),T=today(),mk=curMonth();
+  state.movements.push({id:uid(),label:"Vers "+(ta.short||ta.name),account:fa.id,dir:"out",amount:v,
+    cat:"Épargne",datePlanned:T,month:mk,dateReal:T,done:true,maybe:false,skip:false,
+    fixId:"",fixMonth:"",free:false,settled:false,env:""});
+  state.movements.push({id:uid(),label:"Depuis "+(fa.short||fa.name),account:ta.id,dir:"in",amount:v,
+    cat:"Épargne",datePlanned:T,month:mk,dateReal:T,done:true,maybe:false,skip:false,
+    fixId:"",fixMonth:"",free:false,settled:false,env:""});
+  var av=prochaineMiseDeCote(); if(!av)return;
+  var reste=r2(av.amount-v);
+  state.movements=state.movements.filter(function(m){
+    if(m.id!==av.sortie&&m.id!==av.entree)return true;
+    if(reste<=0)return false;
+    m.amount=reste; return true;
+  });
+}
+function renderPaie(){
+  var host=document.getElementById("paieBox"); if(!host)return;
+  var P=planPaie();
+  if(!P){host.innerHTML="";return}
+  var T=today(),arrivee=P.p.date<=T,cpt=acc(P.p.compte);
+  var ep=P.avance?acc(P.avance.vers):acc("revolut-ep");
+  var quand=dayWord(P.p.date),titre=quand.charAt(0).toUpperCase()+quand.slice(1);
+  var plusTard='<span class="cap">'+(arrivee?"":"à faire "+quand)+'</span>';
+  var etapes="",n=0;
+  if(P.virSG>0){
+    n++;
+    etapes+='<div class="virline"><span><b>'+n+'. Virer '+fmt(P.virSG)+' sur SG</b><br>'+
+      '<span class="cap">'+(P.manqueSG>0
+        ? "C'est tout ce que tu peux sortir. Ton SG toucherait quand même "+
+          fmt(r2(P.sg.min+P.virSG))+" "+dayWord(P.sg.date)+" : il manque "+fmt(P.manqueSG)+"."
+        : "Ton SG ne repassera pas en négatif d'ici le "+dl(P.D2)+
+          " (son plus bas sans ce virement : "+fmt(P.sg.min)+" "+dayWord(P.sg.date)+")."
+      )+'</span></span>'+
+      (arrivee&&P.p.compte!=="sg"
+        ? '<button type="button" data-paievir="'+esc(P.p.compte)+'" data-v="'+P.virSG+'">Virer '+fmt(P.virSG)+'</button>'
+        : plusTard)+
+    '</div>';
+  }
+  if(P.rembTot>0){
+    n++;
+    var li="";
+    P.rembs.forEach(function(x){
+      li+='<br><span class="cap">· '+esc(x.label)+' — <b>'+fmt(x.amount)+'</b> le '+dl(x.date)+'</span>';
+    });
+    etapes+='<div class="virline"><span><b>'+n+'. Laisser '+fmt(P.rembTot)+
+      ' sur '+esc(cpt.short||cpt.name)+' pour tes remboursements</b>'+li+
+      '</span><span class="cap">déjà dans tes paiements</span></div>';
+  }
+  if(P.epargne>0){
+    n++;
+    etapes+='<div class="virline"><span><b>'+n+'. Mettre '+fmt(P.epargne)+' de côté</b><br>'+
+      '<span class="cap">Sur '+esc(ep.short||ep.name)+
+      (P.avance?", en avance sur les "+fmt(P.avance.amount)+" prévus le "+dl(P.avance.date):".")+'</span></span>'+
+      (arrivee
+        ? '<button type="button" data-paieep="'+esc(P.p.compte)+'" data-vers="'+esc(ep.id)+'" data-v="'+P.epargne+'">Mettre '+fmt(P.epargne)+'</button>'
+        : plusTard)+
+    '</div>';
+  }
+  n++;
+  etapes+='<div class="virline"><span><b>'+n+'. Il te reste '+fmt(P.reste)+'</b><br>'+
+    '<span class="cap">'+(P.reste<1
+      ? "Tout est placé. Ton quotidien jusqu'au "+dl(P.D2)+" est déjà compté dans le virement SG."
+      : "De libre, jusqu'à ta prochaine rentrée du "+dl(P.D2))+
+    '</span></span></div>';
+  host.innerHTML='<div class="encard"><div class="ln">'+
+    '<h3>'+esc(titre)+' — '+esc(P.p.label)+'</h3>'+
+    '<span class="cap">'+fmt(P.p.montant)+' sur '+esc(cpt.short||cpt.name)+'</span></div>'+
+    '<div class="bar"><i class="'+(P.manqueSG>0?"warn":"")+'" style="width:100%"></i></div>'+
+    etapes+
+    (P.epargne<=0?'<p class="cap" style="margin:8px 0 0">Rien à mettre de côté cette fois : '+
+      'tout part dans tes paiements du mois.</p>':"")+
+  '</div>';
+}
+document.getElementById("paieBox").addEventListener("click",function(ev){
+  var b=ev.target.closest("button[data-paievir],button[data-paieep]"); if(!b)return;
+  var v=pa(b.getAttribute("data-v")); if(v<=0)return;
+  if(b.hasAttribute("data-paievir")) virerVersSG(b.getAttribute("data-paievir"),v);
+  else mettreDeCote(b.getAttribute("data-paieep"),b.getAttribute("data-vers"),v);
+  save(); renderAll();
+});
 function renderVir(){
   var host=document.getElementById("virBox"); if(!host)return;
   var c=calc(),sg=null;
@@ -3017,7 +3265,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderEtat();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderEtat();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
