@@ -622,6 +622,19 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .plan-line .rt input{width:96px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
 .plan-line .rt input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .am{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:600;min-width:98px;text-align:right}
+.pcard .pstep{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.pcard .phead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pcard .phead b{font-size:1.02rem}
+.pcard .pstep p.cap{margin:4px 0 0;line-height:1.45}
+.pcard .pline{display:flex;justify-content:space-between;gap:10px;font-size:.84rem;
+  color:var(--muted);padding:3px 0}
+.pcard .pline b{white-space:nowrap}
+.pcard .pline.in b{color:var(--ok,#2e7d32)}
+.pcard .pdet{margin-top:8px}
+.pcard .pdet summary{cursor:pointer;font-size:.84rem;color:var(--muted);padding:4px 0}
+.pcard .palert{margin-top:12px;padding:10px 12px;border-radius:10px;
+  background:color-mix(in srgb,#e8a33d 16%,transparent);border:1px solid color-mix(in srgb,#e8a33d 45%,transparent)}
+.pcard .palert p{margin:4px 0 0}
 .free{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:15px;border-radius:12px;background:var(--accent-soft);border:1.5px solid color-mix(in srgb,var(--accent) 35%,transparent)}
 .free .big{font-family:Fraunces,Georgia,serif;font-size:29px;font-weight:700;color:var(--accent);line-height:1}
 .stack-bar{display:flex;height:16px;border-radius:999px;overflow:hidden;background:var(--rule);margin:14px 0 4px}
@@ -2921,7 +2934,33 @@ function planPaie(){
   var epargne=Math.floor(Math.max(0,Math.min(g.min,dispo-virSG)));
   var avance=prochaineMiseDeCote();
   if(avance&&epargne>avance.amount)epargne=Math.floor(avance.amount);
+  /* le détail de ce que le virement doit couvrir, pour qu'elle le voie
+     poste par poste au lieu d'un chiffre qui tombe du ciel */
+  var sorties=[],entrees=[],totS=0,totE=0;
+  evsPaie("sg",P.date,D2).forEach(function(e){
+    if(e.v<0){sorties.push({d:e.d,v:r2(-e.v),l:e.l}); totS=r2(totS-e.v)}
+    else {entrees.push({d:e.d,v:r2(e.v),l:e.l}); totE=r2(totE+e.v)}
+  });
+  /* s'il reste un trou, quelle rentrée pourra le boucher */
+  var secours=null;
+  if(besoinSG>dispo){
+    state.movements.forEach(function(m){
+      if(m.done||m.skip||m.maybe||m.dir!=="in")return;
+      if(acc(m.account).kind==="epargne")return;
+      if(pa(m.amount)<300||!m.datePlanned||m.datePlanned<sg.date)return;
+      if(!secours||m.datePlanned<secours.date)
+        secours={date:m.datePlanned,montant:pa(m.amount),compte:m.account,label:m.label};
+    });
+  }
+  /* pourquoi il n'y a rien à mettre de côté, dit en clair */
+  var raisonEp="";
+  if(epargne<=0){
+    raisonEp = besoinSG>dispo
+      ? "Tout part dans tes paiements obligatoires, et il en manque même "+fmt(r2(besoinSG-dispo))+"."
+      : "Tout part dans tes paiements obligatoires du mois : "+fmt(totS)+" à sortir de SG d'ici le "+dl(D2)+".";
+  }
   return {p:P,D1:D1,D2:D2,sg:sg,sgReal:sgReal,glob:glob,g:g,cp:cp,dispo:dispo,
+          sorties:sorties,entrees:entrees,totS:totS,totE:totE,secours:secours,raisonEp:raisonEp,
           besoinSG:besoinSG,virSG:virSG,manqueSG:r2(besoinSG-virSG),
           rembs:rembs,rembTot:rembTot,epargne:epargne,avance:avance,
           reste:r2(dispo-virSG-epargne)};
@@ -2950,55 +2989,70 @@ function renderPaie(){
   var T=today(),arrivee=P.p.date<=T,cpt=acc(P.p.compte);
   var ep=P.avance?acc(P.avance.vers):acc("revolut-ep");
   var quand=dayWord(P.p.date),titre=quand.charAt(0).toUpperCase()+quand.slice(1);
-  var plusTard='<span class="cap">'+(arrivee?"":"à faire "+quand)+'</span>';
-  var etapes="",n=0;
+  var apres=r2(P.sgReal+P.virSG),etapes="",n=0;
+
   if(P.virSG>0){
     n++;
-    etapes+='<div class="virline"><span><b>'+n+'. Virer '+fmt(P.virSG)+' sur SG</b><br>'+
-      '<span class="cap">'+(P.manqueSG>0
-        ? "C'est tout ce que tu peux sortir. Ton SG toucherait quand même "+
-          fmt(r2(P.sg.min+P.virSG))+" "+dayWord(P.sg.date)+" : il manque "+fmt(P.manqueSG)+"."
-        : "Ton SG ne repassera pas en négatif d'ici le "+dl(P.D2)+
-          " (son plus bas sans ce virement : "+fmt(P.sg.min)+" "+dayWord(P.sg.date)+")."
-      )+'</span></span>'+
+    /* tout dans l'ordre des jours, comme un relevé : c'est comme ça qu'elle le lit */
+    var liste="",tout=[];
+    P.sorties.forEach(function(x){tout.push({d:x.d,v:x.v,l:x.l,in:false})});
+    P.entrees.forEach(function(x){tout.push({d:x.d,v:x.v,l:x.l,in:true})});
+    tout.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:(a.in?-1:1)});
+    tout.forEach(function(x){
+      liste+='<div class="pline'+(x.in?" in":"")+'"><span>'+dl(x.d)+' · '+esc(x.l)+
+        '</span><b>'+(x.in?"+":"−")+fmt(x.v)+'</b></div>';
+    });
+    etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Vire '+fmt(P.virSG)+' sur SG</b>'+
       (arrivee&&P.p.compte!=="sg"
         ? '<button type="button" data-paievir="'+esc(P.p.compte)+'" data-v="'+P.virSG+'">Virer '+fmt(P.virSG)+'</button>'
-        : plusTard)+
+        : '<span class="cap">'+quand+'</span>')+'</div>'+
+      '<p class="cap">Ton SG passe de '+fmt(P.sgReal)+' à <b>'+fmt(apres)+'</b>.</p>'+
+      '<details class="pdet"><summary>Ce que ça couvre : '+fmt(P.totS)+' à payer d\'ici le '+dl(P.D2)+
+        ' (et '+fmt(P.totE)+' qui rentrent)</summary>'+liste+'</details>'+
     '</div>';
   }
+
   if(P.rembTot>0){
     n++;
     var li="";
     P.rembs.forEach(function(x){
-      li+='<br><span class="cap">· '+esc(x.label)+' — <b>'+fmt(x.amount)+'</b> le '+dl(x.date)+'</span>';
+      li+='<div class="pline"><span>'+dl(x.date)+' · '+esc(x.label)+'</span><b>'+fmt(x.amount)+'</b></div>';
     });
-    etapes+='<div class="virline"><span><b>'+n+'. Laisser '+fmt(P.rembTot)+
-      ' sur '+esc(cpt.short||cpt.name)+' pour tes remboursements</b>'+li+
-      '</span><span class="cap">déjà dans tes paiements</span></div>';
+    etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Laisse '+fmt(P.rembTot)+' sur '+
+      esc(cpt.short||cpt.name)+'</b><span class="cap">n\'y touche pas</span></div>'+li+'</div>';
   }
+
+  n++;
   if(P.epargne>0){
-    n++;
-    etapes+='<div class="virline"><span><b>'+n+'. Mettre '+fmt(P.epargne)+' de côté</b><br>'+
-      '<span class="cap">Sur '+esc(ep.short||ep.name)+
-      (P.avance?", en avance sur les "+fmt(P.avance.amount)+" prévus le "+dl(P.avance.date):".")+'</span></span>'+
+    etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Mets '+fmt(P.epargne)+' de côté</b>'+
       (arrivee
         ? '<button type="button" data-paieep="'+esc(P.p.compte)+'" data-vers="'+esc(ep.id)+'" data-v="'+P.epargne+'">Mettre '+fmt(P.epargne)+'</button>'
-        : plusTard)+
-    '</div>';
+        : '<span class="cap">'+quand+'</span>')+'</div>'+
+      '<p class="cap">Sur '+esc(ep.short||ep.name)+
+      (P.avance?", en avance sur les "+fmt(P.avance.amount)+" prévus le "+dl(P.avance.date):".")+'</p></div>';
+  } else {
+    etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Rien à mettre de côté ce mois-ci</b></div>'+
+      '<p class="cap">'+esc(P.raisonEp)+'</p></div>';
   }
-  n++;
-  etapes+='<div class="virline"><span><b>'+n+'. Il te reste '+fmt(P.reste)+'</b><br>'+
-    '<span class="cap">'+(P.reste<1
-      ? "Tout est placé. Ton quotidien jusqu'au "+dl(P.D2)+" est déjà compté dans le virement SG."
-      : "De libre, jusqu'à ta prochaine rentrée du "+dl(P.D2))+
-    '</span></span></div>';
-  host.innerHTML='<div class="encard"><div class="ln">'+
-    '<h3>'+esc(titre)+' — '+esc(P.p.label)+'</h3>'+
-    '<span class="cap">'+fmt(P.p.montant)+' sur '+esc(cpt.short||cpt.name)+'</span></div>'+
-    '<div class="bar"><i class="'+(P.manqueSG>0?"warn":"")+'" style="width:100%"></i></div>'+
-    etapes+
-    (P.epargne<=0?'<p class="cap" style="margin:8px 0 0">Rien à mettre de côté cette fois : '+
-      'tout part dans tes paiements du mois.</p>':"")+
+
+  var alerte="";
+  if(P.secours){
+    var aRevirer=Math.ceil(P.manqueSG);
+    alerte='<div class="palert"><b>⚠️ '+esc(dl(P.sg.date))+' — note-le</b>'+
+      '<p class="cap">Tes prélèvements de ce jour-là te mettent à '+fmt(r2(P.sg.min+P.virSG))+
+      ', au-delà de tes '+fmt(odFor(acc("sg"),P.sg.date))+' autorisés. '+
+      (P.secours.date===P.sg.date
+        ? 'Ton '+esc(P.secours.label)+' arrive <b>le même jour</b> : vire '+fmt(aRevirer)+
+          ' sur SG dans la journée, pas le lendemain.'
+        : 'Ta prochaine rentrée est le '+dl(P.secours.date)+' ('+esc(P.secours.label)+
+          ') : il te faudra '+fmt(aRevirer)+' avant.')+'</p></div>';
+  }
+
+  host.innerHTML='<div class="encard pcard"><div class="ln">'+
+    '<h3>'+esc(titre)+' — tu reçois '+fmt(P.p.montant)+'</h3>'+
+    '<span class="cap">sur '+esc(cpt.short||cpt.name)+'</span></div>'+
+    '<p class="cap" style="margin:2px 0 10px">'+esc(P.p.label)+'. Fais ça dans l\'ordre :</p>'+
+    etapes+alerte+
   '</div>';
 }
 document.getElementById("paieBox").addEventListener("click",function(ev){
