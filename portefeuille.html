@@ -781,6 +781,8 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div id="verdictBox"></div>
 
+  <div id="budgetBox"></div>
+
   <div id="restoBox"></div>
 
   <div id="envBox"></div>
@@ -2984,6 +2986,77 @@ function mettreDeCote(fromId,versId,v){
     m.amount=reste; return true;
   });
 }
+/* ── Ce que je peux dépenser ───────────────────────────────────────
+   Le budget du mois moins ce qui est déjà parti, étalé sur les jours
+   qui restent. Et, à côté, la marge réelle : si elle est mince, le
+   budget théorique ne veut plus rien dire. */
+function budgetJour(){
+  var mk=curMonth(),T=today(),budEnv=0;
+  (state.envelopes||[]).forEach(function(e){budEnv+=pa(e.amount)});
+  var total=r2(pa(state.living)+budEnv),deja=0;
+  state.movements.forEach(function(m){
+    if(m.dir!=="out"||m.skip||!m.done)return;
+    if(acc(m.account).kind==="epargne")return;
+    if(!m.free&&!m.env)return;
+    if(((m.dateReal||m.datePlanned||"").slice(0,7))!==mk)return;
+    deja+=pa(m.amount);
+  });
+  deja=r2(deja);
+  var fin=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
+  var jours=Math.max(1,fin-parseInt(T.slice(8,10),10)+1);
+  var reste=r2(total-deja);
+  /* la marge du verdict compte DÉJÀ ce budget : elle dit ce qui reste
+     si elle dépasse, pas ce qu'elle a le droit de dépenser. Pas de
+     plafonnement ici, sinon on retire deux fois le même argent. */
+  var marge=lowAhead(60,advOn()).marge,dispo=Math.max(0,reste);
+  return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,
+          dispo:dispo,parJour:r2(dispo/jours),
+          depasse:r2(Math.max(0,deja-total))};
+}
+function renderBudget(){
+  var host=document.getElementById("budgetBox"); if(!host)return;
+  var B=budgetJour(),mk=curMonth();
+  var pct=B.total?Math.min(100,Math.round(B.deja/B.total*100)):0;
+  var cls=B.depasse>0?"ko":B.deja>B.total*0.8?"warn":"";
+  var phrase;
+  if(B.depasse>0){
+    phrase="Tu as dépassé ton budget du mois de <b>"+fmt(B.depasse)+"</b>.";
+  } else {
+    phrase="Il te reste <b>"+fmt(B.reste)+"</b> jusqu'au "+dl(eom())+", soit <b>"+
+      fmt(B.parJour)+" par jour</b>.";
+  }
+  phrase+=" "+(B.marge<=0
+    ? "Et tu es déjà au-delà de ta limite : ne dépense plus rien."
+    : B.marge<MARGE_MINI
+      ? "Si tu dépasses, tu n'as que <b>"+fmt(B.marge)+"</b> avant le rejet — vraiment pas de folie."
+      : "Si tu dépasses, tu as <b>"+fmt(B.marge)+"</b> de marge avant d'être dans le rouge.");
+  host.innerHTML='<div class="encard"><div class="ln"><h3>Ce que je peux dépenser</h3>'+
+    '<span class="cap">'+esc(ml(mk))+'</span></div>'+
+    '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
+    '<div class="ln"><span class="cap">Aujourd\'hui</span><b class="big'+
+      (B.parJour<=0?" done":"")+'">'+fmt(B.parJour)+'</b></div>'+
+    '<p class="cap" style="margin:6px 0 0;line-height:1.45">'+phrase+'</p>'+
+    '<p class="cap" style="margin:4px 0 0">Budget du mois '+fmt(B.total)+
+      ' · déjà dépensé '+fmt(B.deja)+'</p>'+
+    '<form data-dep="1"><input inputmode="decimal" placeholder="J\'ai dépensé… ex. 18" '+
+      'aria-label="Montant dépensé"><input data-note="1" placeholder="Quoi ? (facultatif)" '+
+      'aria-label="Libellé"><button type="submit">Noter</button></form>'+
+  '</div>';
+}
+document.getElementById("budgetBox").addEventListener("submit",function(ev){
+  var f=ev.target.closest("[data-dep]"); if(!f)return;
+  ev.preventDefault();
+  var inp=f.querySelector("input"),v=pa(inp.value);
+  if(!v){inp.focus();return}
+  var note=f.querySelector("[data-note]").value.trim(),T=today();
+  snapshot();
+  state.movements.push({id:uid(),label:note||"Dépense du jour",account:"sg",dir:"out",amount:v,
+    cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
+    fixId:"",fixMonth:"",free:true,settled:false,env:""});
+  inp.value="";f.querySelector("[data-note]").value="";
+  renderAll();save();
+  toast(fmt(v)+" noté — il te reste "+fmt(budgetJour().parJour)+" par jour");
+});
 function renderPaie(){
   var host=document.getElementById("paieBox"); if(!host)return;
   var P=planPaie();
@@ -3385,7 +3458,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderEtat();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderEtat();renderBudget();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
