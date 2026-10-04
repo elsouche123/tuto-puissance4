@@ -2989,9 +2989,19 @@ function planPaie(){
     if(e.v<0){sorties.push({d:e.d,v:r2(-e.v),l:e.l}); totS=r2(totS-e.v)}
     else {entrees.push({d:e.d,v:r2(e.v),l:e.l}); totE=r2(totE+e.v)}
   });
+  /* ce qu'il faudra virer à la PROCHAINE paie : la fenêtre s'arrête au jour
+     de cette paie, or des gros prélèvements tombent souvent juste après
+     (le PEL et la cagnotte permis le 31) — sans ça l'alerte sous-estime */
+  var D3=paieSuivante(D2);
+  var sgApres=miniPaie("sg",D1,D3,r2(sgReal+virSG),D2);
+  /* plafonné par ce que le compte de paie contiendra à ce moment-là :
+     conseiller de virer plus qu'elle n'aura ne sert à rien */
+  var cpApres=miniPaie(P.compte,D1,D3,r2(cpReal-virSG),D2);
+  var besoinSuivant=Math.ceil(Math.max(0,-sgApres.min));
+  var virSuivant=Math.min(besoinSuivant,Math.floor(Math.max(0,cpApres.min)));
   /* s'il reste un trou, quelle rentrée pourra le boucher */
   var secours=null;
-  if(besoinSG>dispo){
+  if(besoinSG>dispo||virSuivant>0){
     state.movements.forEach(function(m){
       if(m.done||m.skip||m.maybe||m.dir!=="in")return;
       if(acc(m.account).kind==="epargne")return;
@@ -3007,7 +3017,8 @@ function planPaie(){
       ? "Tout part dans tes paiements obligatoires, et il en manque même "+fmt(r2(besoinSG-dispo))+"."
       : "Tout part dans tes paiements obligatoires du mois : "+fmt(totS)+" à sortir de SG d'ici le "+dl(D2)+".";
   }
-  return {p:P,D1:D1,D2:D2,sg:sg,sgReal:sgReal,glob:glob,g:g,cp:cp,dispo:dispo,
+  return {p:P,D1:D1,D2:D2,D3:D3,sgApres:sgApres,virSuivant:virSuivant,
+          besoinSuivant:besoinSuivant,sg:sg,sgReal:sgReal,glob:glob,g:g,cp:cp,dispo:dispo,
           sorties:sorties,entrees:entrees,totS:totS,totE:totE,secours:secours,raisonEp:raisonEp,
           besoinSG:besoinSG,virSG:virSG,manqueSG:r2(besoinSG-virSG),
           rembs:rembs,rembTot:rembTot,epargne:epargne,avance:avance,
@@ -3276,13 +3287,16 @@ function renderPaie(){
 
   var alerte="";
   if(P.secours){
-    var aRevirer=Math.ceil(P.manqueSG),bas=r2(P.sg.min+P.virSG);
+    var aRevirer=Math.max(Math.ceil(P.manqueSG),P.virSuivant),bas=r2(P.sg.min+P.virSG);
     var lim=odFor(acc("sg"),P.sg.date),deborde=bas< -lim;
     alerte='<div class="palert"><b>'+(deborde?"⚠️":"📌")+' '+esc(dl(P.sg.date))+' — note-le</b>'+
       '<p class="cap">Tes prélèvements de ce jour-là te mettent à '+fmt(bas)+
       (deborde
         ? ", au-delà de tes "+fmt(lim)+" autorisés. "
         : " : encore dans tes "+fmt(lim)+" autorisés, mais dans le rouge. ")+
+      (P.virSuivant>Math.ceil(P.manqueSG)
+        ? "Et juste après, "+esc(dl(P.sgApres.date))+", SG descend à "+fmt(P.sgApres.min)+". "
+        : "")+
       (P.secours.date===P.sg.date
         ? 'Ton '+esc(P.secours.label)+' arrive <b>le même jour</b> : vire '+fmt(aRevirer)+
           ' sur SG dans la journée, pas le lendemain.'
