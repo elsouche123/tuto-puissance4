@@ -622,6 +622,13 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .plan-line .rt input{width:96px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
 .plan-line .rt input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .am{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:600;min-width:98px;text-align:right}
+.todo{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.todo:first-of-type{border-top:none}
+.todo input[type=checkbox]{width:20px;height:20px;margin-top:2px;flex:0 0 auto}
+.todo.soon b{color:var(--accent)}
+.todo.late b{color:#b3261e}
+[data-todo-new]{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+[data-todo-new] input{flex:1 1 120px;min-width:0}
 .encase{padding:10px 0;border-top:1px solid var(--line)}
 .encase:first-of-type{border-top:none}
 .encase .nm{font-weight:600;font-size:.95rem}
@@ -790,6 +797,7 @@ details.detail[open] summary::before{content:"▾ "}
 
   <h2 class="sect">Ce que je fais maintenant</h2>
   <div id="paieBox"></div>
+  <div id="todoBox"></div>
   <div id="virBox"></div>
 
   <h2 class="sect">Où j'en suis</h2>
@@ -1073,6 +1081,7 @@ var SEED = {
   income:[],
   incomeByMonth:{},
   vieAcc:"sg",
+  todos:[],
   living:0,
   cushionOn:true,
   debtMonthly:0,
@@ -1250,6 +1259,12 @@ function migrate(s){
     return {id:String(i.id||uid()),from:/^\d{4}-\d{2}$/.test(i.from||"")?i.from:curMonth(),amount:pa(i.amount)}});
   o.living=pa(s.living);
   if(ACCIDS.indexOf(s.vieAcc)>=0)o.vieAcc=s.vieAcc;
+  if(Array.isArray(s.todos))o.todos=s.todos.filter(Boolean).map(function(t){
+    return {id:String(t.id||uid()),label:String(t.label==null?"":t.label).slice(0,140),
+      why:String(t.why==null?"":t.why).slice(0,200),
+      date:/^\d{4}-\d{2}-\d{2}$/.test(t.date||"")?t.date:"",
+      done:!!t.done};
+  }).filter(function(t){return t.label});
   if(typeof s.cushionOn==="boolean")o.cushionOn=s.cushionOn;
   o.debtMonthly=pa(s.debtMonthly);
   o.saveMonthly=pa(s.saveMonthly);
@@ -3141,6 +3156,54 @@ function renderProjets(){
       ' En suivant ton plan, ton épargne atteint <b>'+fmt(dans8)+'</b> dans 8 mois.</p>'+
   '</div>';
 }
+/* ── Mes démarches ─────────────────────────────────────────────────
+   Les choses à demander à quelqu'un d'autre — la banque, un employeur —
+   qui prennent des jours et qu'on oublie. Datées, cochables. */
+function renderTodos(){
+  var host=document.getElementById("todoBox"); if(!host)return;
+  var T=today(),H=addDays(T,60);
+  var tous=(state.todos||[]).filter(function(t){return !t.done});
+  tous.sort(function(a,b){return (a.date||"9999")<(b.date||"9999")?-1:1});
+  /* ce qui arrive dans les deux mois, et au moins les trois suivantes :
+     ses demandes de remboursement anticipé sont loin mais elle veut les voir */
+  var ts=tous.filter(function(t){return !t.date||t.date<=H});
+  tous.forEach(function(t){ if(ts.indexOf(t)<0&&ts.length<4)ts.push(t) });
+  var faites=(state.todos||[]).filter(function(t){return t.done}).length;
+  var lignes=ts.map(function(t){
+    var retard=t.date&&t.date<T,urgent=t.date&&t.date<=addDays(T,3);
+    return '<label class="todo'+(retard?" late":urgent?" soon":"")+'">'+
+      '<input type="checkbox" data-todo="'+esc(t.id)+'">'+
+      '<span><b>'+esc(t.label)+'</b>'+
+        (t.date?' <span class="cap">· '+(retard?"à faire depuis le ":"")+dl(t.date)+'</span>':"")+
+        (t.why?'<br><span class="cap">'+esc(t.why)+'</span>':"")+
+      '</span></label>';
+  }).join("");
+  host.innerHTML='<div class="encard"><div class="ln"><h3>Mes démarches</h3>'+
+    '<span class="cap">'+(ts.length?ts.length+" à faire":"rien en attente")+
+      (faites?" · "+faites+" faite"+(faites>1?"s":""):"")+'</span></div>'+
+    (lignes||'<p class="cap" style="margin:8px 0 0">Rien à demander à personne en ce moment.</p>')+
+    '<form data-todo-new="1"><input placeholder="Autre chose à demander…" aria-label="Démarche">'+
+      '<input type="date" aria-label="Pour quand"><button type="submit">Ajouter</button></form>'+
+    '</div>';
+}
+document.getElementById("todoBox").addEventListener("change",function(ev){
+  var cb=ev.target.closest("[data-todo]"); if(!cb)return;
+  var t=find(state.todos||[],cb.getAttribute("data-todo")); if(!t)return;
+  snapshot(); t.done=true; save();
+  toast("« "+t.label+" » — fait 👏");
+  setTimeout(renderAll,0);
+});
+document.getElementById("todoBox").addEventListener("submit",function(ev){
+  var f=ev.target.closest("[data-todo-new]"); if(!f)return;
+  ev.preventDefault();
+  var q=f.querySelectorAll("input"),lab=q[0].value.trim();
+  if(!lab){q[0].focus();return}
+  snapshot();
+  if(!state.todos)state.todos=[];
+  state.todos.push({id:uid(),label:lab,date:q[1].value||"",why:"",done:false});
+  q[0].value="";q[1].value="";
+  renderAll();save();
+});
 function renderPaie(){
   var host=document.getElementById("paieBox"); if(!host)return;
   var P=planPaie();
@@ -3589,7 +3652,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderEtat();renderBudget();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
