@@ -2929,7 +2929,7 @@ function parseHM(v){
   var q=s.split(","), h=parseInt(q[0],10), m=0;
   if(!isFinite(h))h=0;
   if(q.length>1&&q[1]!=="")  { m=parseInt(q[1].slice(0,2),10); if(!isFinite(m))m=0 }
-  return r2(Math.abs(h)+Math.abs(m)/60);
+  return Math.round((Math.abs(h)+Math.abs(m)/60)*60)/60;
 }
 function deMois(mk){var n=ml(mk);return (/^[aeiouâéèêî]/i.test(n)?"d'":"de ")+n}
 function restoSt(){ if(!state.resto)state.resto={rate:10,min:50,goal:60,hours:{}}; return state.resto }
@@ -2953,13 +2953,15 @@ function renderResto(){
   var host=document.getElementById("restoBox"); if(!host)return;
   var r=restoSt(),mk=curMonth(),h=pa(r.hours[mk]),goal=pa(r.goal)||60,mini=pa(r.min)||50;
   var gagne=r2(h*(pa(r.rate)||10)),pct=goal?Math.min(100,Math.round(h/goal*100)):0;
-  var cls=h>=goal?"":h>=mini?"warn":"ko",manque=r2(Math.max(0,mini-h));
+  var cls=h>=goal?"":h>=mini?"warn":"ko";
+  var manque=h<mini?r2(mini-h):h<goal?r2(goal-h):0;
+  var versQuoi=h<mini?" pour mon minimum":" pour mon objectif";
   host.innerHTML='<div class="encard">'+
     '<div class="ln"><h3>Restaurant — '+esc(ml(mk))+'</h3>'+
       '<span class="cap">'+hrs(h)+' sur '+hrs(goal)+'</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">'+
-      (manque>0?"Il me manque "+hrs(manque):"C\'est bon, je suis tranquille")+
+      (manque>0?"Il me manque "+hrs(manque)+versQuoi:"C\'est bon, objectif atteint")+
       '</span><b class="big'+(manque>0?" done":"")+'">'+fmt(gagne)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0">Payé le 5 '+esc(ml(restoPayMk(mk)))+
       ' · minimum '+hrs(mini)+' · objectif '+hrs(goal)+'</p>'+
