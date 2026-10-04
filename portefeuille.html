@@ -622,6 +622,16 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .plan-line .rt input{width:96px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule-strong);background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
 .plan-line .rt input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .am{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:600;min-width:98px;text-align:right}
+.encase{padding:10px 0;border-top:1px solid var(--line)}
+.encase:first-of-type{border-top:none}
+.encase .nm{font-weight:600;font-size:.95rem}
+.encase .bud{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:.86rem}
+.encase .bud input{width:64px;text-align:right;padding:5px 7px;border:1px solid var(--line);
+  border-radius:8px;font:inherit;background:var(--card,#fff)}
+.encase form{display:flex;gap:6px;margin:0}
+.encase form input{width:92px}
+.addcase{margin-top:12px;width:100%;padding:9px;border:1px dashed var(--line);border-radius:10px;
+  background:none;color:var(--muted);font:inherit;cursor:pointer}
 h2.sect{font:600 .78rem/1.2 system-ui;letter-spacing:.09em;text-transform:uppercase;
   color:var(--muted);margin:26px 2px 8px}
 h2.sect:first-of-type{margin-top:18px}
@@ -3500,21 +3510,48 @@ document.getElementById("restoBox").addEventListener("submit",function(ev){
 });
 function renderEnvs(){
   var host=document.getElementById("envBox");if(!host)return;
-  var h=(state.envelopes||[]).filter(function(e){return pa(e.amount)>0}).map(function(e){
-    var bud=pa(e.amount),used=envUsed(e),left=r2(bud-used),pct=bud?Math.min(100,Math.round(used/bud*100)):0;
-    var cls=pct>=100?"ko":pct>=75?"warn":"";
-    return '<div class="encard" data-env="'+esc(e.id)+'">'+
-      '<div class="ln"><h3>'+esc(e.name)+'</h3><span class="cap">'+fmt(used)+' sur '+fmt(bud)+'</span></div>'+
-      '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
-      '<div class="ln"><span class="cap">'+(left>0?"Il me reste":"J\'ai dépassé de")+'</span>'+
-      '<b class="big'+(left>0?"":" done")+'">'+fmt(Math.abs(left))+'</b></div>'+
-      (left<=0?'<p class="cap" style="margin:8px 0 0">C\'est fini pour ce mois-ci.</p>':"")+
-      '<form data-env-add="'+esc(e.id)+'"><input inputmode="decimal" placeholder="J\'ai pris… €" '+
-      'aria-label="Montant pris dans '+esc(e.name)+'"><button type="submit">Noter</button></form>'+
+  var es=state.envelopes||[];
+  var lignes=es.map(function(e){
+    var bud=pa(e.amount),used=envUsed(e),left=r2(bud-used);
+    var pct=bud?Math.min(100,Math.round(used/bud*100)):0;
+    var cls=bud&&pct>=100?"ko":bud&&pct>=75?"warn":"";
+    return '<div class="encase" data-case="'+esc(e.id)+'">'+
+      '<div class="ln"><span class="nm">'+esc(e.name)+'</span>'+
+        '<span class="bud"><input inputmode="decimal" data-env-bud="'+esc(e.id)+'" '+
+          'value="'+(bud?nb(bud):"")+'" placeholder="0" aria-label="Budget pour '+esc(e.name)+'"> €</span></div>'+
+      (bud>0
+        ? '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
+          '<div class="ln"><span class="cap">'+(left>=0?"Il me reste":"J\'ai dépassé de")+' <b>'+
+            fmt(Math.abs(left))+'</b></span>'+
+          '<form data-env-add="'+esc(e.id)+'"><input inputmode="decimal" placeholder="J\'ai pris…" '+
+            'aria-label="Montant pris dans '+esc(e.name)+'"><button type="submit">Noter</button></form></div>'
+        : '<p class="cap" style="margin:4px 0 0">Pas encore de budget — mets un montant et je le suis.</p>')+
       '</div>';
   }).join("");
-  host.innerHTML=h;
+  host.innerHTML='<div class="encard"><div class="ln"><h3>Mes cases du mois</h3>'+
+    '<span class="cap">ce que je m\'autorise, poste par poste</span></div>'+
+    lignes+
+    '<button type="button" class="addcase" data-env-new="1">+ Ajouter une case</button>'+
+    '</div>';
 }
+document.getElementById("envBox").addEventListener("change",function(ev){
+  var el=ev.target.closest("[data-env-bud]"); if(!el)return;
+  var e=find(state.envelopes||[],el.getAttribute("data-env-bud")); if(!e)return;
+  snapshot(); e.amount=pa(el.value); save();
+  toast(e.name+" : "+fmt(pa(e.amount))+" par mois");
+  /* on redessine APRÈS que le champ ait fini de rendre la main : redessiner
+     pendant le blur arrache de l'arbre le nœud que le navigateur manipule */
+  try{el.blur()}catch(x){}
+  setTimeout(renderAll,0);
+});
+document.getElementById("envBox").addEventListener("click",function(ev){
+  if(!ev.target.closest("[data-env-new]"))return;
+  var nom=prompt("Cette case, c'est pour quoi ?"); if(!nom||!nom.trim())return;
+  snapshot();
+  if(!state.envelopes)state.envelopes=[];
+  state.envelopes.push({id:uid(),name:nom.trim(),amount:0});
+  renderAll(); save();
+});
 document.getElementById("envBox").addEventListener("submit",function(ev){
   var f=ev.target.closest("[data-env-add]");if(!f)return;
   ev.preventDefault();
