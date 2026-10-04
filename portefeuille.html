@@ -3039,10 +3039,13 @@ function renderPaie(){
 
   var alerte="";
   if(P.secours){
-    var aRevirer=Math.ceil(P.manqueSG);
-    alerte='<div class="palert"><b>⚠️ '+esc(dl(P.sg.date))+' — note-le</b>'+
-      '<p class="cap">Tes prélèvements de ce jour-là te mettent à '+fmt(r2(P.sg.min+P.virSG))+
-      ', au-delà de tes '+fmt(odFor(acc("sg"),P.sg.date))+' autorisés. '+
+    var aRevirer=Math.ceil(P.manqueSG),bas=r2(P.sg.min+P.virSG);
+    var lim=odFor(acc("sg"),P.sg.date),deborde=bas< -lim;
+    alerte='<div class="palert"><b>'+(deborde?"⚠️":"📌")+' '+esc(dl(P.sg.date))+' — note-le</b>'+
+      '<p class="cap">Tes prélèvements de ce jour-là te mettent à '+fmt(bas)+
+      (deborde
+        ? ", au-delà de tes "+fmt(lim)+" autorisés. "
+        : " : encore dans tes "+fmt(lim)+" autorisés, mais dans le rouge. ")+
       (P.secours.date===P.sg.date
         ? 'Ton '+esc(P.secours.label)+' arrive <b>le même jour</b> : vire '+fmt(aRevirer)+
           ' sur SG dans la journée, pas le lendemain.'
