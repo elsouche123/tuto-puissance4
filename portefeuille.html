@@ -3537,6 +3537,16 @@ function renderPaie(){
       ' Ton '+esc(P.secours.label.split("—")[0].trim())+' arrive le même jour : <b>vire '+
       fmt(aRevirer)+'</b> dans la journée.</p></div>';
   }
+  /* plus rien à faire : la paie est répartie. On n'affiche plus la
+     consigne — seulement ce qui reste à surveiller, s'il y a. */
+  var rienAFaire=(P.virSG<=0&&P.epargne<=0);
+  if(rienAFaire&&!alerte){host.innerHTML="";return}
+  if(rienAFaire){
+    host.innerHTML='<div class="encard pcard"><div class="ln">'+
+      '<h3>✅ Ta paie est répartie</h3><span class="cap">'+esc(dl(P.p.date))+' · '+fmt(P.p.montant)+'</span></div>'+
+      alerte+'</div>';
+    return;
+  }
   host.innerHTML='<div class="encard pcard"><div class="ln">'+
     '<h3>'+esc(quand.charAt(0).toUpperCase()+quand.slice(1))+' · '+fmt(P.p.montant)+'</h3>'+
     '<span class="cap">sur '+esc(cpt.short||cpt.name)+'</span></div>'+
