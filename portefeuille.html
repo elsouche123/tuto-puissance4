@@ -594,6 +594,18 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .step.ko .sverd{color:#b3261e}
 .sx{position:absolute;top:7px;right:2px;width:26px;height:26px;border:none;background:none;
   color:var(--muted);font-size:14px;cursor:pointer;line-height:1}
+.soldes{display:flex;gap:8px;margin:10px 0 14px}
+.sol{flex:1;min-width:0;background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  padding:9px 10px;font-weight:700;font-size:.95rem;font-variant-numeric:tabular-nums;
+  display:flex;flex-direction:column;gap:2px;box-shadow:var(--shadow)}
+.sol i{font-style:normal;font-weight:600;font-size:.68rem;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-2)}
+.sol.neg{color:var(--debit)}
+.bigline{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  margin-top:14px;padding:13px 15px;border:1px solid var(--rule);border-radius:var(--radius);
+  background:var(--card);box-shadow:var(--shadow);font:inherit;text-align:left;cursor:pointer}
+.bigline .chev{color:var(--ink-2);font-size:20px}
+#resteBox{margin-top:14px}
 .todomore{margin-top:4px}
 .todomore summary{cursor:pointer;font-size:.84rem;color:var(--muted);padding:8px 0}
 #joursBox summary{font-size:.92rem;line-height:1.4}
@@ -782,7 +794,7 @@ details.detail[open] summary::before{content:"▾ "}
 <header class="top">
   <div class="top-in">
     <div class="brand"><b>Portefeuille</b><span>au jour le jour</span></div>
-    <div class="capa" id="capaBox" data-s="ok"><span class="lbl">Dispo</span><span class="val num" id="barCapa">—</span></div>
+    <div class="capa" id="capaBox" data-s="ok"><span class="lbl">Aujourd'hui</span><span class="val num" id="barCapa">—</span></div>
     <div class="sync" id="sync" data-s="wait"><span class="dot"></span><span id="syncTxt">…</span></div>
   </div>
   <nav class="tabs" id="tabs" role="tablist">
@@ -796,28 +808,19 @@ details.detail[open] summary::before{content:"▾ "}
 <div class="wrap">
 
 <section class="tabpanel" id="tab-today">
-  <div class="dispo" id="dispoBig">
-    <span class="lbl">Je peux utiliser</span>
-    <span class="val num" id="dispoVal">—</span>
-    <span class="sub" id="dispoSub"></span>
-  </div>
-
-  <h2 class="sect">💳 Ce que j'ai</h2>
-  <div class="wcards" id="wcards"></div>
-
-  <h2 class="sect">📅 Ce qui va passer</h2>
-  <div id="daysBox"></div>
-
-  <h2 class="sect">✅ À faire</h2>
+  <div id="budgetBox"></div>
+  <div id="soldesBox"></div>
   <div id="paieBox"></div>
   <div id="virBox"></div>
 
-  <h2 class="sect">🛒 Ce que je peux dépenser</h2>
-  <div id="budgetBox"></div>
+  <div id="daysBox"></div>
 
-  <h2 class="sect">⋯ Le reste</h2>
-  <details class="box"><summary>➕ Noter une dépense ou une rentrée</summary>
+  <div id="epargneBox"></div>
+
+  <details class="box" id="resteBox"><summary>⋯ Tout le reste</summary>
     <div class="box-body" style="padding:12px 14px">
+      <div id="verdictBox"></div>
+      <div class="wcards" id="wcards"></div>
   <div class="panel pad">
     <div class="pad-amt"><input id="padAmt" inputmode="decimal" placeholder="0" aria-label="Montant"><span>€</span></div>
     <div class="segs" id="padAcc"></div>
@@ -831,24 +834,14 @@ details.detail[open] summary::before{content:"▾ "}
       <button type="button" data-sheet="xfer">Virement entre mes comptes</button>
     </div>
   </div>
-    </div>
-  </details>
-
-  <details class="box"><summary>📊 Où j'en suis, et mon avance sur salaire</summary>
-    <div class="box-body" style="padding:12px 14px"><div id="verdictBox"></div></div>
-  </details>
-
-  <details class="box"><summary>🧺 Mes cases du mois</summary>
-    <div class="box-body" style="padding:12px 14px"><div id="envBox"></div></div>
-  </details>
-
-  <details class="box"><summary>🍽️ Mes heures au restaurant</summary>
-    <div class="box-body" style="padding:12px 14px"><div id="restoBox"></div></div>
-  </details>
-
-  <details class="box"><summary>🎯 Mes projets et mon épargne</summary>
-    <div class="box-body" style="padding:12px 14px"><div id="projBox"></div></div>
-  </details>
+      <div id="envBox"></div>
+      <div id="restoBox"></div>
+      <div id="projBox"></div>
+  <div id="dispoBig" class="dispo" hidden>
+    <span class="lbl">Je peux utiliser</span>
+    <span class="val num" id="dispoVal">—</span>
+    <span class="sub" id="dispoSub"></span>
+  </div>
 
   <div id="adviceBox"></div>
 
@@ -915,6 +908,9 @@ details.detail[open] summary::before{content:"▾ "}
       </div>
     </div>
   </details>
+    </div>
+  </details>
+
 </section>
 
 <section class="tabpanel" id="tab-plan" hidden>
@@ -1827,11 +1823,14 @@ function renderCoach(c){
 function renderSummary(){
   var c=calc();
   renderAccounts(c);
-  var b=document.getElementById("barCapa");
-  b.textContent=fmt(c.capacity);
-  document.getElementById("capaBox").setAttribute("data-s",c.capacity<0?"bad":(c.capacity<80?"tight":"ok"));
-  if(lastCapa!==null&&lastCapa!==c.capacity){b.classList.remove("flash");void b.offsetWidth;b.classList.add("flash")}
-  lastCapa=c.capacity;
+  /* le bandeau du haut dit la même chose que la première carte : ce
+     qu'elle peut dépenser aujourd'hui. Deux chiffres différents à
+     3 cm l'un de l'autre, c'est ce qui rendait l'écran illisible. */
+  var b=document.getElementById("barCapa"),jour=budgetJour().parJour;
+  b.textContent=fmt(jour);
+  document.getElementById("capaBox").setAttribute("data-s",jour<=0?"bad":(jour<8?"tight":"ok"));
+  if(lastCapa!==null&&lastCapa!==jour){b.classList.remove("flash");void b.offsetWidth;b.classList.add("flash")}
+  lastCapa=jour;
 
   document.getElementById("eomLabel").textContent=MO.format(new Date());
   var f=document.getElementById("tForecast");
@@ -3387,6 +3386,32 @@ function renderPlanVrai(){
     '<p class="cap" style="margin:8px 0 0">« De côté » part sur tes comptes d\'épargne : '+
       'ce n\'est pas dépensé, c\'est rangé.</p></div>';
 }
+/* ── Mes soldes, en une ligne ──────────────────────────────────── */
+function renderSoldes(){
+  var host=document.getElementById("soldesBox"); if(!host)return;
+  var c=calc(),h="";
+  c.accs.forEach(function(a){
+    if(a.kind==="epargne")return;
+    h+='<span class="sol'+(a.real<0?" neg":"")+'"><i>'+esc(a.short||a.name)+'</i>'+fmt(a.real)+'</span>';
+  });
+  host.innerHTML='<div class="soldes">'+h+'</div>';
+}
+/* ── Ce que je range pour mes projets ──────────────────────────── */
+function renderEpargne(){
+  var host=document.getElementById("epargneBox"); if(!host)return;
+  var mk=curMonth(),mois=0;
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe||m.dir!=="in")return;
+    if(acc(m.account).kind!=="epargne")return;
+    if((m.datePlanned||"").slice(0,7)!==mk)return;
+    mois=r2(mois+pa(m.amount));
+  });
+  var tot=epargneTotale(),dans8=epargneDans(8);
+  host.innerHTML='<button class="bigline" type="button" data-goto="more">'+
+    '<span><b>🎯 '+fmt(mois)+' de côté ce mois-ci</b><br>'+
+    '<span class="cap">'+fmt(tot)+' au total · '+fmt(dans8)+' dans 8 mois</span></span>'+
+    '<span class="chev">›</span></button>';
+}
 function renderPaie(){
   var host=document.getElementById("paieBox"); if(!host)return;
   var P=planPaie();
@@ -3810,7 +3835,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderEpargne();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
@@ -4314,7 +4339,7 @@ document.getElementById("wcards").addEventListener("input",function(e){
   var cc=calc();
   document.getElementById("dispoVal").textContent=fmt(cc.capacity);
   document.getElementById("dispoBig").setAttribute("data-s",cc.capacity<0?"bad":(cc.capacity<80?"tight":"ok"));
-  document.getElementById("barCapa").textContent=fmt(cc.capacity);
+  document.getElementById("barCapa").textContent=fmt(budgetJour().parJour);
   save();
 });
 document.getElementById("wcards").addEventListener("change",function(){renderAll()});
