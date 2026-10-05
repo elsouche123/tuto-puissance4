@@ -305,6 +305,14 @@ button.chip{cursor:pointer;font-family:inherit}
 .totrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:13px 15px;margin-top:11px;border-radius:12px;background:var(--card-2);border:1px solid var(--rule);font-size:13.5px}
 .totrow .big{font-size:22px;font-weight:700;font-family:Fraunces,Georgia,serif}
 
+.paliers{margin:9px 0 2px;border-top:1px solid var(--rule)}
+.pal{display:flex;align-items:baseline;gap:9px;padding:7px 0;border-bottom:1px solid var(--rule);font-size:12.5px}
+.pal b{font-family:"IBM Plex Mono",monospace;font-size:13.5px;min-width:62px;flex:0 0 auto}
+.pal span{flex:1;min-width:0;color:var(--ink-2)}
+.pal i{font-style:normal;font-size:11.5px;color:var(--ink-2);white-space:nowrap;flex:0 0 auto}
+.pal.ok b,.pal.ok i{color:var(--credit)}
+.pal.libre b{color:var(--accent)}
+.pal.libre i{font-weight:700;color:var(--ink)}
 .objln{margin-top:9px;padding-top:9px;border-top:1px solid var(--rule)}
 .objfld{display:flex;align-items:baseline;gap:5px;font-size:13px;color:var(--ink-2)}
 .objfld input{width:62px;padding:5px 7px;border-radius:8px;border:1px solid var(--rule-strong);
@@ -4054,6 +4062,26 @@ function heuresMini(mk,cible){
    un total à atteindre ne suffit donc pas : si elle s'en aperçoit le 25, il est
    trop tard. On dit le rythme qu'il reste à tenir, et on le compare à ce
    qu'elle a réellement tenu le mois dernier — son propre repère, pas le mien. */
+/* « je veux me projeter avec l'argent que je suis en train de gagner » :
+   un nombre d'heures tout seul ne dit rien. On montre les deux paliers qui
+   comptent et, au-delà, ce que chaque heure rapporte vraiment pour ses projets. */
+function paliersResto(mk){
+  var r=restoSt(),tx=pa(r.rate)||10,h=pa(r.hours[mk]);
+  var a=heuresMini(mk,0),c=heuresMini(mk,MARGE_MINI),pm=restoPayMk(mk),out=[];
+  if(a==null)return"";
+  if(a>0)out.push({h:a,q:esc(ml(pm).split(" ")[0])+" tient sans découvert"});
+  if(c!=null&&c>a+0.25)out.push({h:c,q:"+ "+fmt(MARGE_MINI)+" de marge tout "+esc(ml(pm).split(" ")[0])});
+  var l="";
+  out.forEach(function(x){
+    var fait=h>=x.h;
+    l+='<div class="pal'+(fait?" ok":"")+'"><b>'+hrs(x.h)+'</b>'+
+       '<span>'+x.q+'</span><i>'+(fait?"✓ atteint":"encore "+hrs(r2(x.h-h)))+'</i></div>';
+  });
+  var seuil=(c==null?a:c),rest=r2(Math.max(0,(h-seuil)*tx));
+  l+='<div class="pal libre"><b>au-delà</b><span>chaque heure = '+fmt(tx)+' pour tes projets</span>'+
+     '<i>'+(rest>0?fmt(rest)+" déjà gagnés":"à partir de "+hrs(seuil))+'</i></div>';
+  return '<div class="paliers">'+l+'</div>';
+}
 function rythmeResto(manque){
   if(!(manque>0))return"";
   var T=today(),fin=eom();
@@ -4101,6 +4129,7 @@ function renderResto(){
          :"<b>"+esc(ml(pm))+" est couvert</b>"+
            (tranquille!=null&&tranquille>h?" · encore <b>"+hrs(r2(tranquille-h))+
              "</b> pour garder "+fmt(MARGE_MINI)+" de marge"+rythmeResto(r2(tranquille-h)):""))+'</span></div>'+
+      paliersResto(mk)+
       '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
         'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
       '<div class="ln objln"><span class="cap">Si je veux viser plus haut</span>'+
@@ -4129,6 +4158,7 @@ function renderResto(){
     '<div class="ln"><h3>🍽️ '+hrs(h)+' ce mois-ci</h3><b class="big">'+fmt(gagne)+'</b></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">'+dit+'</span></div>'+noteMois+
+    paliersResto(mk)+
     '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
       'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
     '<div class="ln objln"><span class="cap">Si je veux viser plus haut</span>'+
