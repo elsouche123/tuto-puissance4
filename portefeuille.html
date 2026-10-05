@@ -3972,6 +3972,26 @@ function heuresMini(mk,cible){
   mv.amount=sv.amount;mv.done=sv.done;mv.skip=sv.skip;mv.maybe=sv.maybe;
   return(_hmCache[ck]=out);
 }
+/* Ce qu'elle gagne au restaurant ce mois-ci paye le mois suivant. Lui donner
+   un total à atteindre ne suffit donc pas : si elle s'en aperçoit le 25, il est
+   trop tard. On dit le rythme qu'il reste à tenir, et on le compare à ce
+   qu'elle a réellement tenu le mois dernier — son propre repère, pas le mien. */
+function rythmeResto(manque){
+  if(!(manque>0))return"";
+  var T=today(),fin=eom();
+  var jours=Math.max(1,Math.round((new Date(fin)-new Date(T))/86400000)+1);
+  var parSem=r2(manque/(jours/7));
+  var r=restoSt(),mkP=moisAvant(curMonth()),hP=pa(r.hours[mkP]);
+  var finP=new Date(+mkP.slice(0,4),+mkP.slice(5,7),0).getDate();
+  var semP=hP>0?r2(hP/(finP/7)):0;
+  var txt=" · <b>"+hrs(parSem)+" par semaine</b> sur les "+jours+" jours qui restent";
+  if(semP>0)
+    txt+=(parSem>semP*1.25
+      ? " — c'est plus que tes "+hrs(semP)+" par semaine "+deMois(mkP)+", préviens le restaurant tôt"
+      : " — tu tenais "+hrs(semP)+" par semaine "+deMois(mkP)+", c'est dans tes cordes");
+  return txt;
+}
+function moisAvant(mk){var y=+mk.slice(0,4),m=+mk.slice(5,7)-1;if(m<1){m=12;y--}return y+"-"+pad(m)}
 function renderResto(){
   var host=document.getElementById("restoBox"); if(!host)return;
   var r=restoSt(),mk=curMonth(),h=pa(r.hours[mk]),tx=pa(r.rate)||10;
@@ -3999,10 +4019,10 @@ function renderResto(){
         'Ce qui le change, c\'est ton budget du jour, juste au-dessus.</p>'+
       '<div class="ln"><span class="cap">Pour la suite : '+
         (faut==null?"le restaurant seul ne suffirait pas à tenir "+esc(ml(pm))
-         :faut>h?"il te faut <b>"+hrs(r2(faut-h))+" de plus</b> pour que "+esc(ml(pm))+" tienne"
+         :faut>h?"il te faut <b>"+hrs(r2(faut-h))+" de plus</b> pour que "+esc(ml(pm))+" tienne"+rythmeResto(r2(faut-h))
          :"<b>"+esc(ml(pm))+" est couvert</b>"+
            (tranquille!=null&&tranquille>h?" · encore <b>"+hrs(r2(tranquille-h))+
-             "</b> pour garder "+fmt(MARGE_MINI)+" de marge":""))+'</span></div>'+
+             "</b> pour garder "+fmt(MARGE_MINI)+" de marge"+rythmeResto(r2(tranquille-h)):""))+'</span></div>'+
       '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
         'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
       '<div class="ln objln"><span class="cap">Si je veux viser plus haut</span>'+
@@ -4016,10 +4036,11 @@ function renderResto(){
     dit="le restaurant seul ne suffirait pas à tenir "+esc(ml(pm))+" — regarde l'onglet Mon plan";
   else if(faut>h)
     dit="il te faut <b>"+hrs(r2(faut-h))+" de plus</b> pour que "+esc(ml(pm))+" tienne"+
-        (tranquille!=null&&tranquille>faut?", et <b>"+hrs(tranquille)+"</b> en tout pour être tranquille":"");
+        (tranquille!=null&&tranquille>faut?", et <b>"+hrs(tranquille)+"</b> en tout pour être tranquille":"")+
+        rythmeResto(r2(faut-h));
   else if(tranquille!=null&&tranquille>h)
     dit="<b>"+esc(ml(pm))+" est couvert</b> ✅ · encore <b>"+hrs(r2(tranquille-h))+
-        "</b> pour garder "+fmt(MARGE_MINI)+" de marge tout le mois";
+        "</b> pour garder "+fmt(MARGE_MINI)+" de marge tout le mois"+rythmeResto(r2(tranquille-h));
   else
     dit="<b>"+esc(ml(pm))+" est tranquille</b> 🎉 — tout ce que tu ajoutes maintenant est pour toi";
   var noteMois=(Lc.min<MARGE_MINI)
