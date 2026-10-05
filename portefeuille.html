@@ -3949,7 +3949,10 @@ function heuresMini(mk,cible){
   var pm=restoPayMk(mk),pay=pm+"-05";
   var dern=new Date(+pm.slice(0,4),+pm.slice(5,7),0).getDate(),H=pm+"-"+pad(dern);
   if(H<=T)return(_hmCache[ck]=null);
-  var jours=Math.round((new Date(H)-new Date(T))/86400000)+1;
+  /* addDays(T,jours) doit tomber EXACTEMENT sur H : un « +1 » faisait déborder
+     l'horizon sur le début du mois suivant, donc sur des prélèvements qui ne
+     sont pas à la charge de ces heures-là. */
+  var jours=Math.round((new Date(H)-new Date(T))/86400000);
   var id="resto-"+pm,mv=null;
   state.movements.forEach(function(x){if(x.id===id)mv=x});
   if(!mv)mv=restoSync(mk);
@@ -3980,6 +3983,35 @@ function renderResto(){
   var manque=(ref&&h<ref)?r2(ref-h):0;
   var cls=(faut!=null&&h>=faut)?(manque>0?"warn":""):"ko";
   var pm=restoPayMk(mk),dit;
+  /* ce mois-ci est déjà joué : ces heures ne sont payées que le 5 du mois
+     suivant. Si le mois en cours est dans le rouge, c'est ça le titre —
+     pas un 🎉 qui lui ferait croire que tout va bien. */
+  var jFin=Math.round((new Date(eom())-new Date(today()))/86400000);
+  var Lc=lowAhead(Math.max(1,jFin));
+  if(Lc.min<0){
+    host.innerHTML='<div class="encard restocard">'+
+      '<div class="ln"><h3>🍽️ '+hrs(h)+' ce mois-ci</h3><b class="big">'+fmt(gagne)+'</b></div>'+
+      '<div class="bar"><i class="warn" style="width:'+pct+'%"></i></div>'+
+      '<p class="palert" style="margin:0 0 8px">⛔ <b>Ces heures ne sauveront pas '+
+        esc(ml(mk).split(" ")[0])+'</b> : elles sont payées le 5 '+esc(ml(pm))+
+        '. D\'ici le '+esc(dl(eom()))+' tu descends à <b>'+fmt(Lc.min)+'</b> le '+
+        esc(dl(Lc.date))+', et aucune heure de restaurant ne peut changer ça. '+
+        'Ce qui le change, c\'est ton budget du jour, juste au-dessus.</p>'+
+      '<div class="ln"><span class="cap">Pour la suite : '+
+        (faut==null?"le restaurant seul ne suffirait pas à tenir "+esc(ml(pm))
+         :faut>h?"il te faut <b>"+hrs(r2(faut-h))+" de plus</b> pour que "+esc(ml(pm))+" tienne"
+         :"<b>"+esc(ml(pm))+" est couvert</b>"+
+           (tranquille!=null&&tranquille>h?" · encore <b>"+hrs(r2(tranquille-h))+
+             "</b> pour garder "+fmt(MARGE_MINI)+" de marge":""))+'</span></div>'+
+      '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
+        'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
+      '<div class="ln objln"><span class="cap">Si je veux viser plus haut</span>'+
+        '<span class="objfld"><input inputmode="decimal" data-resto-goal="1" '+
+          'value="'+(perso?(perso===Math.round(perso)?perso:nb(perso)):"")+'" placeholder="libre" '+
+          'aria-label="Mon objectif d\'heures par mois"> h</span></div>'+
+    '</div>';
+    return;
+  }
   if(faut==null)
     dit="le restaurant seul ne suffirait pas à tenir "+esc(ml(pm))+" — regarde l'onglet Mon plan";
   else if(faut>h)
@@ -3990,8 +4022,6 @@ function renderResto(){
         "</b> pour garder "+fmt(MARGE_MINI)+" de marge tout le mois";
   else
     dit="<b>"+esc(ml(pm))+" est tranquille</b> 🎉 — tout ce que tu ajoutes maintenant est pour toi";
-  /* ce mois-ci est déjà joué : ses heures d'octobre ne sont payées que le 5 novembre */
-  var Lc=lowAhead(Math.max(1,Math.round((new Date(eom())-new Date(today()))/86400000)+1));
   var noteMois=(Lc.min<MARGE_MINI)
     ?'<p class="cap" style="margin:6px 0 0;color:var(--ink-2)">Attention : ces heures sont payées le 5 '+
        esc(ml(pm))+'. Elles ne changent rien à la fin de ce mois-ci, où ton plus bas est <b>'+
