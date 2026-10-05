@@ -604,8 +604,8 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .sol i{font-style:normal;font-weight:600;font-size:.68rem;letter-spacing:.06em;
   text-transform:uppercase;color:var(--ink-2)}
 .sol.neg{color:var(--debit)}
-.sol u{display:block;text-decoration:none;font-size:.7rem;font-weight:600;color:var(--ac-pel,#2f6f4f);
-  margin-top:2px;white-space:nowrap}
+.sol u{display:block;text-decoration:none;font-size:.68rem;font-weight:600;
+  color:var(--ink-2);margin-top:3px;line-height:1.25;white-space:normal}
 .bigline{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
   margin-top:14px;padding:13px 15px;border:1px solid var(--rule);border-radius:var(--radius);
   background:var(--card);box-shadow:var(--shadow);font:inherit;text-align:left;cursor:pointer}
@@ -3465,8 +3465,12 @@ function renderSoldes(){
        argent, au même endroit, mais ce n'est pas la même poche */
     var poche=null;
     c.accs.forEach(function(x){ if(x.kind==="epargne"&&x.id.indexOf(a.id+"-")===0&&x.real>0)poche=x });
-    h+='<span class="sol'+(a.real<0?" neg":"")+'"><i>'+esc(a.short||a.name)+'</i>'+fmt(a.real)+
-       (poche?'<u>+ '+fmt(poche.real)+' épargne</u>':"")+'</span>';
+    /* le gros chiffre = ce qu'elle voit dans l'appli de sa banque, tout
+       compris ; le détail juste en dessous, parce que les deux poches ne
+       se dépensent pas pareil */
+    var tot=poche?r2(a.real+poche.real):a.real;
+    h+='<span class="sol'+(tot<0?" neg":"")+'"><i>'+esc(a.short||a.name)+'</i>'+fmt(tot)+
+       (poche?'<u>'+fmt(a.real)+' à dépenser · '+fmt(poche.real)+' de côté</u>':"")+'</span>';
   });
   host.innerHTML='<div class="soldes">'+h+'</div>';
 }
