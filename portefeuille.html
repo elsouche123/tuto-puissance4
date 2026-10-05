@@ -596,6 +596,7 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .suite{border-top:1px solid var(--rule)}
 .suite>summary{cursor:pointer;padding:14px;font-size:.92rem;font-weight:600;color:var(--ink-2);line-height:1.35}
 .suitebox .step:first-of-type{border-top:1px solid var(--rule)}
+.sx.arm{background:var(--debit,#b3261e);color:#fff;border-radius:50%;font-weight:700}
 .sapres{font-size:.76rem;color:var(--ink-3);margin-top:1px}
 .step.ko .sapres,.step.warn2 .sapres{color:var(--debit)}
 .step .sverd{font-size:.95rem;line-height:1.45;color:var(--ink);margin:0;padding:0 0 12px 36px;font-weight:500}
@@ -4409,8 +4410,14 @@ function onSkip(e){
   var el=e.target.closest('[data-act="skip"]');if(!el)return;
   var row=el.closest(".step")||el.closest(".due");if(!row)return;
   if(el.getAttribute("data-arm")!=="1"){
-    el.setAttribute("data-arm","1");el.textContent="Pas passé ?";
-    setTimeout(function(){if(el.isConnected){el.removeAttribute("data-arm");el.textContent="✕"}},3500);
+    /* la croix compacte ne peut pas afficher « Pas passé ? » : le texte ne
+       tient pas dans 28 px, donc le premier appui ne montrait rien. On la
+       colore et on le dit, sinon elle appuie dans le vide. */
+    el.setAttribute("data-arm","1"); el.classList.add("arm");
+    var lab=(row.querySelector(".snm")||row.querySelector("b"));
+    toast("Appuie encore sur ✕ pour dire que « "+
+      ((lab?lab.textContent:"").slice(0,30)||"cette ligne")+" » n'est pas passé");
+    setTimeout(function(){if(el.isConnected){el.removeAttribute("data-arm");el.classList.remove("arm")}},5000);
     return;
   }
   snapshot();
