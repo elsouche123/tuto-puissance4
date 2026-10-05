@@ -606,6 +606,9 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
   background:var(--card);box-shadow:var(--shadow);font:inherit;text-align:left;cursor:pointer}
 .bigline .chev{color:var(--ink-2);font-size:20px}
 #resteBox{margin-top:14px}
+.step.virt{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.step.virt .snm{font-style:italic}
+.vdot{display:grid;place-content:center;font-size:13px}
 .todomore{margin-top:4px}
 .todomore summary{cursor:pointer;font-size:.84rem;color:var(--muted);padding:8px 0}
 #joursBox summary{font-size:.92rem;line-height:1.4}
@@ -1598,6 +1601,17 @@ function renderDays(c){
     evs.push({id:"fx-"+f.id,label:f.label,amount:amt,dir:"out",account:f.account||"sg",
               datePlanned:iso,fixId:f.id,fixMonth:cm,done:false,maybe:false,virtual:true});
   });
+  /* le virement que la carte du haut lui demande de faire : sans lui dans
+     la liste, on lui annonce qu'il va lui manquer de l'argent sur SG alors
+     qu'on vient de lui dire de l'alimenter. Deux écrans qui se contredisent. */
+  var PP=planPaie();
+  if(PP&&PP.virSG>0&&PP.p.compte!=="sg"){
+    var dv=PP.p.date<T?T:PP.p.date;
+    evs.push({id:"vir-plan-out",label:"Virement vers SG (à faire)",account:PP.p.compte,dir:"out",
+      amount:PP.virSG,cat:"Autre",datePlanned:dv,virtuel:true});
+    evs.push({id:"vir-plan-in",label:"Virement depuis "+(acc(PP.p.compte).short||acc(PP.p.compte).name),
+      account:"sg",dir:"in",amount:PP.virSG,cat:"Autre",datePlanned:dv,virtuel:true});
+  }
   evs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
 
   var float=0,floatN=[];
@@ -1676,15 +1690,16 @@ function renderDays(c){
     var T0=today();
     var jour=m.datePlanned===T0?"auj.":m.datePlanned===addDays(T0,1)?"demain":dl(m.datePlanned);
     var souci=(cls==="ko"||cls==="warn2")&&verdict;
-    h+='<div class="step '+cls+'" data-id="'+esc(m.id)+'">'+
+    h+='<div class="step '+cls+(m.virtuel?" virt":"")+'" data-id="'+esc(m.id)+'">'+
        '<label class="sline">'+
-         '<input type="checkbox" class="tickbox" data-act="pay" aria-label="'+(isIn?"Je l\'ai reçu":"C\'est passé")+'">'+
+         (m.virtuel?'<span class="tickbox vdot">➡️</span>'
+                   :'<input type="checkbox" class="tickbox" data-act="pay" aria-label="'+(isIn?"Je l\'ai reçu":"C\'est passé")+'">')+
          '<span class="sday">'+esc(jour)+'</span>'+
          '<span class="snm">'+esc(m.label)+'<span class="sacc"> · '+esc(acc(m.account).short||acc(m.account).name)+'</span></span>'+
          '<span class="samt '+(isIn?"in":"out")+'">'+(isIn?"+":"−")+fmt(amt)+'</span>'+
        '</label>'+
        (souci?'<div class="sverd">'+verdict+'</div>':"")+
-       '<button class="sx" type="button" data-act="skip" aria-label="Pas passé">✕</button>'+
+       (m.virtuel?"":'<button class="sx" type="button" data-act="skip" aria-label="Pas passé">✕</button>')+
        '</div>';
   });
 
