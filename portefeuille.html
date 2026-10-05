@@ -3045,7 +3045,9 @@ function planPaie(){
   var cp=miniPaie(P.compte,D1,D2,cpReal,P.date,true);
   var dispo=Math.floor(Math.max(0,cp.min));
   var besoinSG=Math.ceil(Math.max(0,-sg.min));
-  var virSG=Math.min(besoinSG,dispo);
+  /* en dessous de 10 €, ça ne vaut pas un virement : on n'encombre pas
+     sa carte avec « vire 4 € » */
+  var virSG=Math.min(besoinSG,dispo); if(virSG<10)virSG=0;
   var rembs=[];
   state.movements.forEach(function(m){
     if(m.done||m.skip||m.dir!=="out")return;
@@ -3061,6 +3063,7 @@ function planPaie(){
   var epargne=Math.floor(Math.max(0,Math.min(g.min,dispo-virSG)));
   var avance=prochaineMiseDeCote();
   if(avance&&epargne>avance.amount)epargne=Math.floor(avance.amount);
+  if(epargne<10)epargne=0;   /* même seuil que le virement : pas de miettes */
   /* le détail de ce que le virement doit couvrir, pour qu'elle le voie
      poste par poste au lieu d'un chiffre qui tombe du ciel */
   var sorties=[],entrees=[],totS=0,totE=0;
