@@ -581,6 +581,16 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .prest.final{margin-top:9px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);border-top:none}
 .prest.final .v{color:var(--accent)}
 .prest .v{font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:17px}
+.todomore{margin-top:4px}
+.todomore summary{cursor:pointer;font-size:.84rem;color:var(--muted);padding:8px 0}
+#joursBox summary{font-size:.92rem;line-height:1.4}
+.ptab{overflow-x:auto;margin-top:10px}
+.ptab table{width:100%;border-collapse:collapse;font-size:.84rem}
+.ptab th{text-align:right;font-weight:600;color:var(--muted);padding:6px 4px;border-bottom:1px solid var(--line)}
+.ptab th:first-child,.ptab td:first-child{text-align:left}
+.ptab td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.ptab td.neg{color:#b3261e;font-weight:600}
+.pcard .phead span{color:var(--muted);font-size:.86rem}
 .todo{display:flex;gap:9px;align-items:flex-start;margin-top:10px;padding:11px 12px;border-radius:10px;font-size:13.5px;line-height:1.45}
 .todo .ic{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-content:center;font-size:12px;font-weight:700;color:#fff}
 .todo.od{background:var(--debit-soft);border:1px solid color-mix(in srgb,var(--debit) 35%,transparent)}
@@ -779,6 +789,11 @@ details.detail[open] summary::before{content:"▾ "}
     <span class="sub" id="dispoSub"></span>
   </div>
 
+  <h2 class="sect">Ce que je fais maintenant</h2>
+  <div id="paieBox"></div>
+  <div id="todoBox"></div>
+  <div id="virBox"></div>
+
   <div class="panel pad">
     <div class="pad-amt"><input id="padAmt" inputmode="decimal" placeholder="0" aria-label="Montant"><span>€</span></div>
     <div class="segs" id="padAcc"></div>
@@ -795,11 +810,6 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div class="wcards" id="wcards"></div>
 
-  <h2 class="sect">Ce que je fais maintenant</h2>
-  <div id="paieBox"></div>
-  <div id="todoBox"></div>
-  <div id="virBox"></div>
-
   <h2 class="sect">Où j'en suis</h2>
   <div id="verdictBox"></div>
   <div id="budgetBox"></div>
@@ -811,7 +821,11 @@ details.detail[open] summary::before{content:"▾ "}
 
   <div id="adviceBox"></div>
 
-  <div id="daysBox"></div>
+  <h2 class="sect">Le détail, si j'ai besoin</h2>
+  <details class="box" id="joursBox">
+    <summary id="joursSum">Tous mes paiements des 15 prochains jours</summary>
+    <div class="box-body" style="padding:0 2px"><div id="daysBox"></div></div>
+  </details>
 
   <details class="box">
     <summary>Mon mois en résumé</summary>
@@ -878,12 +892,16 @@ details.detail[open] summary::before{content:"▾ "}
 </section>
 
 <section class="tabpanel" id="tab-plan" hidden>
+  <div id="planVrai"></div>
+  <details class="box"><summary>Ma vieille simulation (avant que je note tout au jour le jour)</summary>
+  <div class="box-body" style="padding:0 14px 14px">
   <div id="planNow"></div>
 
   <div class="sect">
     <div class="sect-head"><h2>Les mois qui viennent</h2><span class="hint">ce que je te demande de sortir, mois par mois</span></div>
     <div class="panel" style="padding:14px 15px"><div id="planTable"></div></div>
   </div>
+  </div></details>
 
   <details class="box" id="planDetail">
     <summary>Voir le détail mois par mois, et où ça me mène</summary>
@@ -976,6 +994,7 @@ details.detail[open] summary::before{content:"▾ "}
 </section>
 
 <section class="tabpanel" id="tab-debt" hidden>
+  <div id="detteVraie"></div>
   <div class="sect" style="margin-top:20px">
     <div class="sect-head"><h2>Qui je rembourse, et quand</h2><span class="hint" id="schedHint"></span></div>
     <div class="panel" style="padding:13px 15px;margin-bottom:13px">
@@ -3068,6 +3087,21 @@ function budgetJour(){
           dispo:dispo,parJour:r2(dispo/jours),
           depasse:r2(Math.max(0,deja-total))};
 }
+/* le titre du repli dit déjà l'essentiel : la prochaine échéance */
+function majJoursSum(){
+  var el=document.getElementById("joursSum"); if(!el)return;
+  var T=today(),H=addDays(T,15),p=null;
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe)return;
+    if(acc(m.account).kind==="epargne")return;
+    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>H)return;
+    if(!p||m.datePlanned<p.datePlanned)p=m;
+  });
+  el.textContent=p
+    ? "Mes paiements des 15 prochains jours — le prochain : "+p.label.slice(0,38)+
+      " "+(p.dir==="in"?"+":"−")+fmt(pa(p.amount))+" "+dayWord(p.datePlanned)
+    : "Mes paiements des 15 prochains jours — rien de prévu";
+}
 function renderBudget(){
   var host=document.getElementById("budgetBox"); if(!host)return;
   var B=budgetJour(),mk=curMonth();
@@ -3180,15 +3214,23 @@ function renderTodos(){
   var ts=tous.filter(function(t){return !t.date||t.date<=H});
   tous.forEach(function(t){ if(ts.indexOf(t)<0&&ts.length<4)ts.push(t) });
   var faites=(state.todos||[]).filter(function(t){return t.done}).length;
-  var lignes=ts.map(function(t){
+  function ligne(t,avecPourquoi){
     var retard=t.date&&t.date<T,urgent=t.date&&t.date<=addDays(T,3);
     return '<label class="todo'+(retard?" late":urgent?" soon":"")+'">'+
       '<input type="checkbox" data-todo="'+esc(t.id)+'">'+
       '<span><b>'+esc(t.label)+'</b>'+
         (t.date?' <span class="cap">· '+(retard?"à faire depuis le ":"")+dl(t.date)+'</span>':"")+
-        (t.why?'<br><span class="cap">'+esc(t.why)+'</span>':"")+
+        (avecPourquoi&&t.why?'<br><span class="cap">'+esc(t.why)+'</span>':"")+
       '</span></label>';
-  }).join("");
+  }
+  /* seules les trois prochaines sont dépliées, et le « pourquoi » n'apparaît
+     que pour ce qui tombe dans la semaine : le reste, c'est du bruit */
+  var proche=addDays(T,8);
+  var lignes=ts.slice(0,3).map(function(t){return ligne(t,!t.date||t.date<=proche)}).join("");
+  var suite=ts.slice(3);
+  if(suite.length)lignes+='<details class="todomore"><summary>'+suite.length+
+    ' autre'+(suite.length>1?"s":"")+' démarche'+(suite.length>1?"s":"")+', plus tard</summary>'+
+    suite.map(function(t){return ligne(t,false)}).join("")+'</details>';
   host.innerHTML='<div class="encard"><div class="ln"><h3>Mes démarches</h3>'+
     '<span class="cap">'+(ts.length?ts.length+" à faire":"rien en attente")+
       (faites?" · "+faites+" faite"+(faites>1?"s":""):"")+'</span></div>'+
@@ -3215,6 +3257,121 @@ document.getElementById("todoBox").addEventListener("submit",function(ev){
   q[0].value="";q[1].value="";
   renderAll();save();
 });
+/* ── Ce que je dois vraiment, et mon plan réel ─────────────────────
+   Les deux anciens onglets lisaient state.debts, resté vide depuis que
+   tout passe par les mouvements : ils affichaient « tu ne dois plus rien
+   à personne ». Ces deux cartes-là lisent la vérité. */
+function dettesProches(){
+  var T=today(),par={},ordre=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.dir!=="out")return;
+    if(!/^rembourser/i.test(m.label||""))return;
+    var qui=m.label.replace(/^rembourser/i,"").split("—")[0].trim()||"Quelqu'un";
+    if(!par[qui]){par[qui]={nom:qui,total:0,lignes:[]};ordre.push(qui)}
+    par[qui].total=r2(par[qui].total+pa(m.amount));
+    par[qui].lignes.push({d:m.datePlanned||"",v:pa(m.amount),c:m.account});
+  });
+  var out=ordre.map(function(q){
+    par[q].lignes.sort(function(a,b){return a.d<b.d?-1:1});
+    par[q].fin=par[q].lignes.length?par[q].lignes[par[q].lignes.length-1].d:"";
+    return par[q];
+  });
+  out.sort(function(a,b){return (a.fin||"9999")<(b.fin||"9999")?-1:1});
+  return out;
+}
+function dettesBanque(){
+  var T=today(),out=[];
+  state.fixed.forEach(function(f){
+    if(!f.day||!f.until||f.until<curMonth())return;
+    if(f.cat!=="Crédit"&&!/crédit|credit|pr[eê]t/i.test(f.label))return;
+    var n=0,k=curMonth();
+    while(k<=f.until){ n++; var y=+k.slice(0,4),mo=+k.slice(5,7)+1; if(mo>12){mo=1;y++} k=y+"-"+pad(mo) }
+    out.push({nom:f.label,mens:pa(f.amount),n:n,reste:r2(pa(f.amount)*n),fin:f.until});
+  });
+  /* les soldes anticipés déjà programmés */
+  var ant=0,antD="";
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.dir!=="out")return;
+    if(!/anticip|solde total/i.test(m.label||""))return;
+    ant=r2(ant+pa(m.amount)); if(m.datePlanned>antD)antD=m.datePlanned;
+  });
+  return {lignes:out,ant:ant,antD:antD};
+}
+function renderDetteVraie(){
+  var host=document.getElementById("detteVraie"); if(!host)return;
+  var pr=dettesProches(),bq=dettesBanque(),tp=0,tm=0;
+  pr.forEach(function(x){tp+=x.total});
+  bq.mens=0; bq.lignes.forEach(function(x){bq.mens=r2(bq.mens+x.reste);tm+=x.mens});
+  /* ce qu'il reste dû à la banque, c'est le capital — pas la somme de ce
+     qu'elle va verser, qui inclut les intérêts qu'un solde anticipé annule */
+  var tb=r2(Math.max(bq.mens,bq.ant)); tp=r2(tp);
+  var h="";
+  pr.forEach(function(x){
+    var det=x.lignes.map(function(l){
+      return '<div class="pline"><span>'+dl(l.d)+' · depuis '+esc(acc(l.c).short||acc(l.c).name)+
+        '</span><b>'+fmt(l.v)+'</b></div>';
+    }).join("");
+    h+='<div class="pstep"><div class="phead"><b>'+esc(x.nom)+'</b><span>'+fmt(x.total)+'</span></div>'+
+      det+'<p class="cap">Soldé le '+dl(x.fin)+'</p></div>';
+  });
+  if(!pr.length)h='<p class="cap" style="margin:8px 0 0">Tu ne dois plus rien à tes proches. 🎉</p>';
+  var hb="";
+  bq.lignes.forEach(function(x){
+    hb+='<div class="pline"><span>'+esc(x.nom)+' <span class="cap">· '+x.n+' mensualité'+(x.n>1?"s":"")+
+      ' de '+fmt(x.mens)+'</span></span><b>'+fmt(x.reste)+'</b></div>';
+  });
+  if(bq.ant>0)hb+='<div class="pline"><span>Versements anticipés que j\'ai prévus</span><b>'+
+    fmt(bq.ant)+'</b></div>'+
+    '<p class="cap" style="margin:6px 0 0">Soldé le '+dl(bq.antD)+'. Attention : mensualités + '+
+    'versements anticipés font <b>'+fmt(r2(bq.mens+bq.ant))+'</b>, alors que mon capital restant dû '+
+    'tourne autour de 2 045 €. Le décompte de ma banque donnera le vrai chiffre, et je baisserai '+
+    'le versement de mars d\'autant.</p>';
+  var fin=pr.length?pr[pr.length-1].fin:"";
+  host.innerHTML='<div class="encard pcard"><div class="ln"><h3>Ce que je dois, pour de vrai</h3>'+
+    '<span class="cap">d\'après mes paiements prévus</span></div>'+
+    '<div class="ln"><span class="cap">Total</span><b class="big">'+fmt(r2(tp+tb))+'</b></div>'+
+    '<p class="cap" style="margin:4px 0 10px">'+fmt(tp)+' à mes proches · '+fmt(tb)+' à la banque'+
+      (tm?' ('+fmt(tm)+' prélevés chaque mois)':"")+'</p>'+
+    h+
+    (hb?'<div class="pstep"><div class="phead"><b>Mes crédits</b><span>'+fmt(tb)+'</span></div>'+hb+'</div>':"")+
+    (fin?'<p class="cap" style="margin:10px 0 0">🎯 Tes proches sont tous remboursés le <b>'+dl(fin)+'</b>.</p>':"")+
+  '</div>';
+}
+function renderPlanVrai(){
+  var host=document.getElementById("planVrai"); if(!host)return;
+  var T=today(),lignes="",bal=0,c=calc();
+  c.accs.forEach(function(a){if(a.kind!=="epargne")bal+=a.real});
+  bal=r2(bal);
+  var mk=curMonth(),i,rows=[];
+  for(i=0;i<8;i++){
+    var fin=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
+    var D1=(i===0?T:mk+"-01"),D2=mk+"-"+pad(fin);
+    var rev=0,dep=0,epa=0,bas=bal;
+    evsPaie(null,D1,D2).forEach(function(e){
+      if(e.v>0)rev=r2(rev+e.v); else dep=r2(dep-e.v);
+      bal=r2(bal+e.v); if(bal<bas)bas=bal;
+    });
+    state.movements.forEach(function(m){
+      if(m.done||m.skip||m.maybe||m.dir!=="in")return;
+      if(acc(m.account).kind!=="epargne")return;
+      if((m.datePlanned||"").slice(0,7)!==mk)return;
+      epa=r2(epa+pa(m.amount));
+    });
+    rows.push({mk:mk,rev:rev,dep:dep,epa:epa,bas:bas,fin:bal});
+    var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
+  }
+  rows.forEach(function(r){
+    lignes+='<tr><td>'+esc(ml(r.mk))+'</td><td class="num">'+nb(r.rev)+'</td>'+
+      '<td class="num">'+nb(r.dep)+'</td><td class="num">'+nb(r.epa)+'</td>'+
+      '<td class="num'+(r.bas<0?" neg":"")+'">'+nb(r.bas)+'</td></tr>';
+  });
+  host.innerHTML='<div class="encard pcard"><div class="ln"><h3>Mon plan réel</h3>'+
+    '<span class="cap">calculé sur mes paiements notés</span></div>'+
+    '<div class="ptab"><table><thead><tr><th>Mois</th><th>Entre</th><th>Sort</th>'+
+      '<th>De côté</th><th>Mon plus bas</th></tr></thead><tbody>'+lignes+'</tbody></table></div>'+
+    '<p class="cap" style="margin:8px 0 0">« De côté » part sur tes comptes d\'épargne : '+
+      'ce n\'est pas dépensé, c\'est rangé.</p></div>';
+}
 function renderPaie(){
   var host=document.getElementById("paieBox"); if(!host)return;
   var P=planPaie();
@@ -3609,11 +3766,12 @@ document.getElementById("restoBox").addEventListener("submit",function(ev){
 function renderEnvs(){
   var host=document.getElementById("envBox");if(!host)return;
   var es=state.envelopes||[];
-  var lignes=es.map(function(e){
+  var lignes={actives:"",vides:""};
+  es.forEach(function(e){
     var bud=pa(e.amount),used=envUsed(e),left=r2(bud-used);
     var pct=bud?Math.min(100,Math.round(used/bud*100)):0;
     var cls=bud&&pct>=100?"ko":bud&&pct>=75?"warn":"";
-    return '<div class="encase" data-case="'+esc(e.id)+'">'+
+    var bloc='<div class="encase" data-case="'+esc(e.id)+'">'+
       '<div class="ln"><span class="nm">'+esc(e.name)+'</span>'+
         '<span class="bud"><input inputmode="decimal" data-env-bud="'+esc(e.id)+'" '+
           'value="'+(bud?nb(bud):"")+'" placeholder="0" aria-label="Budget pour '+esc(e.name)+'"> €</span></div>'+
@@ -3625,10 +3783,14 @@ function renderEnvs(){
             'aria-label="Montant pris dans '+esc(e.name)+'"><button type="submit">Noter</button></form></div>'
         : '<p class="cap" style="margin:4px 0 0">Pas encore de budget — mets un montant et je le suis.</p>')+
       '</div>';
-  }).join("");
+    if(bud>0)lignes.actives+=bloc; else lignes.vides+=bloc;
+  });
+  var vides=es.filter(function(e){return pa(e.amount)<=0}).length;
   host.innerHTML='<div class="encard"><div class="ln"><h3>Mes cases du mois</h3>'+
     '<span class="cap">ce que je m\'autorise, poste par poste</span></div>'+
-    lignes+
+    lignes.actives+
+    (lignes.vides?'<details class="todomore"><summary>'+vides+' case'+(vides>1?"s":"")+
+      ' sans budget</summary>'+lignes.vides+'</details>':"")+
     '<button type="button" class="addcase" data-env-new="1">+ Ajouter une case</button>'+
     '</div>';
 }
@@ -3666,7 +3828,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();majJoursSum();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
@@ -3886,7 +4048,7 @@ debtHost.addEventListener("click",function(e){
     armDel(el,function(){
       if(d)state.debts=state.debts.filter(function(x){return x.id!==d.id});
       if(l)state.loans=state.loans.filter(function(x){return x.id!==l.id});
-      renderDebts();save();
+      renderDebts();renderDetteVraie();renderPlanVrai();majJoursSum();save();
     });
   }
 });
@@ -3896,7 +4058,7 @@ document.getElementById("debtForm").addEventListener("submit",function(e){
   if(!n||!v)return;
   state.debts.push({id:uid(),name:n,amount:v,paid:0});
   document.getElementById("dName").value="";document.getElementById("dAmount").value="";
-  renderDebts();save();
+  renderDebts();renderDetteVraie();renderPlanVrai();majJoursSum();save();
 });
 
 document.querySelector("#setBox .box-body").addEventListener("input",function(e){
