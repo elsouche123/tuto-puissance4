@@ -3221,10 +3221,18 @@ function budgetJour(){
     if(a.kind==="epargne"&&a.id.indexOf(cv+"-")===0&&a.real>0)poche=a;
   });
   var cvMin=miniPaie(cv,T,eom(),cvReal),aSec=r2(Math.max(0,-cvMin.min));
+  /* un compte sans aucun prélèvement ne peut rien se faire rejeter : à sec,
+     la carte est simplement refusée. Ce n'est pas un danger, c'est la fin du
+     budget plaisir — et ça ne se dit pas sur le même ton. */
+  var sansPrelev=!state.fixed.some(function(f){return f.account===cv&&f.day})&&
+    !state.movements.some(function(m){
+      return m.account===cv&&m.dir==="out"&&!m.done&&!m.skip&&!m.free&&!m.env&&
+             m.datePlanned&&m.datePlanned>=T&&m.datePlanned<=eom();
+    });
   var enveloppe=r2(Math.max(0,total-trop));
   partJour=r2(enveloppe>0?enveloppe/joursPeriode:0);
   cagnotte=r2(partJour*ecoules-deja);
-  return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,fin:fin,trop:trop,
+  return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,fin:fin,trop:trop,sansPrelev:sansPrelev,
           enveloppe:enveloppe,creux:L60.min,creuxDate:L60.date,
           debut:debut,joursPeriode:joursPeriode,aSec:aSec,aSecDate:cvMin.date,cv:cv,poche:poche,
           dispo:dispo,parJour:r2(Math.min(dispo,Math.max(0,cagnotte))),
@@ -3257,7 +3265,14 @@ function renderBudget(){
       fmt(B.creux)+' le '+esc(dl(B.creuxDate))+' — à '+fmt(B.partJour)+
       ' par jour tu restes au-dessus de zéro.</p>':"")+
     (B.aSec>0?'<p class="palert" style="margin:10px 0 0">'+
-      (B.poche&&B.poche.real>=B.aSec
+      (B.sansPrelev
+        ? '💳 <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' sera vide</b> le '+dl(B.aSecDate)+
+          ' — aucun prélèvement dessus, donc rien ne peut être rejeté : elle sera juste refusée.'+
+          (B.poche&&B.poche.real>0
+            ? ' Tu as <b>'+fmt(B.poche.real)+'</b> sur '+esc(B.poche.short||B.poche.name)+
+              ' si tu veux continuer — sinon tu t\'arrêtes, et ça ne coûte rien.'
+            : ' À partir de là tu t\'arrêtes, et ça ne coûte rien.')
+        : B.poche&&B.poche.real>=B.aSec
         ? '📌 <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' sera à sec</b> le '+dl(B.aSecDate)+
           ' (il y manquera '+fmt(B.aSec)+'), mais tu as <b>'+fmt(B.poche.real)+'</b> sur '+
           esc(B.poche.short||B.poche.name)+' : un glissement dans ton appli le jour venu.'
