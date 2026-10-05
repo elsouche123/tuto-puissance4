@@ -3139,15 +3139,28 @@ function budgetJour(){
   var fin=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
   var jour=parseInt(T.slice(8,10),10),jours=Math.max(1,fin-jour+1);
   var reste=r2(total-deja);
-  /* le report : ce qu'elle ne dépense pas un jour reste disponible le
-     lendemain. Sa part quotidienne s'accumule depuis le 1er, moins ce
-     qu'elle a déjà sorti. */
-  var partJour=r2(total/fin),acquis=r2(partJour*jour),cagnotte=r2(acquis-deja);
+  /* le budget ne commence pas le 1er : il commence le jour où l'argent
+     arrive. Compter des jours de budget avant la paie fabrique une
+     cagnotte qui n'a jamais existé. */
+  var debut=mk+"-01";
+  state.movements.forEach(function(m){
+    if(!m.done||m.skip||m.dir!=="in")return;
+    if(acc(m.account).kind==="epargne")return;
+    if(pa(m.amount)<300)return;
+    var dd=(m.dateReal||m.datePlanned||"");
+    if(dd.slice(0,7)===mk&&dd>debut&&dd<=T)debut=dd;
+  });
+  var jDebut=parseInt(debut.slice(8,10),10);
+  var joursPeriode=Math.max(1,fin-jDebut+1),ecoules=Math.max(1,jour-jDebut+1);
+  /* le report : ce qu'elle ne dépense pas un jour reste entier le lendemain */
+  var partJour=r2(reste>0?total/joursPeriode:0);
+  var cagnotte=r2(partJour*ecoules-deja);
   /* la marge du verdict compte DÉJÀ ce budget : elle dit ce qui reste
      si elle dépasse, pas ce qu'elle a le droit de dépenser. Pas de
      plafonnement ici, sinon on retire deux fois le même argent. */
   var marge=lowAhead(60,advOn()).marge,dispo=Math.max(0,reste);
   return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,fin:fin,
+          debut:debut,joursPeriode:joursPeriode,
           dispo:dispo,parJour:r2(Math.min(dispo,Math.max(0,cagnotte))),
           partJour:partJour,cagnotte:cagnotte,reporte:r2(cagnotte-partJour),
           depasse:r2(Math.max(0,deja-total))};
