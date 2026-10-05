@@ -4423,7 +4423,14 @@ function onSkip(e){
   snapshot();
   var m=skipRow(row.getAttribute("data-id"));
   if(!m)return;
-  toast("« "+m.label+" » : noté comme pas passé");
+  /* un cours qui saute, elle le traduit en heures de restaurant :
+     autant le lui dire au moment où elle l'annule */
+  var msg="« "+m.label+" » : noté comme pas passé";
+  if(m.dir==="in"){
+    var tx=pa(restoSt().rate)||10;
+    msg+=" — "+fmt(pa(m.amount))+" en moins, soit "+hrs(pa(m.amount)/tx)+" au restaurant";
+  }
+  toast(msg);
   renderAll();save();
 }
 function markPaid(m){
