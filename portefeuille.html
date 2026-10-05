@@ -3164,11 +3164,15 @@ function budgetJour(){
   var marge=lowAhead(60,advOn()).marge,dispo=Math.max(0,reste);
   /* le compte avec lequel elle paie peut tomber à sec même quand le reste
      va bien : un budget sur une carte qui sera refusée ne vaut rien */
-  var cv=compteVie(),cvReal=0;
-  calc().accs.forEach(function(a){if(a.id===cv)cvReal=a.real});
+  var cv=compteVie(),cvReal=0,poche=null;
+  calc().accs.forEach(function(a){
+    if(a.id===cv)cvReal=a.real;
+    /* son épargne chez la même banque : un geste dans l'appli, pas un virement */
+    if(a.kind==="epargne"&&a.id.indexOf(cv+"-")===0&&a.real>0)poche=a;
+  });
   var cvMin=miniPaie(cv,T,eom(),cvReal),aSec=r2(Math.max(0,-cvMin.min));
   return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,fin:fin,
-          debut:debut,joursPeriode:joursPeriode,aSec:aSec,aSecDate:cvMin.date,cv:cv,
+          debut:debut,joursPeriode:joursPeriode,aSec:aSec,aSecDate:cvMin.date,cv:cv,poche:poche,
           dispo:dispo,parJour:r2(Math.min(dispo,Math.max(0,cagnotte))),
           partJour:partJour,cagnotte:cagnotte,reporte:r2(cagnotte-partJour),
           depasse:r2(Math.max(0,deja-total))};
@@ -3194,10 +3198,14 @@ function renderBudget(){
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">'+phrase+'</p>'+
     '<p class="cap" style="margin:4px 0 0">dépensé '+fmt(B.deja)+' sur '+fmt(B.total)+
       ' · carte '+esc(acc(B.cv).short||acc(B.cv).name)+'</p>'+
-    (B.aSec>0?'<p class="palert" style="margin:10px 0 0">⚠️ <b>Ta carte '+
-      esc(acc(B.cv).short||acc(B.cv).name)+' va tomber à sec</b> le '+dl(B.aSecDate)+
-      ' : il y manquera '+fmt(B.aSec)+'. Ramène <b>'+fmt(Math.ceil(B.aSec/10)*10)+
-      '</b> depuis SG avant.</p>':"")+
+    (B.aSec>0?'<p class="palert" style="margin:10px 0 0">'+
+      (B.poche&&B.poche.real>=B.aSec
+        ? '📌 <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' sera à sec</b> le '+dl(B.aSecDate)+
+          ' (il y manquera '+fmt(B.aSec)+'), mais tu as <b>'+fmt(B.poche.real)+'</b> sur '+
+          esc(B.poche.short||B.poche.name)+' : un glissement dans ton appli le jour venu.'
+        : '⚠️ <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' va tomber à sec</b> le '+dl(B.aSecDate)+
+          ' : il y manquera '+fmt(B.aSec)+'. Ramène <b>'+fmt(Math.ceil(B.aSec/10)*10)+'</b> avant.')+
+      '</p>':"")+
     '<form data-dep="1"><input inputmode="decimal" placeholder="J\'ai dépensé… ex. 18" '+
       'aria-label="Montant dépensé"><input data-note="1" placeholder="Quoi ? (facultatif)" '+
       'aria-label="Libellé"><button type="submit">Noter</button></form>'+
