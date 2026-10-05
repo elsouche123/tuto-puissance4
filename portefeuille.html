@@ -3813,6 +3813,41 @@ function pocheLibre(jusqu){
   evs.forEach(function(e){bal=r2(bal+e.v); if(bal<mn)mn=bal});
   return {acc:poche,libre:r2(Math.max(0,mn))};
 }
+/* Le verdict met tous ses comptes dans le même sac et compare au découvert
+   total. Mais un prélèvement SG est rejeté si le compte SG est à sec, même
+   avec 1 600 € sur Revolut : l'argent n'est pas au bon endroit. On regarde
+   donc chaque compte séparément. */
+function comptesASec(){
+  /* jusqu'à la fin du mois seulement : au-delà, ses virements de paie ne sont
+     pas modélisés et SG dérive vers des milliers d'euros qui ne veulent rien
+     dire. Et on laisse la carte de dépense à la carte Budget, qui la traite
+     déjà — deux fois le même avertissement, c'est du bruit. */
+  var T=today(),H=eom(),c=calc(),out=[],cv=compteVie();
+  c.accs.forEach(function(a){
+    if(a.kind==="epargne"||a.id===cv)return;
+    var m=miniPaie(a.id,T,H,a.real);
+    if(m.min>=0)return;
+    var od=odFor(acc(a.id),m.date),depasse=r2(Math.max(0,-m.min-od));
+    out.push({id:a.id,nom:a.short||a.name,min:m.min,date:m.date,od:od,
+              depasse:depasse,pourZero:r2(-m.min)});
+  });
+  return out.sort(function(x,y){return y.depasse-x.depasse});
+}
+/* d'où vient l'argent : le compte qui aura de quoi renflouer, et à partir de quand */
+function dOuRenflouer(exclu,somme,avant){
+  var T=today(),c=calc(),best=null;
+  c.accs.forEach(function(a){
+    if(a.kind==="epargne"||a.id===exclu)return;
+    var b=a.real,quand="";
+    if(b>=somme)quand=T;
+    evsPaie(a.id,T,avant).forEach(function(e){
+      b=r2(b+e.v);
+      if(!quand&&b>=somme)quand=e.d;
+    });
+    if(quand&&(!best||quand<best.quand))best={id:a.id,nom:acc(a.id).short||acc(a.id).name,quand:quand,fin:b};
+  });
+  return best;
+}
 function renderEtat(){
   var host=document.getElementById("verdictBox"); if(!host)return;
   var c=calc(),on=advOn(),av=advMontant();
@@ -3882,10 +3917,26 @@ function renderEtat(){
         fmt(LI.marge)+'</b> de découvert au lieu de '+fmt(reste)+
         (reste<0&&LI.marge>=0?" — ça suffirait à te sauver.":".")+'</p>';
   }
+  /* l'argent au mauvais endroit : le total peut passer alors qu'un compte
+     précis se fait rejeter ses prélèvements */
+  var sec="";
+  comptesASec().forEach(function(x){
+    var dOu=dOuRenflouer(x.id,x.pourZero,x.date);
+    var combien=Math.ceil(x.pourZero/10)*10;
+    sec+='<p class="palert" style="margin:10px 0 0;line-height:1.45">'+
+      (x.depasse>0?'⛔ <b>Ton compte '+esc(x.nom)+' dépassera son découvert de '+fmt(x.depasse)+
+                   '</b> le '+esc(dl(x.date))+' — tes prélèvements seraient rejetés ('+fmt(28)+' de frais chacun).'
+                 :'⚠️ <b>Ton compte '+esc(x.nom)+' descendra à '+fmt(x.min)+'</b> le '+esc(dl(x.date))+
+                   ', dans son découvert autorisé de '+fmt(x.od)+'.')+
+      (dOu?' Tu auras l\'argent sur <b>'+esc(dOu.nom)+'</b> : vire <b>'+fmt(combien)+
+           '</b> le '+esc(dl(dOu.quand))
+         :' Et aucun de tes autres comptes n\'aura de quoi le renflouer à temps.')+
+      '</p>';
+  });
   host.innerHTML='<div class="encard"><div class="ln"><h3>'+esc(titre)+'</h3>'+
     '<span class="cap">d\'ici 2 mois</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:100%"></i></div>'+
-    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p>'+sortie+inc+sim+
+    '<p class="cap" style="margin:8px 0 0;font-size:.9rem;line-height:1.45">'+txt+'</p>'+sec+sortie+inc+sim+
     (av>0?'<label class="advline"><input type="checkbox" id="advBox"'+(on?" checked":"")+'>'+
       '<span>J\'ai demandé mon avance sur salaire — <b>'+fmt(av)+'</b> le 15</span></label>':"")+
     '</div>';
