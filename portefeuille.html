@@ -3680,8 +3680,13 @@ function lowAhead(days,adv,from,avecIncertain){
   if(adv){
     /* une avance ne peut tirer en avant qu'une rentrée POSTÉRIEURE au 15 :
        demander une avance sur de l'argent déjà reçu le 5 n'a aucun sens */
+    /* … et seulement une rentrée DU MOIS : en ne filtrant que sur « après
+       le 15 » je ramenais son salaire du 29 novembre au 15 octobre, ce qui
+       n'est pas une avance mais un emprunt sur six semaines. */
     var amk=curMonth(),d15=amk+"-15",best=null;
-    evs.forEach(function(e){if(e.d>d15&&e.v>0&&(!best||e.v>best.v))best=e});
+    evs.forEach(function(e){
+      if(e.d>d15&&e.d.slice(0,7)===amk&&e.v>0&&(!best||e.v>best.v))best=e;
+    });
     if(best&&d15>=T){
       var moitie=r2(best.v/2);
       evs.push({d:d15,v:moitie}); best.v=r2(best.v-moitie);
@@ -3810,6 +3815,11 @@ function renderEtat(){
     var d15=curMonth()+"-15",jour=dayWord(d15);
     var A=lowAhead(60,false,d15),B=lowAhead(60,true,d15),conseil,ic;
     if(on){ ic="✔️"; conseil="tu l'as demandée, elle est comptée dans le calcul ci-dessus."; }
+    /* une avance ne fait que déplacer de l'argent à l'intérieur du mois :
+       si le creux tombe après la paie, elle n'y change rien. Le dire plutôt
+       que de la conseiller pour rien. */
+    else if(B.marge<=A.marge+10){ ic="🤷"; conseil="<b>inutile cette fois</b> — ton creux est le "+
+      dl(A.margeDate)+", après ta paie : l'avance ne le changerait pas d'un centime."; }
     else if(A.marge>=MARGE_MINI){ ic="✅"; conseil="<b>ne la demande pas</b> — après le 15 ton plus bas est "+fmt(A.margeSolde)+
                                ", il te resterait "+fmt(A.marge)+" de découvert : tu tiens sans."; }
     else if(A.marge>=0){ ic="📌"; conseil="<b>demande-la</b> — tu passerais, mais de justesse : "+fmt(A.margeSolde)+
