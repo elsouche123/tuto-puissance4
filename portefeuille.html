@@ -317,6 +317,9 @@ button.chip{cursor:pointer;font-family:inherit}
 .rqh{font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:700;text-align:right;white-space:nowrap}
 .rqstop{flex:none;white-space:nowrap}
 .rqstop[data-arm="1"]{border-color:var(--debit);background:var(--debit);color:#fff;font-weight:700}
+.espbtn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);
+  padding:6px 2px;cursor:pointer;user-select:none;flex:0 0 auto}
+.espbtn input{width:16px;height:16px;accent-color:var(--accent);margin:0}
 .goals{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:13px}
 .goal{padding:15px;display:flex;flex-direction:column;gap:9px}
 .goal-top{display:flex;align-items:center;gap:8px}
@@ -3281,7 +3284,9 @@ function renderBudget(){
       '</p>':"")+
     '<form data-dep="1"><input inputmode="decimal" placeholder="J\'ai dépensé… ex. 18" '+
       'aria-label="Montant dépensé"><input data-note="1" placeholder="Quoi ? (facultatif)" '+
-      'aria-label="Libellé"><button type="submit">Noter</button></form>'+
+      'aria-label="Libellé"><button type="submit">Noter</button>'+
+      '<label class="espbtn"><input type="checkbox" data-esp="1">'+
+        '<span>💶 en espèces</span></label></form>'+
   '</div>';
 }
 document.getElementById("budgetBox").addEventListener("submit",function(ev){
@@ -3290,13 +3295,20 @@ document.getElementById("budgetBox").addEventListener("submit",function(ev){
   var inp=f.querySelector("input"),v=pa(inp.value);
   if(!v){inp.focus();return}
   var note=f.querySelector("[data-note]").value.trim(),T=today();
+  /* elle paie de plus en plus en espèces : une dépense notée sur la mauvaise
+     poche fausse à la fois son solde et son budget du jour. */
+  var esp=f.querySelector("[data-esp]"),enEsp=!!(esp&&esp.checked);
+  var ou=enEsp&&acc("cash")?"cash":compteVie();
   snapshot();
-  state.movements.push({id:uid(),label:note||"Dépense du jour",account:compteVie(),dir:"out",amount:v,
+  state.movements.push({id:uid(),label:note||"Dépense du jour",account:ou,dir:"out",amount:v,
     cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
     fixId:"",fixMonth:"",free:true,settled:false,env:""});
   inp.value="";f.querySelector("[data-note]").value="";
+  if(esp)esp.checked=false;
   renderAll();save();
-  toast(fmt(v)+" noté — il te reste "+fmt(budgetJour().parJour)+" par jour");
+  var poche=enEsp?calc().accs.filter(function(a){return a.id==="cash"})[0]:null;
+  toast(fmt(v)+" noté"+(enEsp?" en espèces — il te reste "+fmt(poche?poche.real:0)+" en poche"
+                             :" — il te reste "+fmt(budgetJour().parJour)+" par jour"));
 });
 /* ── Mes projets ───────────────────────────────────────────────────
    Ce pour quoi elle met de côté. Pas de répartition inventée entre les
