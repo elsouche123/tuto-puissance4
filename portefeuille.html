@@ -3763,13 +3763,15 @@ function renderResto(){
   var r=restoSt(),mk=curMonth(),h=pa(r.hours[mk]),goal=pa(r.goal)||60,mini=pa(r.min)||50;
   var gagne=r2(h*(pa(r.rate)||10)),pct=goal?Math.min(100,Math.round(h/goal*100)):0;
   var cls=h>=goal?"":h>=mini?"warn":"ko";
-  var manque=h<mini?r2(mini-h):h<goal?r2(goal-h):0;
-  var cible=h<mini?mini:goal,versQuoi=h<mini?"mon minimum":"mon objectif";
+  var manque=h<goal?r2(goal-h):0;
+  /* plus d'histoire de « minimum » : elle m'a dit « plus j'en fais, mieux
+     je suis ». Un seul repère, son objectif, et rien qui ressemble à un plafond. */
   host.innerHTML='<div class="encard restocard">'+
     '<div class="ln"><h3>🍽️ '+hrs(h)+' ce mois-ci</h3><b class="big">'+fmt(gagne)+'</b></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">'+
-      (manque>0?"encore "+hrs(manque)+" pour "+versQuoi+" ("+hrs(cible)+")":"objectif atteint 🎉")+
+      (manque>0?"encore "+hrs(manque)+" pour mes "+hrs(goal)
+                :"objectif dépassé 🎉 et tout ce que tu ajoutes est en plus")+
       ' · payé le 5 '+esc(ml(restoPayMk(mk)))+'</span></div>'+
     '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
       'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
