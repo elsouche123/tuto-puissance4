@@ -3496,8 +3496,13 @@ function renderSoldes(){
        compris ; le détail juste en dessous, parce que les deux poches ne
        se dépensent pas pareil */
     var tot=poche?r2(a.real+poche.real):a.real;
+    /* le découvert autorisé est une information de tous les jours chez elle.
+       calc() l'a déjà résolu dans a.od : ses objets ne portent pas
+       odFrom/odNext, donc odFor() y renverrait 0. */
+    var od=pa(a.od);
     h+='<span class="sol'+(tot<0?" neg":"")+'"><i>'+esc(a.short||a.name)+'</i>'+fmt(tot)+
-       (poche?'<u>'+fmt(a.real)+' à dépenser · '+fmt(poche.real)+' de côté</u>':"")+'</span>';
+       (poche?'<u>'+fmt(a.real)+' à dépenser · '+fmt(poche.real)+' de côté</u>'
+            :(od>0?'<u>découvert '+fmt(od)+'</u>':""))+'</span>';
   });
   host.innerHTML='<div class="soldes">'+h+'</div>';
 }
