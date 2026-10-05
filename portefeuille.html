@@ -2974,9 +2974,13 @@ function miniPaie(accId,D1,D2,depart,depuis,sansDepart){
 }
 /* la paie qui arrive : une grosse rentrée, d'il y a 3 jours à dans 12 jours */
 function prochainePaie(){
-  var T=today(),D1=addDays(T,-3),H=addDays(T,12),out=null;
+  /* une paie déjà cochée compte encore : l'argent est sur le compte mais le
+     virement reste à faire. Sans ça, cocher « je l'ai reçu » faisait
+     disparaître la carte qui dit quoi en faire. */
+  var T=today(),D1=addDays(T,-5),H=addDays(T,12),out=null;
   state.movements.forEach(function(m){
-    if(m.done||m.skip||m.maybe||m.dir!=="in")return;
+    if(m.skip||m.maybe||m.dir!=="in")return;
+    if(m.done&&(m.dateReal||m.datePlanned||"")<D1)return;
     if(acc(m.account).kind==="epargne")return;
     if(pa(m.amount)<300||!m.datePlanned)return;
     if(m.datePlanned<D1||m.datePlanned>H)return;
@@ -3487,7 +3491,8 @@ function renderPaie(){
   var cv=acc(compteVie()),memeCompte=compteVie()===P.p.compte,B=budgetJour();
   var quotidien=memeCompte?r2(Math.max(0,B.reste)):0,pourToi=r2(P.reste+quotidien);
   etapes+=etape("😎",fmt(pourToi)+" pour toi",
-    pourToi>0?"sur "+esc(cv.short||cv.name)+" · <b>"+fmt(B.parJour)+" par jour</b>":"rien de libre ce mois-ci");
+    pourToi>0?"sur "+esc(cv.short||cv.name)+" · <b>"+fmt(B.partJour)+" par jour</b>, "+
+      fmt(B.parJour)+" dispo tout de suite":"rien de libre ce mois-ci");
 
   var alerte="";
   if(P.secours){
