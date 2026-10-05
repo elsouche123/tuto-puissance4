@@ -4597,5 +4597,23 @@ if(window.claude&&window.claude.use){
   })["catch"](function(){});
 } else {hydrated=true;setSync("local","Sur cet appareil")}
 
+/* ── Passage au lendemain ──────────────────────────────────────────
+   Tout ce qui dit « aujourd'hui » — le budget du jour, le report, les
+   dates de la liste — est calculé au moment de l'affichage. Si l'appli
+   reste ouverte, elle reste bloquée sur la veille. On surveille donc le
+   changement de date, et on redessine dès qu'elle revient dessus. */
+var jourAffiche=today();
+function verifieJour(){
+  var j=today();
+  if(j===jourAffiche)return;
+  jourAffiche=j;
+  renderAll();
+  toast("On est le "+dl(j)+" — ton budget du jour est remis à jour");
+}
+setInterval(verifieJour,60000);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)verifieJour()});
+window.addEventListener("focus",verifieJour);
+window.addEventListener("pageshow",verifieJour);
+
 })();
 </script>
