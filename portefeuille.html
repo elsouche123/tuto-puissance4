@@ -3916,34 +3916,80 @@ function restoSync(mk){
   mv.label="Salaire du restaurant — "+(base>h?hrs(base)+" visées ":hrs(h)+" ")+deMois(mk);
   return mv;
 }
+/* Son objectif ne doit plus être un chiffre posé au hasard qui grimpe à chaque
+   cours annulé — « ça peut rapidement me tuer ma vie ». On calcule le MINIMUM
+   d'heures d'un mois pour que le mois suivant tienne sans passer dans le rouge.
+   Ce nombre descend tout seul quand ses revenus montent (CDI), et il ne monte
+   que si c'est vraiment nécessaire. */
+var _hmCache={},_hmTick=0;
+function heuresMini(mk,cible){
+  cible=cible||0;
+  var ck=mk+"|"+cible+"|"+_hmTick; if(_hmCache[ck]!==undefined)return _hmCache[ck];
+  var r=restoSt(),tx=pa(r.rate)||10,T=today();
+  var pm=restoPayMk(mk),pay=pm+"-05";
+  var dern=new Date(+pm.slice(0,4),+pm.slice(5,7),0).getDate(),H=pm+"-"+pad(dern);
+  if(H<=T)return(_hmCache[ck]=null);
+  var jours=Math.round((new Date(H)-new Date(T))/86400000)+1;
+  var id="resto-"+pm,mv=null;
+  state.movements.forEach(function(x){if(x.id===id)mv=x});
+  if(!mv)mv=restoSync(mk);
+  var sv={amount:mv.amount,done:mv.done,skip:mv.skip,maybe:mv.maybe};
+  function creux(hh){
+    mv.amount=r2(hh*tx);mv.done=false;mv.skip=false;mv.maybe=false;
+    return lowAhead(jours,false,pay,false).min;
+  }
+  var out;
+  if(creux(0)>=cible)out=0;
+  else if(creux(300)<cible)out=null;        /* même 300 h ne suffiraient pas */
+  else{
+    var lo=0,hi=300,i,md;
+    for(i=0;i<18;i++){md=(lo+hi)/2;if(creux(md)>=cible)hi=md;else lo=md}
+    out=Math.ceil(hi*4)/4;                  /* arrondi au quart d'heure au-dessus */
+  }
+  mv.amount=sv.amount;mv.done=sv.done;mv.skip=sv.skip;mv.maybe=sv.maybe;
+  return(_hmCache[ck]=out);
+}
 function renderResto(){
   var host=document.getElementById("restoBox"); if(!host)return;
-  var r=restoSt(),mk=curMonth(),h=pa(r.hours[mk]),mini=pa(r.min)||50;
-  var base=pa(r.goal)||60,rat=rattrapMois(mk),goal=r2(base+rat);
-  var gagne=r2(h*(pa(r.rate)||10)),pct=goal?Math.min(100,Math.round(h/goal*100)):0;
-  var cls=h>=goal?"":h>=mini?"warn":"ko";
-  var manque=h<goal?r2(goal-h):0;
-  /* plus d'histoire de « minimum » : elle m'a dit « plus j'en fais, mieux
-     je suis ». Un seul repère, son objectif, et rien qui ressemble à un plafond. */
+  var r=restoSt(),mk=curMonth(),h=pa(r.hours[mk]),tx=pa(r.rate)||10;
+  var gagne=r2(h*tx),perso=pa(r.goal);
+  var faut=heuresMini(mk,0),tranquille=heuresMini(mk,MARGE_MINI);
+  /* la référence, c'est ce qu'il FAUT — pas un chiffre posé au hasard. Son
+     objectif perso ne sert plus qu'à viser plus haut, jamais à lui faire peur. */
+  var ref=(tranquille==null?faut:tranquille)||0,pct=ref?Math.min(100,Math.round(h/ref*100)):100;
+  var manque=(ref&&h<ref)?r2(ref-h):0;
+  var cls=(faut!=null&&h>=faut)?(manque>0?"warn":""):"ko";
+  var pm=restoPayMk(mk),dit;
+  if(faut==null)
+    dit="le restaurant seul ne suffirait pas à tenir "+esc(ml(pm))+" — regarde l'onglet Mon plan";
+  else if(faut>h)
+    dit="il te faut <b>"+hrs(r2(faut-h))+" de plus</b> pour que "+esc(ml(pm))+" tienne"+
+        (tranquille!=null&&tranquille>faut?", et <b>"+hrs(tranquille)+"</b> en tout pour être tranquille":"");
+  else if(tranquille!=null&&tranquille>h)
+    dit="<b>"+esc(ml(pm))+" est couvert</b> ✅ · encore <b>"+hrs(r2(tranquille-h))+
+        "</b> pour garder "+fmt(MARGE_MINI)+" de marge tout le mois";
+  else
+    dit="<b>"+esc(ml(pm))+" est tranquille</b> 🎉 — tout ce que tu ajoutes maintenant est pour toi";
+  /* ce mois-ci est déjà joué : ses heures d'octobre ne sont payées que le 5 novembre */
+  var Lc=lowAhead(Math.max(1,Math.round((new Date(eom())-new Date(today()))/86400000)+1));
+  var noteMois=(Lc.min<MARGE_MINI)
+    ?'<p class="cap" style="margin:6px 0 0;color:var(--ink-2)">Attention : ces heures sont payées le 5 '+
+       esc(ml(pm))+'. Elles ne changent rien à la fin de ce mois-ci, où ton plus bas est <b>'+
+       fmt(Lc.min)+'</b> le '+esc(dl(Lc.date))+'</p>':"";
   host.innerHTML='<div class="encard restocard">'+
     '<div class="ln"><h3>🍽️ '+hrs(h)+' ce mois-ci</h3><b class="big">'+fmt(gagne)+'</b></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
-    '<div class="ln"><span class="cap">'+
-      (manque>0?"encore "+hrs(manque)+" pour mes "+hrs(goal)
-                :"objectif dépassé 🎉 et tout ce que tu ajoutes est en plus")+
-      (rat>0?' · <b>dont '+hrs(rat)+' à rattraper</b> (cours annulés)':"")+
-      ' · payé le 5 '+esc(ml(restoPayMk(mk)))+'</span></div>'+
+    '<div class="ln"><span class="cap">'+dit+'</span></div>'+noteMois+
     '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
       'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
-    '<div class="ln objln"><span class="cap">Mon objectif du mois</span>'+
-      '<span class="objfld"><input inputmode="decimal" data-resto-goal="1" value="'+(base===Math.round(base)?base:nb(base))+'" '+
+    '<div class="ln objln"><span class="cap">Si je veux viser plus haut</span>'+
+      '<span class="objfld"><input inputmode="decimal" data-resto-goal="1" '+
+        'value="'+(perso?(perso===Math.round(perso)?perso:nb(perso)):"")+'" placeholder="libre" '+
         'aria-label="Mon objectif d\'heures par mois"> h'+
-        (rat>0?' <small>+ '+hrs(rat)+' de rattrapage</small>':"")+'</span></div>'+
+        (perso>0&&faut!=null&&perso>faut?' <small>soit '+fmt(r2((perso-faut)*tx))+' pour mes projets</small>':"")+
+      '</span></div>'+
   '</div>';
 }
-/* Ses cours ne sont jamais acquis : une élève peut arrêter du jour au
-   lendemain. On regroupe ses cours à venir par élève et on dit, pour chacune,
-   ce que ça coûterait et combien d'heures de restaurant ça représente. */
 function lacheLeFocus(){
   var a=document.activeElement;
   if(a&&a!==document.body&&typeof a.blur==="function")a.blur();
@@ -4001,18 +4047,15 @@ document.getElementById("risqueBox").addEventListener("click",function(ev){
   var e=null; coursAVenir().forEach(function(x){if(x.nom===nom)e=x});
   if(!e)return;
   snapshot();
-  var r=restoSt(),tx=pa(r.rate)||10,parMois={};
-  state.movements.forEach(function(m){
-    if(e.ids.indexOf(m.id)<0)return;
-    m.skip=true;
-    var mk=(m.datePlanned||today()).slice(0,7);
-    parMois[mk]=r2((parMois[mk]||0)+pa(m.amount)/tx);
-  });
-  for(var mk in parMois)if(parMois.hasOwnProperty(mk))
-    r.rattrap[mk]=r2(rattrapMois(mk)+parMois[mk]);
+  var av=heuresMini(curMonth());
+  state.movements.forEach(function(m){ if(e.ids.indexOf(m.id)>=0)m.skip=true });
+  _hmTick++;
+  var ap=heuresMini(curMonth()),dd=(av!=null&&ap!=null)?r2(ap-av):null;
   lacheLeFocus(); renderAll(); save();
-  toast(jolieEleve(nom)+" : "+e.n+" cours rayés — "+fmt(e.total)+" en moins, "+
-        hrs(e.mois/tx)+" de restaurant en plus par mois",true);
+  toast(jolieEleve(nom)+" : "+e.n+" cours rayés — "+fmt(e.total)+" en moins · "+
+        (ap==null?"le restaurant seul ne suffirait pas, regarde Mon plan"
+         :ap===0?"ça tient quand même sans heures obligatoires"
+         :"il te faut maintenant "+hrs(ap)+" ce mois-ci"+(dd>0?" ("+hrs(dd)+" de plus)":"")),true);
 });
 document.getElementById("restoBox").addEventListener("change",function(ev){
   var i=ev.target.closest("[data-resto-goal]"); if(!i)return;
@@ -4101,7 +4144,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
+function renderAll(){_hmTick++;_hmCache={};selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
@@ -4535,10 +4578,11 @@ function onSkip(e){
      autant le lui dire au moment où elle l'annule */
   var msg="« "+m.label+" » : noté comme pas passé";
   if(m.dir==="in"){
-    var r=restoSt(),tx=pa(r.rate)||10,hh=pa(m.amount)/tx;
-    var mk=(m.datePlanned||today()).slice(0,7);
-    r.rattrap[mk]=r2(rattrapMois(mk)+hh);
-    msg+=" — "+fmt(pa(m.amount))+" en moins, soit "+hrs(hh)+" au restaurant";
+    _hmTick++;
+    var fm=heuresMini(curMonth());
+    msg+=" — "+fmt(pa(m.amount))+" en moins"+
+         (fm==null?"":fm===0?" · ça tient quand même sans heures obligatoires"
+                            :" · il te faut "+hrs(fm)+" au restaurant ce mois-ci");
   }
   toast(msg);
   renderAll();save();
