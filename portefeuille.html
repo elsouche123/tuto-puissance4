@@ -581,18 +581,21 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .prest.final{margin-top:9px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);border-top:none}
 .prest.final .v{color:var(--accent)}
 .prest .v{font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:17px}
-.step{display:block;position:relative;padding:0 26px 0 13px;border-top:1px solid var(--rule)}
+.step{display:block;position:relative;padding:0 30px 0 14px;border-top:1px solid var(--rule)}
 .step:first-of-type{border-top:none}
-.sline{display:grid;grid-template-columns:20px 54px 1fr auto;align-items:center;gap:8px;
-  padding:8px 0;cursor:pointer;margin:0}
-.sline .tickbox{width:19px;height:19px;margin:0}
-.sday{font-size:.78rem;color:var(--muted);white-space:nowrap}
-.snm{font-size:.88rem;line-height:1.3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sacc{color:var(--muted);font-size:.78rem}
-.sline .samt{font-weight:600;font-size:.9rem;white-space:nowrap}
-.step .sverd{font-size:.8rem;line-height:1.35;color:var(--ink-2);margin:0;padding:0 0 8px 82px}
+.sline{display:grid;grid-template-columns:24px 58px 1fr auto;align-items:center;gap:9px;
+  padding:13px 0;cursor:pointer;margin:0}
+.sline .tickbox{width:23px;height:23px;margin:0}
+.sday{display:flex;flex-direction:column;line-height:1.2;white-space:nowrap}
+.sday b{font-size:.88rem;font-weight:600;color:var(--ink-2)}
+.sday i{font-style:normal;font-size:.72rem;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+.snm{font-size:1.02rem;line-height:1.3;min-width:0;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sacc{color:var(--muted);font-size:.86rem}
+.sline .samt{font-weight:700;font-size:.97rem;white-space:nowrap;letter-spacing:-.02em}
+.step .sverd{font-size:.9rem;line-height:1.4;color:var(--ink-2);margin:0;padding:0 0 11px 100px}
 .step.ko .sverd{color:#b3261e}
-.sx{position:absolute;top:7px;right:2px;width:26px;height:26px;border:none;background:none;
+.sx{position:absolute;top:12px;right:0;width:28px;height:28px;border:none;background:none;
   color:var(--muted);font-size:14px;cursor:pointer;line-height:1}
 .soldes{display:flex;gap:8px;margin:10px 0 14px}
 .sol{flex:1;min-width:0;background:var(--card);border:1px solid var(--rule);border-radius:12px;
@@ -816,10 +819,9 @@ details.detail[open] summary::before{content:"▾ "}
 <section class="tabpanel" id="tab-today">
   <div id="budgetBox"></div>
   <div id="soldesBox"></div>
+  <div id="restoBox"></div>
   <div id="paieBox"></div>
   <div id="virBox"></div>
-
-  <div id="restoBox"></div>
 
   <div id="daysBox"></div>
 
@@ -1698,8 +1700,8 @@ function renderDays(c){
        '<label class="sline">'+
          (m.virtuel?'<span class="tickbox vdot">➡️</span>'
                    :'<input type="checkbox" class="tickbox" data-act="pay" aria-label="'+(isIn?"Je l\'ai reçu":"C\'est passé")+'">')+
-         '<span class="sday">'+esc(jour)+'</span>'+
-         '<span class="snm">'+esc(m.label)+'<span class="sacc"> · '+esc(acc(m.account).short||acc(m.account).name)+'</span></span>'+
+         '<span class="sday"><b>'+esc(jour)+'</b><i>'+esc(acc(m.account).short||acc(m.account).name)+'</i></span>'+
+         '<span class="snm">'+esc(m.label)+'</span>'+
          '<span class="samt '+(isIn?"in":"out")+'">'+(isIn?"+":"−")+fmt(amt)+'</span>'+
        '</label>'+
        (souci?'<div class="sverd">'+verdict+'</div>':"")+
