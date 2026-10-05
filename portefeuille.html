@@ -1723,7 +1723,9 @@ function renderDays(c){
          '<span class="sbody">'+
            '<span class="sday"><b>'+esc(jour)+'</b><i>'+esc(acc(m.account).short||acc(m.account).name)+'</i>'+
              '<span class="samt '+(isIn?"in":"out")+'">'+(isIn?"+":"−")+fmt(amt)+'</span></span>'+
-           '<span class="sapres">'+esc(nm)+' → <b>'+fmt(mine)+'</b></span>'+
+           /* le VRAI solde du compte, pas la marge : « mine » ajoute le
+              découvert autorisé, ce qui gonflait chaque ligne de 400 € */
+           '<span class="sapres">'+esc(nm)+' → <b>'+fmt(aReal[aid]==null?realRun:aReal[aid])+'</b></span>'+
            '<span class="snm">'+esc(m.label)+'</span>'+
          '</span>'+
        '</label>'+
