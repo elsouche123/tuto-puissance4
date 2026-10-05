@@ -3718,6 +3718,24 @@ function advMontant(){
   return r2(mx/2);
 }
 function advOn(){ return !!((state.adv||{})[curMonth()]) }
+/* Ce qu'elle peut rapatrier de son épargne du même établissement sans
+   toucher à ses projets : le plus bas que cette poche atteint d'ici là.
+   Si sa cagnotte permis la traverse pour repartir à l'auto-école, ce
+   creux ne la compte pas — seul ce qui reste en permanence est libre. */
+function pocheLibre(jusqu){
+  var cv=compteVie(),poche=null,c=calc();
+  c.accs.forEach(function(a){ if(a.kind==="epargne"&&a.id.indexOf(cv+"-")===0)poche=a });
+  if(!poche)return null;
+  var T=today(),bal=poche.real,mn=bal,evs=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe||m.account!==poche.id)return;
+    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>jusqu)return;
+    evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount)});
+  });
+  evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
+  evs.forEach(function(e){bal=r2(bal+e.v); if(bal<mn)mn=bal});
+  return {acc:poche,libre:r2(Math.max(0,mn))};
+}
 function renderEtat(){
   var host=document.getElementById("verdictBox"); if(!host)return;
   var c=calc(),on=advOn(),av=advMontant();
@@ -3731,9 +3749,18 @@ function renderEtat(){
     txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+". Il te resterait <b>"+fmt(reste)+
         "</b> de découvert."+(reste<100?" Un imprévu et tu es rejetée.":"");
   } else {
-    cls="ko"; titre="Il te manque de l'argent";
-    txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+", au-delà de tes "+fmt(od)+
-        " autorisés. Il te manque <b>"+fmt(r2(-mn-od))+"</b>.";
+    var manque=r2(-mn-od),P2=pocheLibre(L.margeDate);
+    if(P2&&P2.libre>=manque){
+      cls="warn"; titre="Ça passe, en ramenant ton épargne";
+      txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+", "+fmt(manque)+" au-delà de tes "+fmt(od)+
+          " autorisés. Mais tu as <b>"+fmt(P2.libre)+"</b> sur "+esc(P2.acc.short||P2.acc.name)+
+          " : ramène-les avant et c'est réglé.";
+    } else {
+      cls="ko"; titre="Il te manque de l'argent";
+      txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+", au-delà de tes "+fmt(od)+
+          " autorisés. Il te manque <b>"+fmt(manque)+"</b>"+
+          (P2&&P2.libre>0?", même en ramenant les "+fmt(P2.libre)+" de "+esc(P2.acc.short||P2.acc.name):"")+".";
+    }
   }
   var sim="";
   if(av>0){
