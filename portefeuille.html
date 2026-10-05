@@ -802,19 +802,21 @@ details.detail[open] summary::before{content:"▾ "}
     <span class="sub" id="dispoSub"></span>
   </div>
 
-  <h2 class="sect">1 · À faire maintenant</h2>
-  <div id="paieBox"></div>
-  <div id="virBox"></div>
-  <div id="todoBox"></div>
+  <h2 class="sect">💳 Ce que j'ai</h2>
+  <div class="wcards" id="wcards"></div>
 
-  <h2 class="sect">2 · Ce qui va passer</h2>
+  <h2 class="sect">📅 Ce qui va passer</h2>
   <div id="daysBox"></div>
 
-  <h2 class="sect">3 · Ce que je peux dépenser</h2>
+  <h2 class="sect">✅ À faire</h2>
+  <div id="paieBox"></div>
+  <div id="virBox"></div>
+
+  <h2 class="sect">🛒 Ce que je peux dépenser</h2>
   <div id="budgetBox"></div>
 
-  <h2 class="sect">Le reste</h2>
-  <details class="box"><summary>Noter une dépense ou une rentrée</summary>
+  <h2 class="sect">⋯ Le reste</h2>
+  <details class="box"><summary>➕ Noter une dépense ou une rentrée</summary>
     <div class="box-body" style="padding:12px 14px">
   <div class="panel pad">
     <div class="pad-amt"><input id="padAmt" inputmode="decimal" placeholder="0" aria-label="Montant"><span>€</span></div>
@@ -832,23 +834,19 @@ details.detail[open] summary::before{content:"▾ "}
     </div>
   </details>
 
-  <details class="box"><summary>Mes comptes</summary>
-    <div class="box-body" style="padding:12px 14px"><div class="wcards" id="wcards"></div></div>
-  </details>
-
-  <details class="box"><summary>Où j'en suis, et mon avance sur salaire</summary>
+  <details class="box"><summary>📊 Où j'en suis, et mon avance sur salaire</summary>
     <div class="box-body" style="padding:12px 14px"><div id="verdictBox"></div></div>
   </details>
 
-  <details class="box"><summary>Mes cases du mois</summary>
+  <details class="box"><summary>🧺 Mes cases du mois</summary>
     <div class="box-body" style="padding:12px 14px"><div id="envBox"></div></div>
   </details>
 
-  <details class="box"><summary>Mes heures au restaurant</summary>
+  <details class="box"><summary>🍽️ Mes heures au restaurant</summary>
     <div class="box-body" style="padding:12px 14px"><div id="restoBox"></div></div>
   </details>
 
-  <details class="box"><summary>Mes projets et mon épargne</summary>
+  <details class="box"><summary>🎯 Mes projets et mon épargne</summary>
     <div class="box-body" style="padding:12px 14px"><div id="projBox"></div></div>
   </details>
 
@@ -920,6 +918,10 @@ details.detail[open] summary::before{content:"▾ "}
 </section>
 
 <section class="tabpanel" id="tab-plan" hidden>
+  <h2 class="sect">📬 Mes démarches</h2>
+  <div id="todoBox"></div>
+
+  <h2 class="sect">📈 Mon plan</h2>
   <div id="planVrai"></div>
   <details class="box"><summary>Ma vieille simulation (avant que je note tout au jour le jour)</summary>
   <div class="box-body" style="padding:0 14px 14px">
@@ -3124,26 +3126,20 @@ function renderBudget(){
   var B=budgetJour(),mk=curMonth();
   var pct=B.total?Math.min(100,Math.round(B.deja/B.total*100)):0;
   var cls=B.depasse>0?"ko":B.deja>B.total*0.8?"warn":"";
-  var phrase;
-  if(B.depasse>0){
-    phrase="Tu as dépassé ton budget du mois de <b>"+fmt(B.depasse)+"</b>.";
-  } else {
-    phrase="Il te reste <b>"+fmt(B.reste)+"</b> jusqu'au "+dl(eom())+", soit <b>"+
-      fmt(B.parJour)+" par jour</b>.";
-  }
-  phrase+=" "+(B.marge<=0
-    ? "Et tu es déjà au-delà de ta limite : ne dépense plus rien."
-    : B.marge<MARGE_MINI
-      ? "Si tu dépasses, tu n'as que <b>"+fmt(B.marge)+"</b> avant le rejet — vraiment pas de folie."
-      : "Si tu dépasses, tu as <b>"+fmt(B.marge)+"</b> de marge avant d'être dans le rouge.");
+  var phrase=(B.depasse>0
+    ? "😬 Dépassé de <b>"+fmt(B.depasse)+"</b>"
+    : "<b>"+fmt(B.reste)+"</b> jusqu'au "+dl(eom()))+
+    " · "+(B.marge<=0 ? "⛔ stop, tu es au-delà de ta limite"
+         : B.marge<MARGE_MINI ? "⚠️ marge "+fmt(B.marge)+", pas de folie"
+         : "✅ marge "+fmt(B.marge));
   host.innerHTML='<div class="encard"><div class="ln"><h3>Ce que je peux dépenser</h3>'+
     '<span class="cap">'+esc(ml(mk))+'</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">Aujourd\'hui</span><b class="big'+
       (B.parJour<=0?" done":"")+'">'+fmt(B.parJour)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">'+phrase+'</p>'+
-    '<p class="cap" style="margin:4px 0 0">Budget du mois '+fmt(B.total)+
-      ' · déjà dépensé '+fmt(B.deja)+' · avec ta carte '+esc(acc(compteVie()).short||acc(compteVie()).name)+'</p>'+
+    '<p class="cap" style="margin:4px 0 0">dépensé '+fmt(B.deja)+' sur '+fmt(B.total)+
+      ' · carte '+esc(acc(compteVie()).short||acc(compteVie()).name)+'</p>'+
     '<form data-dep="1"><input inputmode="decimal" placeholder="J\'ai dépensé… ex. 18" '+
       'aria-label="Montant dépensé"><input data-note="1" placeholder="Quoi ? (facultatif)" '+
       'aria-label="Libellé"><button type="submit">Noter</button></form>'+
@@ -3397,12 +3393,13 @@ function renderPaie(){
   if(!P){host.innerHTML="";return}
   var T=today(),arrivee=P.p.date<=T,cpt=acc(P.p.compte);
   var ep=P.avance?acc(P.avance.vers):acc("revolut-ep");
-  var quand=dayWord(P.p.date),titre=quand.charAt(0).toUpperCase()+quand.slice(1);
-  var apres=r2(P.sgReal+P.virSG),etapes="",n=0;
-
+  var quand=dayWord(P.p.date),apres=r2(P.sgReal+P.virSG),etapes="",n=0;
+  function etape(ic,titre,sous,bouton,extra){
+    return '<div class="pstep"><div class="phead"><b>'+ic+' '+titre+'</b>'+(bouton||"")+'</div>'+
+      (sous?'<p class="cap">'+sous+'</p>':"")+(extra||"")+'</div>';
+  }
   if(P.virSG>0){
     n++;
-    /* tout dans l'ordre des jours, comme un relevé : c'est comme ça qu'elle le lit */
     var liste="",tout=[];
     P.sorties.forEach(function(x){tout.push({d:x.d,v:x.v,l:x.l,in:false})});
     P.entrees.forEach(function(x){tout.push({d:x.d,v:x.v,l:x.l,in:true})});
@@ -3411,79 +3408,45 @@ function renderPaie(){
       liste+='<div class="pline'+(x.in?" in":"")+'"><span>'+dl(x.d)+' · '+esc(x.l)+
         '</span><b>'+(x.in?"+":"−")+fmt(x.v)+'</b></div>';
     });
-    etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Vire '+fmt(P.virSG)+' sur SG</b>'+
+    etapes+=etape("➡️","Vire "+fmt(P.virSG)+" sur SG",
+      fmt(P.sgReal)+" → <b>"+fmt(apres)+"</b>",
       (arrivee&&P.p.compte!=="sg"
-        ? '<button type="button" data-paievir="'+esc(P.p.compte)+'" data-v="'+P.virSG+'">Virer '+fmt(P.virSG)+'</button>'
-        : '<span class="cap">'+quand+'</span>')+'</div>'+
-      '<p class="cap">Ton SG passe de '+fmt(P.sgReal)+' à <b>'+fmt(apres)+'</b>.</p>'+
-      '<details class="pdet"><summary>Ce que ça couvre : '+fmt(P.totS)+' à payer d\'ici le '+dl(P.D2)+
-        ' (et '+fmt(P.totE)+' qui rentrent)</summary>'+liste+'</details>'+
-    '</div>';
+        ? '<button type="button" data-paievir="'+esc(P.p.compte)+'" data-v="'+P.virSG+'">Virer</button>'
+        : '<span class="cap">'+quand+'</span>'),
+      '<details class="pdet"><summary>'+fmt(P.totS)+' de factures d\'ici le '+dl(P.D2)+'</summary>'+liste+'</details>');
   }
-
   if(P.rembTot>0){
     n++;
-    var li="";
-    P.rembs.forEach(function(x){
-      li+='<div class="pline"><span>'+dl(x.date)+' · '+esc(x.label)+'</span><b>'+fmt(x.amount)+'</b></div>';
-    });
-    etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Laisse '+fmt(P.rembTot)+' sur '+
-      esc(cpt.short||cpt.name)+'</b><span class="cap">n\'y touche pas</span></div>'+li+'</div>';
+    var qui=P.rembs.map(function(x){return esc(x.label.replace(/^rembourser/i,"").split("—")[0].trim())+" le "+dl(x.date)}).join(" · ");
+    etapes+=etape("🔒","Garde "+fmt(P.rembTot)+" sur "+esc(cpt.short||cpt.name),qui,'<span class="cap">n\'y touche pas</span>');
   }
-
   n++;
   if(P.epargne>0){
-    etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Mets '+fmt(P.epargne)+' de côté</b>'+
-      (arrivee
-        ? '<button type="button" data-paieep="'+esc(P.p.compte)+'" data-vers="'+esc(ep.id)+'" data-v="'+P.epargne+'">Mettre '+fmt(P.epargne)+'</button>'
-        : '<span class="cap">'+quand+'</span>')+'</div>'+
-      '<p class="cap">Sur '+esc(ep.short||ep.name)+
-      (P.avance?", en avance sur les "+fmt(P.avance.amount)+" prévus le "+dl(P.avance.date):".")+'</p></div>';
+    etapes+=etape("🏦","Mets "+fmt(P.epargne)+" de côté",esc(ep.short||ep.name),
+      (arrivee?'<button type="button" data-paieep="'+esc(P.p.compte)+'" data-vers="'+esc(ep.id)+'" data-v="'+P.epargne+'">Mettre</button>'
+              :'<span class="cap">'+quand+'</span>'));
   } else {
-    etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Rien à mettre de côté ce mois-ci</b></div>'+
-      '<p class="cap">'+esc(P.raisonEp)+'</p></div>';
+    etapes+=etape("🏦","0 € de côté ce mois-ci","tout est déjà pris");
   }
-
-  /* ce qui reste là où elle vit : c'est son argent, le seul qu'elle
-     puisse dépenser sans rien vérifier */
   n++;
   var cv=acc(compteVie()),memeCompte=compteVie()===P.p.compte,B=budgetJour();
-  var quotidien=memeCompte?r2(Math.max(0,B.reste)):0;
-  etapes+='<div class="pstep"><div class="phead"><b>'+n+'. Pour toi : '+fmt(r2(P.reste+quotidien))+
-      (memeCompte?' sur '+esc(cv.short||cv.name):"")+'</b></div>'+
-    '<p class="cap">'+
-    (quotidien>0
-      ? "Dont <b>"+fmt(quotidien)+"</b> de budget du quotidien"+
-        (P.reste>=1?" et <b>"+fmt(P.reste)+"</b> de rab":"")+". Tes factures et tes remboursements sont "+
-        "déjà partis ailleurs : ce qui est sur "+esc(cv.short||cv.name)+", tu le dépenses sans vérifier."
-      : P.reste<1
-        ? "Rien de libre ce mois-ci : tout est déjà affecté."
-        : "C'est ton argent, tu le dépenses sans vérifier jusqu'au "+dl(P.D2)+".")+
-    '</p></div>';
+  var quotidien=memeCompte?r2(Math.max(0,B.reste)):0,pourToi=r2(P.reste+quotidien);
+  etapes+=etape("😎",fmt(pourToi)+" pour toi",
+    pourToi>0?"sur "+esc(cv.short||cv.name)+" · <b>"+fmt(B.parJour)+" par jour</b>":"rien de libre ce mois-ci");
 
   var alerte="";
   if(P.secours){
     var aRevirer=Math.max(Math.ceil(P.manqueSG),P.virSuivant),bas=r2(P.sg.min+P.virSG);
     var lim=odFor(acc("sg"),P.sg.date),deborde=bas< -lim;
-    alerte='<div class="palert"><b>'+(deborde?"⚠️":"📌")+' '+esc(dl(P.sg.date))+' — note-le</b>'+
-      '<p class="cap">Tes prélèvements de ce jour-là te mettent à '+fmt(bas)+
-      (deborde
-        ? ", au-delà de tes "+fmt(lim)+" autorisés. "
-        : " : encore dans tes "+fmt(lim)+" autorisés, mais dans le rouge. ")+
-      (P.virSuivant>Math.ceil(P.manqueSG)
-        ? "Et juste après, "+esc(dl(P.sgApres.date))+", SG descend à "+fmt(P.sgApres.min)+". "
-        : "")+
-      (P.secours.date===P.sg.date
-        ? 'Ton '+esc(P.secours.label)+' arrive <b>le même jour</b> : vire '+fmt(aRevirer)+
-          ' sur SG dans la journée, pas le lendemain.'
-        : 'Ta prochaine rentrée est le '+dl(P.secours.date)+' ('+esc(P.secours.label)+
-          ') : il te faudra '+fmt(aRevirer)+' avant.')+'</p></div>';
+    alerte='<div class="palert"><b>'+(deborde?"⚠️":"📌")+' '+esc(dl(P.sg.date))+'</b>'+
+      '<p class="cap">SG tombe à '+fmt(deborde?bas:(P.virSuivant>Math.ceil(P.manqueSG)?P.sgApres.min:bas))+
+      (deborde?" — au-delà de tes "+fmt(lim)+".":".")+
+      ' Ton '+esc(P.secours.label.split("—")[0].trim())+' arrive le même jour : <b>vire '+
+      fmt(aRevirer)+'</b> dans la journée.</p></div>';
   }
-
   host.innerHTML='<div class="encard pcard"><div class="ln">'+
-    '<h3>'+esc(titre)+' — tu reçois '+fmt(P.p.montant)+'</h3>'+
+    '<h3>'+esc(quand.charAt(0).toUpperCase()+quand.slice(1))+' · '+fmt(P.p.montant)+'</h3>'+
     '<span class="cap">sur '+esc(cpt.short||cpt.name)+'</span></div>'+
-    '<p class="cap" style="margin:2px 0 10px">'+esc(P.p.label)+'. Fais ça dans l\'ordre :</p>'+
     etapes+alerte+
   '</div>';
 }
