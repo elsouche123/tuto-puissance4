@@ -3200,12 +3200,18 @@ function budgetJour(){
   var jDebut=parseInt(debut.slice(8,10),10);
   var joursPeriode=Math.max(1,fin-jDebut+1),ecoules=Math.max(1,jour-jDebut+1);
   /* le report : ce qu'elle ne dépense pas un jour reste entier le lendemain */
-  var partJour=r2(reste>0?total/joursPeriode:0);
-  var cagnotte=r2(partJour*ecoules-deja);
+  var partJour=0;
+  var cagnotte=0;
   /* la marge du verdict compte DÉJÀ ce budget : elle dit ce qui reste
      si elle dépasse, pas ce qu'elle a le droit de dépenser. Pas de
      plafonnement ici, sinon on retire deux fois le même argent. */
-  var marge=lowAhead(60,advOn()).marge,dispo=Math.max(0,reste);
+  var L60=lowAhead(60,advOn()),marge=L60.marge;
+  /* « je ne veux plus être dans le rouge » : si en dépensant tout son budget
+     elle finit sous zéro, c'est le budget qui est trop gros. On le rabote de
+     l'exacte somme qui manque. Pas de boucle : lowAhead part de state.living,
+     que ce rabot ne touche pas. */
+  var trop=L60.min<0?Math.min(total,r2(-L60.min)):0;
+  var dispo=Math.max(0,r2(reste-trop));
   /* le compte avec lequel elle paie peut tomber à sec même quand le reste
      va bien : un budget sur une carte qui sera refusée ne vaut rien */
   var cv=compteVie(),cvReal=0,poche=null;
@@ -3215,7 +3221,11 @@ function budgetJour(){
     if(a.kind==="epargne"&&a.id.indexOf(cv+"-")===0&&a.real>0)poche=a;
   });
   var cvMin=miniPaie(cv,T,eom(),cvReal),aSec=r2(Math.max(0,-cvMin.min));
-  return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,fin:fin,
+  var enveloppe=r2(Math.max(0,total-trop));
+  partJour=r2(enveloppe>0?enveloppe/joursPeriode:0);
+  cagnotte=r2(partJour*ecoules-deja);
+  return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,fin:fin,trop:trop,
+          enveloppe:enveloppe,creux:L60.min,creuxDate:L60.date,
           debut:debut,joursPeriode:joursPeriode,aSec:aSec,aSecDate:cvMin.date,cv:cv,poche:poche,
           dispo:dispo,parJour:r2(Math.min(dispo,Math.max(0,cagnotte))),
           partJour:partJour,cagnotte:cagnotte,reporte:r2(cagnotte-partJour),
@@ -3230,7 +3240,7 @@ function renderBudget(){
     ? "😬 Dépassé de <b>"+fmt(B.depasse)+"</b>"
     : B.reporte>0.5
       ? fmt(B.partJour)+" pour aujourd'hui <b>+ "+fmt(B.reporte)+" reportés</b> des jours où tu n'as rien dépensé"
-      : fmt(B.partJour)+" par jour · <b>"+fmt(B.reste)+"</b> jusqu'au "+dl(eom()))+
+      : fmt(B.partJour)+" par jour · <b>"+fmt(B.dispo)+"</b> jusqu'au "+dl(eom()))+
     " · "+(B.marge<=0 ? "⛔ stop, tu es au-delà de ta limite"
          : B.marge<MARGE_MINI ? "⚠️ marge "+fmt(B.marge)+", pas de folie"
          : "✅ marge "+fmt(B.marge));
@@ -3240,8 +3250,12 @@ function renderBudget(){
     '<div class="ln"><span class="cap">Aujourd\'hui</span><b class="big'+
       (B.parJour<=0?" done":"")+'">'+fmt(B.parJour)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">'+phrase+'</p>'+
-    '<p class="cap" style="margin:4px 0 0">dépensé '+fmt(B.deja)+' sur '+fmt(B.total)+
+    '<p class="cap" style="margin:4px 0 0">dépensé '+fmt(B.deja)+' sur '+fmt(B.enveloppe)+
       ' · carte '+esc(acc(B.cv).short||acc(B.cv).name)+'</p>'+
+    (B.trop>0?'<p class="palert" style="margin:10px 0 0">✂️ <b>J\'ai retiré '+fmt(B.trop)+
+      ' de ton budget du mois.</b> Avec les '+fmt(B.total)+' prévus tu repassais à '+
+      fmt(B.creux)+' le '+esc(dl(B.creuxDate))+' — à '+fmt(B.partJour)+
+      ' par jour tu restes au-dessus de zéro.</p>':"")+
     (B.aSec>0?'<p class="palert" style="margin:10px 0 0">'+
       (B.poche&&B.poche.real>=B.aSec
         ? '📌 <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' sera à sec</b> le '+dl(B.aSecDate)+
@@ -3811,6 +3825,12 @@ function renderEtat(){
     cls="warn"; titre=reste<100?"Ça passe, mais c'est très juste":"Ça passe";
     txt="Ton plus bas : <b>"+fmt(mn)+"</b> "+quand+". Il te resterait <b>"+fmt(reste)+
         "</b> de découvert."+(reste<100?" Un imprévu et tu es rejetée.":"");
+    /* ce creux vient de son train de vie prévu, que le budget vient justement
+       de raboter : sans ça les deux cartes se contredisent sous ses yeux */
+    var Bv=budgetJour();
+    if(Bv.trop>0)
+      txt+=" <b>Mais c'est en dépensant tout</b> : en tenant les <b>"+fmt(Bv.partJour)+
+           " par jour</b> du budget juste en dessous, tu ne repasses pas sous zéro.";
   } else {
     var manque=r2(-mn-od),P2=pocheLibre(L.margeDate);
     if(P2&&P2.libre>=manque){
