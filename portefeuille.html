@@ -1712,7 +1712,9 @@ function renderDays(c){
        mois entier, pas le dérouler en entier à chaque ouverture */
     if(!coupe&&m.datePlanned>bascule){
       coupe=true;
-      h+='<details class="suite"><summary></summary><div class="suitebox">';
+      /* ouvert d'office : elle a demandé deux fois à voir le mois entier,
+         pas à deviner qu'il continue derrière un repli */
+      h+='<details class="suite" open><summary></summary><div class="suitebox">';
     }
     h+='<div class="step '+cls+(m.virtuel?" strong virt":"")+'" data-id="'+esc(m.id)+'">'+
        '<label class="sline">'+
