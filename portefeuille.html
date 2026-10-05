@@ -593,6 +593,11 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .sline .samt{margin-left:auto;font-size:1.06rem;font-weight:700;white-space:nowrap;letter-spacing:-.01em}
 .snm{font-size:1.1rem;line-height:1.32;color:var(--ink);overflow:hidden;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.suite{border-top:1px solid var(--rule)}
+.suite>summary{cursor:pointer;padding:14px;font-size:.92rem;font-weight:600;color:var(--ink-2);line-height:1.35}
+.suitebox .step:first-of-type{border-top:1px solid var(--rule)}
+.sapres{font-size:.76rem;color:var(--ink-3);margin-top:1px}
+.step.ko .sapres,.step.warn2 .sapres{color:var(--debit)}
 .step .sverd{font-size:.95rem;line-height:1.45;color:var(--ink);margin:0;padding:0 0 12px 36px;font-weight:500}
 .step.ko .sverd{color:#b3261e}
 .sx{position:absolute;top:12px;right:0;width:28px;height:28px;border:none;background:none;
@@ -1590,7 +1595,9 @@ function dayWord(iso){
 }
 function renderDays(c){
   var host=document.getElementById("daysBox"),T=today(),cm=curMonth();
-  var horizon=addDays(T,14);
+  /* jusqu'à la paie suivante incluse : elle veut voir le mois se dérouler,
+     pas s'arrêter deux semaines avant son salaire */
+  var horizon=addDays(T,35);
   var evs=[];
   state.movements.forEach(function(m){
     if(m.done||m.maybe||m.skip)return;
@@ -1647,6 +1654,7 @@ function renderDays(c){
   /* chaque compte est suivi séparément : un paiement part d'une carte précise, pas d'un total */
   var aRun={},aReal={},aNeed={},aSaid={};
   c.accs.forEach(function(a){if(a.kind!=="epargne"){aRun[a.id]=a.margin;aReal[a.id]=a.real;aNeed[a.id]=0}});
+  var bascule=addDays(T,15),coupe=false,gros=[];
   evs.forEach(function(m){
     n++;
     var amt=pa(m.amount), isIn=m.dir==="in", aid=m.account, A=acc(aid), nm=A.short||A.name;
@@ -1697,22 +1705,37 @@ function renderDays(c){
        que si ça coince : sinon c'est 4 000 px de texte pour rien. */
     var T0=today();
     var jour=m.datePlanned===T0?"auj.":m.datePlanned===addDays(T0,1)?"demain":dl(m.datePlanned);
-    var souci=(cls==="ko"||cls==="warn2")&&verdict;
-    h+='<div class="step '+cls+(m.virtuel?" virt":"")+'" data-id="'+esc(m.id)+'">'+
+    /* le solde après chaque ligne dit déjà « il te restera tant » : on ne
+       garde le commentaire que quand ça ne passe pas vraiment */
+    var souci=(cls==="ko")&&verdict;
+    /* au-delà de quinze jours on bascule dans un repli : elle veut voir le
+       mois entier, pas le dérouler en entier à chaque ouverture */
+    if(!coupe&&m.datePlanned>bascule){
+      coupe=true;
+      h+='<details class="suite"><summary></summary><div class="suitebox">';
+    }
+    h+='<div class="step '+cls+(m.virtuel?" strong virt":"")+'" data-id="'+esc(m.id)+'">'+
        '<label class="sline">'+
          (m.virtuel?'<span class="tickbox vdot">➡️</span>'
                    :'<input type="checkbox" class="tickbox" data-act="pay" aria-label="'+(isIn?"Je l\'ai reçu":"C\'est passé")+'">')+
          '<span class="sbody">'+
            '<span class="sday"><b>'+esc(jour)+'</b><i>'+esc(acc(m.account).short||acc(m.account).name)+'</i>'+
              '<span class="samt '+(isIn?"in":"out")+'">'+(isIn?"+":"−")+fmt(amt)+'</span></span>'+
+           '<span class="sapres">'+esc(nm)+' → <b>'+fmt(mine)+'</b></span>'+
            '<span class="snm">'+esc(m.label)+'</span>'+
          '</span>'+
        '</label>'+
        (souci?'<div class="sverd">'+verdict+'</div>':"")+
        (m.virtuel?"":'<button class="sx" type="button" data-act="skip" aria-label="Pas passé">✕</button>')+
        '</div>';
+    if(coupe&&amt>=150&&gros.length<4)gros.push((isIn?"+":"−")+fmt(amt)+" "+m.label.split("—")[0].split("(")[0].trim());
   });
 
+  if(coupe){
+    h+='</div></details>';
+    h=h.replace("<summary></summary>","<summary>La fin du mois"+
+      (gros.length?" — "+gros.join(" · "):"")+"</summary>");
+  }
   var after=run, ac=after<0;
   var byAcc=Object.keys(aRun).map(function(k){return (acc(k).short||acc(k).name)+" "+fmt(aRun[k])}).join(" · ");
   var vir=Object.keys(aNeed).filter(function(k){return aNeed[k]>0})
