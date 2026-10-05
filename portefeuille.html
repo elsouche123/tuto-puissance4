@@ -581,6 +581,19 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .prest.final{margin-top:9px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);border-top:none}
 .prest.final .v{color:var(--accent)}
 .prest .v{font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:17px}
+.step{display:block;position:relative;padding:0 26px 0 13px;border-top:1px solid var(--rule)}
+.step:first-of-type{border-top:none}
+.sline{display:grid;grid-template-columns:20px 54px 1fr auto;align-items:center;gap:8px;
+  padding:8px 0;cursor:pointer;margin:0}
+.sline .tickbox{width:19px;height:19px;margin:0}
+.sday{font-size:.78rem;color:var(--muted);white-space:nowrap}
+.snm{font-size:.88rem;line-height:1.3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sacc{color:var(--muted);font-size:.78rem}
+.sline .samt{font-weight:600;font-size:.9rem;white-space:nowrap}
+.step .sverd{font-size:.8rem;line-height:1.35;color:var(--ink-2);margin:0;padding:0 0 8px 82px}
+.step.ko .sverd{color:#b3261e}
+.sx{position:absolute;top:7px;right:2px;width:26px;height:26px;border:none;background:none;
+  color:var(--muted);font-size:14px;cursor:pointer;line-height:1}
 .todomore{margin-top:4px}
 .todomore summary{cursor:pointer;font-size:.84rem;color:var(--muted);padding:8px 0}
 #joursBox summary{font-size:.92rem;line-height:1.4}
@@ -789,11 +802,20 @@ details.detail[open] summary::before{content:"▾ "}
     <span class="sub" id="dispoSub"></span>
   </div>
 
-  <h2 class="sect">Ce que je fais maintenant</h2>
+  <h2 class="sect">1 · À faire maintenant</h2>
   <div id="paieBox"></div>
-  <div id="todoBox"></div>
   <div id="virBox"></div>
+  <div id="todoBox"></div>
 
+  <h2 class="sect">2 · Ce qui va passer</h2>
+  <div id="daysBox"></div>
+
+  <h2 class="sect">3 · Ce que je peux dépenser</h2>
+  <div id="budgetBox"></div>
+
+  <h2 class="sect">Le reste</h2>
+  <details class="box"><summary>Noter une dépense ou une rentrée</summary>
+    <div class="box-body" style="padding:12px 14px">
   <div class="panel pad">
     <div class="pad-amt"><input id="padAmt" inputmode="decimal" placeholder="0" aria-label="Montant"><span>€</span></div>
     <div class="segs" id="padAcc"></div>
@@ -807,25 +829,31 @@ details.detail[open] summary::before{content:"▾ "}
       <button type="button" data-sheet="xfer">Virement entre mes comptes</button>
     </div>
   </div>
+    </div>
+  </details>
 
-  <div class="wcards" id="wcards"></div>
+  <details class="box"><summary>Mes comptes</summary>
+    <div class="box-body" style="padding:12px 14px"><div class="wcards" id="wcards"></div></div>
+  </details>
 
-  <h2 class="sect">Où j'en suis</h2>
-  <div id="verdictBox"></div>
-  <div id="budgetBox"></div>
-  <div id="envBox"></div>
+  <details class="box"><summary>Où j'en suis, et mon avance sur salaire</summary>
+    <div class="box-body" style="padding:12px 14px"><div id="verdictBox"></div></div>
+  </details>
 
-  <h2 class="sect">Mon travail et mes projets</h2>
-  <div id="restoBox"></div>
-  <div id="projBox"></div>
+  <details class="box"><summary>Mes cases du mois</summary>
+    <div class="box-body" style="padding:12px 14px"><div id="envBox"></div></div>
+  </details>
+
+  <details class="box"><summary>Mes heures au restaurant</summary>
+    <div class="box-body" style="padding:12px 14px"><div id="restoBox"></div></div>
+  </details>
+
+  <details class="box"><summary>Mes projets et mon épargne</summary>
+    <div class="box-body" style="padding:12px 14px"><div id="projBox"></div></div>
+  </details>
 
   <div id="adviceBox"></div>
 
-  <h2 class="sect">Le détail, si j'ai besoin</h2>
-  <details class="box" id="joursBox">
-    <summary id="joursSum">Tous mes paiements des 15 prochains jours</summary>
-    <div class="box-body" style="padding:0 2px"><div id="daysBox"></div></div>
-  </details>
 
   <details class="box">
     <summary>Mon mois en résumé</summary>
@@ -1628,7 +1656,7 @@ function renderDays(c){
     } else if(mine<0){
       cls="ko";
       if(aNeed[aid]!=null&&Math.abs(mine)>aNeed[aid])aNeed[aid]=Math.abs(mine);
-      verdict="<b>Il te manquera "+fmt(Math.abs(mine))+" sur "+esc(nm)+"</b> ce jour-là.";
+      verdict=aSaid[aid]?"":"<b>Il te manquera "+fmt(Math.abs(mine))+" sur "+esc(nm)+"</b> ce jour-là.";
       if(!aSaid[aid]){
         aSaid[aid]=1;
         verdict+=" "+(els>0
@@ -1645,16 +1673,20 @@ function renderDays(c){
       verdict="Ça passe sur <b>"+esc(nm)+"</b>. Il te restera "+fmt(mine)+"."+
         (elsN.length?" À côté : "+esc(elsN.join(", "))+".":"");
     }
+    /* une ligne par paiement, comme un relevé. Le commentaire n'apparaît
+       que si ça coince : sinon c'est 4 000 px de texte pour rien. */
+    var T0=today();
+    var jour=m.datePlanned===T0?"auj.":m.datePlanned===addDays(T0,1)?"demain":dl(m.datePlanned);
+    var souci=(cls==="ko"||cls==="warn2")&&verdict;
     h+='<div class="step '+cls+'" data-id="'+esc(m.id)+'">'+
-       '<span class="num2">'+n+'</span>'+
-       '<div class="sbody"><div class="stop"><b>'+esc(m.label)+'</b>'+
-       '<span class="samt '+(isIn?"in":"out")+'">'+(isIn?"+":"−")+fmt(amt)+'</span></div>'+
-       '<div class="swhen">'+esc(dayWord(m.datePlanned))+' · '+esc(acc(m.account).short||acc(m.account).name)+'</div>'+
-       '<div class="sverd">'+verdict+'</div>'+
-       '<div class="sbtns">'+
-         '<label class="sbtn"><input type="checkbox" class="tickbox" data-act="pay" aria-label="C\'est passé"><span>'+(isIn?"Je l\'ai reçu":"C\'est passé")+'</span></label>'+
-         '<button class="sbtn no" type="button" data-act="skip">Pas passé</button>'+
-       '</div></div>'+
+       '<label class="sline">'+
+         '<input type="checkbox" class="tickbox" data-act="pay" aria-label="'+(isIn?"Je l\'ai reçu":"C\'est passé")+'">'+
+         '<span class="sday">'+esc(jour)+'</span>'+
+         '<span class="snm">'+esc(m.label)+'<span class="sacc"> · '+esc(acc(m.account).short||acc(m.account).name)+'</span></span>'+
+         '<span class="samt '+(isIn?"in":"out")+'">'+(isIn?"+":"−")+fmt(amt)+'</span>'+
+       '</label>'+
+       (souci?'<div class="sverd">'+verdict+'</div>':"")+
+       '<button class="sx" type="button" data-act="skip" aria-label="Pas passé">✕</button>'+
        '</div>';
   });
 
@@ -1666,7 +1698,7 @@ function renderDays(c){
     '<div class="dlow '+(ac?"bad":"ok")+'"><b>Une fois tout ça passé : '+fmt(after)+'</b>'+
     (ac?" — il te manquera "+fmt(Math.abs(after))+" pour tout honorer.":" — c\'est ce qu\'il te restera.")+
     '<br><span class="hint">compte par compte : '+esc(byAcc)+'</span></div>'+
-    (vir?'<div class="dlow warn2" style="margin-top:8px"><b>À virer pour que tout passe :</b> '+vir+
+    ((vir&&!planPaie())?'<div class="dlow warn2" style="margin-top:8px"><b>À virer pour que tout passe :</b> '+vir+
      '. C\'est le total à avoir déplacé, pas à chaque fois.</div>':"");
   if(float>0)body+='<div class="dfloat"><b>'+fmt(float)+' sans date connue</b> : '+
      esc(floatN.slice(0,5).join(", "))+(floatN.length>5?"…":"")+
@@ -3087,21 +3119,6 @@ function budgetJour(){
           dispo:dispo,parJour:r2(dispo/jours),
           depasse:r2(Math.max(0,deja-total))};
 }
-/* le titre du repli dit déjà l'essentiel : la prochaine échéance */
-function majJoursSum(){
-  var el=document.getElementById("joursSum"); if(!el)return;
-  var T=today(),H=addDays(T,15),p=null;
-  state.movements.forEach(function(m){
-    if(m.done||m.skip||m.maybe)return;
-    if(acc(m.account).kind==="epargne")return;
-    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>H)return;
-    if(!p||m.datePlanned<p.datePlanned)p=m;
-  });
-  el.textContent=p
-    ? "Mes paiements des 15 prochains jours — le prochain : "+p.label.slice(0,38)+
-      " "+(p.dir==="in"?"+":"−")+fmt(pa(p.amount))+" "+dayWord(p.datePlanned)
-    : "Mes paiements des 15 prochains jours — rien de prévu";
-}
 function renderBudget(){
   var host=document.getElementById("budgetBox"); if(!host)return;
   var B=budgetJour(),mk=curMonth();
@@ -3225,18 +3242,20 @@ function renderTodos(){
   }
   /* seules les trois prochaines sont dépliées, et le « pourquoi » n'apparaît
      que pour ce qui tombe dans la semaine : le reste, c'est du bruit */
-  var proche=addDays(T,8);
-  var lignes=ts.slice(0,3).map(function(t){return ligne(t,!t.date||t.date<=proche)}).join("");
-  var suite=ts.slice(3);
-  if(suite.length)lignes+='<details class="todomore"><summary>'+suite.length+
-    ' autre'+(suite.length>1?"s":"")+' démarche'+(suite.length>1?"s":"")+', plus tard</summary>'+
-    suite.map(function(t){return ligne(t,false)}).join("")+'</details>';
+  var lignes=ts.slice(0,2).map(function(t,i){return ligne(t,i===0)}).join("");
+  var suite=ts.slice(2);
+  /* le formulaire d'ajout vit dans le repli : on n'ajoute pas une démarche
+     tous les jours, et il prenait 130 px en haut de l'écran */
+  var form='<form data-todo-new="1"><input placeholder="Autre chose à demander…" aria-label="Démarche">'+
+    '<input type="date" aria-label="Pour quand"><button type="submit">Ajouter</button></form>';
+  lignes+='<details class="todomore"><summary>'+
+    (suite.length?suite.length+' autre'+(suite.length>1?"s":"")+' démarche'+(suite.length>1?"s":"")+', plus tard'
+                 :'Ajouter une démarche')+'</summary>'+
+    suite.map(function(t){return ligne(t,false)}).join("")+form+'</details>';
   host.innerHTML='<div class="encard"><div class="ln"><h3>Mes démarches</h3>'+
     '<span class="cap">'+(ts.length?ts.length+" à faire":"rien en attente")+
       (faites?" · "+faites+" faite"+(faites>1?"s":""):"")+'</span></div>'+
     (lignes||'<p class="cap" style="margin:8px 0 0">Rien à demander à personne en ce moment.</p>')+
-    '<form data-todo-new="1"><input placeholder="Autre chose à demander…" aria-label="Démarche">'+
-      '<input type="date" aria-label="Pour quand"><button type="submit">Ajouter</button></form>'+
     '</div>';
 }
 document.getElementById("todoBox").addEventListener("change",function(ev){
@@ -3828,7 +3847,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();majJoursSum();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
@@ -4048,7 +4067,7 @@ debtHost.addEventListener("click",function(e){
     armDel(el,function(){
       if(d)state.debts=state.debts.filter(function(x){return x.id!==d.id});
       if(l)state.loans=state.loans.filter(function(x){return x.id!==l.id});
-      renderDebts();renderDetteVraie();renderPlanVrai();majJoursSum();save();
+      renderDebts();renderDetteVraie();renderPlanVrai();save();
     });
   }
 });
@@ -4058,7 +4077,7 @@ document.getElementById("debtForm").addEventListener("submit",function(e){
   if(!n||!v)return;
   state.debts.push({id:uid(),name:n,amount:v,paid:0});
   document.getElementById("dName").value="";document.getElementById("dAmount").value="";
-  renderDebts();renderDetteVraie();renderPlanVrai();majJoursSum();save();
+  renderDebts();renderDetteVraie();renderPlanVrai();save();
 });
 
 document.querySelector("#setBox .box-body").addEventListener("input",function(e){
