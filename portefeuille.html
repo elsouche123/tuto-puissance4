@@ -609,6 +609,9 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .step.virt{background:color-mix(in srgb,var(--accent) 7%,transparent)}
 .step.virt .snm{font-style:italic}
 .vdot{display:grid;place-content:center;font-size:13px}
+.restocard{margin-top:14px}
+.restocard form{display:flex;gap:6px;margin-top:10px}
+.restocard form input{flex:1;min-width:0}
 .todomore{margin-top:4px}
 .todomore summary{cursor:pointer;font-size:.84rem;color:var(--muted);padding:8px 0}
 #joursBox summary{font-size:.92rem;line-height:1.4}
@@ -816,6 +819,8 @@ details.detail[open] summary::before{content:"▾ "}
   <div id="paieBox"></div>
   <div id="virBox"></div>
 
+  <div id="restoBox"></div>
+
   <div id="daysBox"></div>
 
   <div id="epargneBox"></div>
@@ -838,7 +843,6 @@ details.detail[open] summary::before{content:"▾ "}
     </div>
   </div>
       <div id="envBox"></div>
-      <div id="restoBox"></div>
       <div id="projBox"></div>
   <div id="dispoBig" class="dispo" hidden>
     <span class="lbl">Je peux utiliser</span>
@@ -3756,17 +3760,14 @@ function renderResto(){
   var gagne=r2(h*(pa(r.rate)||10)),pct=goal?Math.min(100,Math.round(h/goal*100)):0;
   var cls=h>=goal?"":h>=mini?"warn":"ko";
   var manque=h<mini?r2(mini-h):h<goal?r2(goal-h):0;
-  var versQuoi=h<mini?" pour mon minimum":" pour mon objectif";
-  host.innerHTML='<div class="encard">'+
-    '<div class="ln"><h3>Restaurant — '+esc(ml(mk))+'</h3>'+
-      '<span class="cap">'+hrs(h)+' sur '+hrs(goal)+'</span></div>'+
+  var cible=h<mini?mini:goal,versQuoi=h<mini?"mon minimum":"mon objectif";
+  host.innerHTML='<div class="encard restocard">'+
+    '<div class="ln"><h3>🍽️ '+hrs(h)+' ce mois-ci</h3><b class="big">'+fmt(gagne)+'</b></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">'+
-      (manque>0?"Il me manque "+hrs(manque)+versQuoi:"C\'est bon, objectif atteint")+
-      '</span><b class="big'+(manque>0?" done":"")+'">'+fmt(gagne)+'</b></div>'+
-    '<p class="cap" style="margin:6px 0 0">Payé le 5 '+esc(ml(restoPayMk(mk)))+
-      ' · minimum '+hrs(mini)+' · objectif '+hrs(goal)+'</p>'+
-    '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 02:18" '+
+      (manque>0?"encore "+hrs(manque)+" pour "+versQuoi+" ("+hrs(cible)+")":"objectif atteint 🎉")+
+      ' · payé le 5 '+esc(ml(restoPayMk(mk)))+'</span></div>'+
+    '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
       'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
   '</div>';
 }
