@@ -305,6 +305,18 @@ button.chip{cursor:pointer;font-family:inherit}
 .totrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:13px 15px;margin-top:11px;border-radius:12px;background:var(--card-2);border:1px solid var(--rule);font-size:13.5px}
 .totrow .big{font-size:22px;font-weight:700;font-family:Fraunces,Georgia,serif}
 
+.objln{margin-top:9px;padding-top:9px;border-top:1px solid var(--rule)}
+.objfld{display:flex;align-items:baseline;gap:5px;font-size:13px;color:var(--ink-2)}
+.objfld input{width:62px;padding:5px 7px;border-radius:8px;border:1px solid var(--rule-strong);
+  background:var(--card-2);color:var(--ink);font-family:"IBM Plex Mono",monospace;
+  font-size:14px;font-weight:700;text-align:right}
+.rqrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--rule)}
+.rqw{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.rqw b{font-size:14px}
+.rqw small,.rqh small{display:block;font-size:11px;color:var(--ink-2)}
+.rqh{font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:700;text-align:right;white-space:nowrap}
+.rqstop{flex:none;white-space:nowrap}
+.rqstop[data-arm="1"]{border-color:var(--debit);background:var(--debit);color:#fff;font-weight:700}
 .goals{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:13px}
 .goal{padding:15px;display:flex;flex-direction:column;gap:9px}
 .goal-top{display:flex;align-items:center;gap:8px}
@@ -828,6 +840,7 @@ details.detail[open] summary::before{content:"▾ "}
   <div id="budgetBox"></div>
   <div id="soldesBox"></div>
   <div id="restoBox"></div>
+  <div id="risqueBox"></div>
   <div id="paieBox"></div>
   <div id="virBox"></div>
 
@@ -3922,8 +3935,92 @@ function renderResto(){
       ' · payé le 5 '+esc(ml(restoPayMk(mk)))+'</span></div>'+
     '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
       'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
+    '<div class="ln objln"><span class="cap">Mon objectif du mois</span>'+
+      '<span class="objfld"><input inputmode="decimal" data-resto-goal="1" value="'+(base===Math.round(base)?base:nb(base))+'" '+
+        'aria-label="Mon objectif d\'heures par mois"> h'+
+        (rat>0?' <small>+ '+hrs(rat)+' de rattrapage</small>':"")+'</span></div>'+
   '</div>';
 }
+/* Ses cours ne sont jamais acquis : une élève peut arrêter du jour au
+   lendemain. On regroupe ses cours à venir par élève et on dit, pour chacune,
+   ce que ça coûterait et combien d'heures de restaurant ça représente. */
+function lacheLeFocus(){
+  var a=document.activeElement;
+  if(a&&a!==document.body&&typeof a.blur==="function")a.blur();
+}
+function coursAVenir(){
+  var T=today(),lim=addDays(T,30),par={};
+  state.movements.forEach(function(m){
+    if(m.dir!=="in"||m.done||m.skip)return;
+    var lb=m.label||""; if(!/^Cours/i.test(lb))return;
+    var d=m.datePlanned||""; if(!d||d<T)return;
+    var k=lb.replace(/\s*\((?:selon|dim\.|lun\.)[^)]*\)\s*$/i,"").trim();
+    var e=par[k]||(par[k]={nom:k,mois:0,total:0,n:0,ids:[]});
+    e.total=r2(e.total+pa(m.amount)); e.n++; e.ids.push(m.id);
+    if(d<=lim)e.mois=r2(e.mois+pa(m.amount));
+  });
+  var out=[]; for(var k in par)if(par.hasOwnProperty(k))out.push(par[k]);
+  out.sort(function(x,y){return y.mois-x.mois});
+  return out;
+}
+function jolieEleve(nom){
+  return nom.replace(/^Cours\s*(?:à|—)?\s*/i,"").replace(/^mon\s+/i,"Mon ").trim()||nom;
+}
+function renderRisque(){
+  var host=document.getElementById("risqueBox"); if(!host)return;
+  var ls=coursAVenir(),tx=pa(restoSt().rate)||10;
+  if(!ls.length){host.innerHTML="";return}
+  var lignes="",perteTot=0;
+  ls.forEach(function(e){
+    perteTot=r2(perteTot+e.mois);
+    lignes+='<div class="rqrow" data-eleve="'+esc(e.nom)+'">'+
+      '<div class="rqw"><b>'+esc(jolieEleve(e.nom))+'</b>'+
+        '<small>'+fmt(e.mois)+' sur 30 jours · '+e.n+' cours prévus ('+fmt(e.total)+')</small></div>'+
+      '<div class="rqh">+'+hrs(e.mois/tx)+'<small>au resto</small></div>'+
+      '<button class="btn ghost sm rqstop" type="button" data-stop="'+esc(e.nom)+'">elle arrête</button>'+
+    '</div>';
+  });
+  host.innerHTML='<div class="encard">'+
+    '<div class="ln"><h3>Et si une élève arrête ?</h3></div>'+
+    '<p class="cap" style="margin:0 0 9px">Un cours n\'est jamais acquis. Voilà ce que chacune te rapporte sur 30 jours, '+
+      'et le nombre d\'heures de restaurant qu\'il faudrait pour la remplacer.</p>'+
+    lignes+
+    '<p class="cap" style="margin:9px 0 0">Si tu les perdais <b>toutes</b> : '+fmt(perteTot)+' en moins, '+
+      'soit <b>'+hrs(perteTot/tx)+'</b> de restaurant en plus par mois. '+
+      'Appuie sur « elle arrête » et je raye ses cours et je monte ton objectif.</p>'+
+  '</div>';
+}
+document.getElementById("risqueBox").addEventListener("click",function(ev){
+  var b=ev.target.closest("[data-stop]"); if(!b)return;
+  var nom=b.getAttribute("data-stop");
+  if(b.getAttribute("data-arm")!=="1"){
+    b.setAttribute("data-arm","1"); b.textContent="Confirmer ?";
+    setTimeout(function(){if(b.isConnected){b.removeAttribute("data-arm");b.textContent="elle arrête"}},4000);
+    return;
+  }
+  var e=null; coursAVenir().forEach(function(x){if(x.nom===nom)e=x});
+  if(!e)return;
+  snapshot();
+  var r=restoSt(),tx=pa(r.rate)||10,parMois={};
+  state.movements.forEach(function(m){
+    if(e.ids.indexOf(m.id)<0)return;
+    m.skip=true;
+    var mk=(m.datePlanned||today()).slice(0,7);
+    parMois[mk]=r2((parMois[mk]||0)+pa(m.amount)/tx);
+  });
+  for(var mk in parMois)if(parMois.hasOwnProperty(mk))
+    r.rattrap[mk]=r2(rattrapMois(mk)+parMois[mk]);
+  lacheLeFocus(); renderAll(); save();
+  toast(jolieEleve(nom)+" : "+e.n+" cours rayés — "+fmt(e.total)+" en moins, "+
+        hrs(e.mois/tx)+" de restaurant en plus par mois",true);
+});
+document.getElementById("restoBox").addEventListener("change",function(ev){
+  var i=ev.target.closest("[data-resto-goal]"); if(!i)return;
+  var v=pa(i.value); if(!(v>0)){renderResto();return}
+  snapshot(); restoSt().goal=v; restoSync(curMonth());
+  lacheLeFocus(); renderAll(); save();
+  toast("Objectif : "+hrs(v)+" par mois — "+fmt(r2(v*(pa(restoSt().rate)||10)))+" au restaurant",true);
+});
 document.getElementById("restoBox").addEventListener("submit",function(ev){
   var f=ev.target.closest("[data-resto]"); if(!f)return;
   ev.preventDefault();
@@ -4004,7 +4101,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderEpargne();renderProjets();renderResto();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
+function renderAll(){selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
