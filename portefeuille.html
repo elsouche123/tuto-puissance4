@@ -3028,6 +3028,13 @@ function miniPaie(accId,D1,D2,depart,depuis,sansDepart){
   return {min:mn,date:md,fin:r2(b)};
 }
 /* la paie qui arrive : une grosse rentrée, d'il y a 3 jours à dans 12 jours */
+/* Un virement d'un de ses comptes vers un autre n'est pas une rentrée : son
+   « Depuis Revolut » de 1 046 € sur SG se faisait prendre pour un salaire, la
+   carte restait bloquée sur « ✅ ta paie est répartie » et ne lui a jamais
+   montré le virement à faire le 30. */
+function estVirementInterne(m){
+  return m.cat==="Épargne"||/^(depuis|vers)\s/i.test(m.label||"");
+}
 function prochainePaie(){
   /* une paie déjà cochée compte encore : l'argent est sur le compte mais le
      virement reste à faire. Sans ça, cocher « je l'ai reçu » faisait
@@ -3035,6 +3042,7 @@ function prochainePaie(){
   var T=today(),D1=addDays(T,-5),H=addDays(T,12),out=null;
   state.movements.forEach(function(m){
     if(m.skip||m.maybe||m.dir!=="in")return;
+    if(estVirementInterne(m))return;
     if(m.done&&(m.dateReal||m.datePlanned||"")<D1)return;
     if(acc(m.account).kind==="epargne")return;
     if(pa(m.amount)<300||!m.datePlanned)return;
@@ -3049,6 +3057,7 @@ function paieSuivante(apres){
   var fin=addDays(apres,70),best=null,i;
   state.movements.forEach(function(m){
     if(m.done||m.skip||m.maybe||m.dir!=="in")return;
+    if(estVirementInterne(m))return;
     if(acc(m.account).kind==="epargne")return;
     if(pa(m.amount)<300||!m.datePlanned)return;
     if(m.datePlanned<=apres||m.datePlanned>fin)return;
@@ -3087,7 +3096,13 @@ function prochaineMiseDeCote(){
 }
 function planPaie(){
   var P=prochainePaie(); if(!P)return null;
-  var T=today(),D1=(T<P.date?T:P.date),D2=paieSuivante(P.date),c=calc();
+  var T=today(),D1=(T<P.date?T:P.date),c=calc();
+  /* La fenêtre doit couvrir un mois entier. Sinon elle s'arrête à la paie du
+     restaurant, qui tombe sur Revolut et ne renfloue donc pas SG : la carte
+     annonçait « vire 132 € » alors qu'il en fallait 1 118 pour tenir jusqu'au
+     salaire suivant. Un virement par paie, qui couvre jusqu'à la prochaine. */
+  var D2=paieSuivante(P.date),D2min=addDays(P.date,30);
+  if(!D2||D2<D2min)D2=D2min;
   var sgReal=0,glob=0;
   c.accs.forEach(function(a){ if(a.kind==="epargne")return; glob+=a.real; if(a.id==="sg")sgReal=a.real });
   glob=r2(glob);
