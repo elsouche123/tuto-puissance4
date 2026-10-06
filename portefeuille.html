@@ -1175,6 +1175,7 @@ var SEED = {
   balanceAsOf:"",
   order:["od","debts","goals","cushion"],
   resto:{rate:10,min:50,goal:60,hours:{}},
+  joursOff:[],   /* jours de la semaine sans dépense : 0 dimanche … 6 samedi */
   adv:{},
   envelopes:[
     {id:"e-cadeaux",name:"Cadeaux pour mon copain",amount:0},
@@ -1367,6 +1368,9 @@ function migrate(s){
     Object.keys(s.adv).forEach(function(k){if(/^\d{4}-\d{2}$/.test(k)&&s.adv[k])av[k]=true});
     o.adv=av;
   }
+  if(Array.isArray(s.joursOff))
+    o.joursOff=s.joursOff.map(function(j){return parseInt(j,10)})
+      .filter(function(j){return j>=0&&j<=6}).slice(0,6);
   if(s.resto&&typeof s.resto==="object"){
     var rh={};
     Object.keys(s.resto.hours||{}).forEach(function(k){if(/^\d{4}-\d{2}$/.test(k))rh[k]=pa(s.resto.hours[k])});
@@ -3197,6 +3201,20 @@ function mettreDeCote(fromId,versId,v){
    Le budget du mois moins ce qui est déjà parti, étalé sur les jours
    qui restent. Et, à côté, la marge réelle : si elle est mince, le
    budget théorique ne veut plus rien dire. */
+/* Elle ne dépense rien le vendredi ni le samedi (shabbat). Étaler son budget
+   sur 7 jours lui donnait un chiffre trop bas les jours où elle sort vraiment :
+   on ne compte que les jours où elle peut dépenser. */
+function joursOff(){ return Array.isArray(state.joursOff)?state.joursOff:[] }
+function estJourOff(iso){
+  var o=joursOff(); if(!o.length)return false;
+  var q=iso.split("-"),d=new Date(+q[0],+q[1]-1,+q[2]);
+  return o.indexOf(d.getDay())>=0;
+}
+function joursQuiComptent(d1,d2){
+  var n=0,c=d1;
+  while(c<=d2){ if(!estJourOff(c))n++; c=addDays(c,1) }
+  return n;
+}
 function budgetJour(){
   var mk=curMonth(),T=today(),budEnv=0;
   (state.envelopes||[]).forEach(function(e){budEnv+=pa(e.amount)});
@@ -3224,7 +3242,9 @@ function budgetJour(){
     if(dd.slice(0,7)===mk&&dd>debut&&dd<=T)debut=dd;
   });
   var jDebut=parseInt(debut.slice(8,10),10);
-  var joursPeriode=Math.max(1,fin-jDebut+1),ecoules=Math.max(1,jour-jDebut+1);
+  var finIso=mk+"-"+pad(fin);
+  var joursPeriode=Math.max(1,joursQuiComptent(debut,finIso));
+  var ecoules=Math.max(1,joursQuiComptent(debut,T));
   /* le report : ce qu'elle ne dépense pas un jour reste entier le lendemain */
   var partJour=0;
   var cagnotte=0;
