@@ -4139,10 +4139,16 @@ function rattrapMois(mk){ return pa(restoSt().rattrap[mk||curMonth()]) }
 function restoPayMk(mk){ var y=+mk.slice(0,4),m=+mk.slice(5,7)+1; if(m>12){m=1;y++} return y+"-"+pad(m) }
 function restoSync(mk){
   var r=restoSt(),h=pa(r.hours[mk]);
-  /* tant que le mois court, on table sur l'objectif si elle est encore en dessous */
-  var base=(mk===curMonth()&&h<pa(r.goal))?pa(r.goal):h;
+  var base=h;
   var v=r2(base*(pa(r.rate)||10)),pm=restoPayMk(mk),id="resto-"+pm,mv=null;
   state.movements.forEach(function(x){if(x.id===id)mv=x});
+  /* Un mois à VENIR garde sa prévision : elle ne l'a pas encore vécu, et ses
+     projections 2027 en dépendent. Le mois EN COURS, lui, ne vaut que les
+     heures réellement faites. Tabler sur son objectif tant que le mois court
+     gonflait le mois suivant de centaines d'euros qu'elle n'avait pas gagnés
+     — exactement le genre de chiffre qui la met dans le rouge. L'objectif
+     reste une cible sur la carte resto, jamais un revenu. */
+  if(mv&&h<=0&&mk>curMonth())return mv;
   if(!mv){
     mv={id:id,account:"revolut",dir:"in",cat:"Revenu",dateReal:"",done:false,maybe:false,skip:false,
         settled:false,fixId:"",fixMonth:"",free:false,env:""};
