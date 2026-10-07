@@ -607,7 +607,11 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .step{display:block;position:relative;padding:0 32px 0 14px;border-top:1px solid var(--rule)}
 .step:first-of-type{border-top:none}
 .sline{display:flex;align-items:flex-start;gap:11px;padding:12px 0;cursor:pointer;margin:0}
-.sline .tickbox{width:25px;height:25px;margin:2px 0 0;flex:none}
+.sline .tickbox{width:32px;height:32px;margin:0;flex:none;position:relative}
+/* la zone tactile déborde la case : 44 px de côté, comme le recommande Apple,
+   sans agrandir le dessin ni décaler la ligne */
+.sline .tickbox::before{content:"";position:absolute;top:-6px;left:-6px;right:-6px;bottom:-6px}
+.sline .tickbox:checked::after{width:8px;height:14px;border-width:0 3px 3px 0}
 .sbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .sday{display:flex;gap:7px;align-items:baseline;line-height:1.1}
 .sday b{font-size:.9rem;font-weight:700;color:var(--ink)}
@@ -624,8 +628,8 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .step.ko .sapres,.step.warn2 .sapres{color:var(--debit)}
 .step .sverd{font-size:.95rem;line-height:1.45;color:var(--ink);margin:0;padding:0 0 12px 36px;font-weight:500}
 .step.ko .sverd{color:#b3261e}
-.sx{position:absolute;top:12px;right:0;width:28px;height:28px;border:none;background:none;
-  color:var(--muted);font-size:14px;cursor:pointer;line-height:1}
+.sx{position:absolute;top:8px;right:-4px;width:40px;height:40px;border:none;background:none;
+  color:var(--muted);font-size:15px;cursor:pointer;line-height:1}
 .soldes{display:flex;gap:8px;margin:10px 0 14px}
 .sol{flex:1;min-width:0;background:var(--card);border:1px solid var(--rule);border-radius:12px;
   padding:9px 10px;font-weight:700;font-size:.95rem;font-variant-numeric:tabular-nums;
@@ -4820,7 +4824,7 @@ function onTick(e){
   if(!m)return;
   snapshot();
   var already=markPaid(m);
-  toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » marqué payé");
+  toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » "+(m.dir==="in"?"marqué reçu":"marqué payé"));
   renderAll();save();
 }
 document.getElementById("daysBox").addEventListener("change",function(e){
@@ -4843,7 +4847,7 @@ document.getElementById("daysBox").addEventListener("change",function(e){
   if(!m)return;
   snapshot();
   var already=markPaid(m);
-  toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » marqué payé");
+  toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » "+(m.dir==="in"?"marqué reçu":"marqué payé"));
   renderAll();save();
 });
 document.getElementById("future").addEventListener("change",onTick);
