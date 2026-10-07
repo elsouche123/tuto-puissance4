@@ -4794,6 +4794,7 @@ function onSkip(e){
     return;
   }
   snapshot();
+  var avantB=budgetJour().partJour;
   var m=skipRow(row.getAttribute("data-id"));
   if(!m)return;
   /* un cours qui saute, elle le traduit en heures de restaurant :
@@ -4806,7 +4807,7 @@ function onSkip(e){
          (fm==null?"":fm===0?" · ça tient quand même sans heures obligatoires"
                             :" · il te faut "+hrs(fm)+" au restaurant ce mois-ci");
   }
-  toast(msg);
+  toast(msg+effetBudget(avantB));
   renderAll();save();
 }
 function markPaid(m){
@@ -4819,6 +4820,15 @@ function markPaid(m){
   m.settled = !!(state.balanceAsOf && m.dateReal<state.balanceAsOf);
   return m.settled;
 }
+/* « Ça fait pas évoluer la case je peux dépenser. » Cocher un paiement prévu
+   ne change effectivement rien : il était déjà dans le plan. Mais un chiffre
+   figé donne l'impression que l'appli est cassée. On le dit, et quand ça bouge
+   vraiment (une ligne rayée, une rentrée qui saute) on annonce le nouveau. */
+function effetBudget(avant){
+  var ap=budgetJour().partJour,d=r2(ap-avant);
+  if(Math.abs(d)<0.01)return " — ton budget du jour ne bouge pas, c'était prévu";
+  return " — ton budget passe à "+fmt(ap)+" par jour ("+(d>0?"+":"−")+fmt(Math.abs(d))+")";
+}
 function onTick(e){
   var el=e.target;
   if(el.getAttribute("data-act")!=="pay")return;
@@ -4827,8 +4837,10 @@ function onTick(e){
   state.movements.forEach(function(x){if(x.id===id)m=x});
   if(!m)return;
   snapshot();
+  var avantB=budgetJour().partJour;
   var already=markPaid(m);
-  toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » "+(m.dir==="in"?"marqué reçu":"marqué payé"));
+  toast(already?"« "+m.label+" » : c'était déjà dans ton solde"
+               :"« "+m.label+" » "+(m.dir==="in"?"marqué reçu":"marqué payé")+effetBudget(avantB));
   renderAll();save();
 }
 document.getElementById("daysBox").addEventListener("change",function(e){
@@ -4850,8 +4862,10 @@ document.getElementById("daysBox").addEventListener("change",function(e){
   }
   if(!m)return;
   snapshot();
+  var avantB=budgetJour().partJour;
   var already=markPaid(m);
-  toast(already?"« "+m.label+" » : c'était déjà dans ton solde":"« "+m.label+" » "+(m.dir==="in"?"marqué reçu":"marqué payé"));
+  toast(already?"« "+m.label+" » : c'était déjà dans ton solde"
+               :"« "+m.label+" » "+(m.dir==="in"?"marqué reçu":"marqué payé")+effetBudget(avantB));
   renderAll();save();
 });
 document.getElementById("future").addEventListener("change",onTick);
