@@ -1704,6 +1704,20 @@ function renderDays(c){
   c.accs.forEach(function(a){
     if(a.kind!=="epargne"||acc(a.id).liquide){aRun[a.id]=a.margin;aReal[a.id]=a.real;aNeed[a.id]=0}
   });
+  /* le creux de la JOURNÉE, pas le premier accroc. Jeudi, Revolut encaisse
+     50 €, sort 70 € puis 30 € : dire « il manque 20 € » sur la ligne du
+     milieu, c'est lui faire glisser 20 € pour finir quand même à −50 €.
+     On pré-calcule donc, pour chaque compte et chaque date, le point le
+     plus bas atteint dans la journée. */
+  var bjour={},pireJour={};
+  c.accs.forEach(function(a){if(aReal[a.id]!=null)bjour[a.id]=a.real});
+  evs.forEach(function(m){
+    var k=m.account; if(bjour[k]==null)return;
+    var dd=m.datePlanned||m.dateReal||today();
+    bjour[k]=r2(bjour[k]+(m.dir==="in"?pa(m.amount):-pa(m.amount)));
+    var mg=r2(bjour[k]+odFor(acc(k),dd)),cle=k+"|"+dd;
+    if(pireJour[cle]==null||mg<pireJour[cle])pireJour[cle]=mg;
+  });
   var bascule=addDays(T,15),coupe=false,gros=[];
   evs.forEach(function(m){
     n++;
@@ -1744,18 +1758,21 @@ function renderDays(c){
     } else if(mine<0){
       cls="ko";
       if(aNeed[aid]!=null&&Math.abs(mine)>aNeed[aid])aNeed[aid]=Math.abs(mine);
-      verdict=aSaid[aid]?"":"<b>Il te manquera "+fmt(Math.abs(mine))+" sur "+esc(nm)+"</b> ce jour-là.";
+      var bas=pireJour[aid+"|"+dte];
+      var creuxJ=(bas!=null&&bas<mine?bas:mine),besoin=r2(Math.abs(creuxJ));
+      verdict=aSaid[aid]?"":"<b>Il te manquera "+(creuxJ<mine-0.01?"jusqu'à ":"")+
+        fmt(besoin)+" sur "+esc(nm)+"</b> ce jour-là.";
       if(!aSaid[aid]){
         aSaid[aid]=1;
         /* dire la somme qui MANQUE, pas le solde du compte d'en face :
            « vire depuis SG 633,11 € » pour un trou de 20 €, c'est absurde. */
-        var besoin=r2(Math.abs(mine));
         if(!src.length)
           verdict+=" Et tu n'as rien ailleurs pour couvrir : la banque peut refuser.";
         else{
           var s0=src[0],ou=esc(s0.nom)+" ("+fmt(s0.dispo)+" dispo)";
           if(s0.dispo<besoin&&src[1])ou+=" + "+esc(src[1].nom)+" ("+fmt(src[1].dispo)+")";
           verdict+=(s0.meme?" Fais glisser <b>":" Ramène <b>")+fmt(besoin)+"</b> depuis "+ou+
+
             (s0.meme?" — c'est immédiat, dans la même appli."
                    :" avant, sinon la banque refuse.");
         }
