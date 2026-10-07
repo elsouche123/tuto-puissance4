@@ -1195,6 +1195,11 @@ var SEED = {
     {id:"revolut",name:"Revolut",tag:"Salaires",start:0,overdraft:0,kind:"courant",short:"Revolut"},
     {id:"revolut-ep",name:"Revolut — mon épargne",tag:"Épargne",start:0,overdraft:0,kind:"epargne",short:"Revolut épargne"},
     {id:"cash",name:"Espèces",tag:"Liquide",start:0,overdraft:0,kind:"courant",short:"Espèces"},
+    /* les titres-restaurant : de l'argent bien réel, mais qui ne paie QUE les
+       repas. Il ne peut pas couvrir un prélèvement, donc il ne compte jamais
+       comme matelas (tr:true) — et ce qu'elle mange avec ne touche pas son
+       budget du jour, puisque ce n'est pas son argent qui sort. */
+    {id:"tr",name:"Carte titres-restaurant",tag:"Repas",start:0,overdraft:0,kind:"courant",short:"Carte resto",tr:true},
     {id:"ldd",name:"Livret Dévelop. Durable",tag:"Épargne",start:0.92,overdraft:0,kind:"epargne",short:"LDD"},
     {id:"ljeune",name:"Livret Jeune",tag:"Épargne",start:10.20,overdraft:0,kind:"epargne",short:"Livret Jeune"},
     {id:"pel",name:"Plan Épargne Logement",tag:"Épargne",start:9080.65,overdraft:0,kind:"epargne",short:"PEL"}
@@ -1251,7 +1256,7 @@ var SEED = {
   ]
 };
 
-var ACCIDS=["sg","revolut","revolut-ep","cash","ldd","ljeune","pel"];
+var ACCIDS=["sg","revolut","revolut-ep","cash","tr","ldd","ljeune","pel"];
 var TABG={today:["today"],pay:["reg","fix"],more:["plan","save"],debts:["debt"]};
 var LS="portefeuille.v3", state=null, filter="all", tab="today";
 var docRef=null, hydrated=false, saveTimer=null, writing=false, dirty=false, lastSent="", pendingRemote=null;
@@ -1317,7 +1322,8 @@ function migrate(s){
   if(Array.isArray(s.accounts))o.accounts=o.accounts.map(function(d){
     var f=null;for(var i=0;i<s.accounts.length;i++)if(s.accounts[i]&&s.accounts[i].id===d.id)f=s.accounts[i];
     return f?{id:d.id,name:f.name||d.name,tag:d.tag,short:d.short,kind:d.kind,start:ps(f.start),
-              overdraft:pa(f.overdraft),odFrom:f.odFrom||"",odNext:f.odNext==null?null:pa(f.odNext),liquide:!!f.liquide}:d});
+              overdraft:pa(f.overdraft),odFrom:f.odFrom||"",odNext:f.odNext==null?null:pa(f.odNext),
+              liquide:!!f.liquide,tr:!!d.tr}:d});
   function clean(m){
     return {id:String(m.id||uid()),label:String(m.label==null?"":m.label).slice(0,140),
       account:ACCIDS.indexOf(m.account)>=0?m.account:"sg",
@@ -1438,10 +1444,12 @@ function calc(){
       else if(m.dir==="in")pin+=v; else pout+=v;
     });
     var od=odFor(a,today());
-    return {id:a.id,name:a.name,tag:a.tag,kind:a.kind,short:a.short||a.name,od:od,real:r2(real),pin:r2(pin),pout:r2(pout),
+    return {id:a.id,name:a.name,tag:a.tag,kind:a.kind,tr:!!a.tr,short:a.short||a.name,od:od,real:r2(real),pin:r2(pin),pout:r2(pout),
             projected:r2(real+pin-pout),margin:r2(real+od),odUsed:r2(Math.max(0,-real))};
   });
-  function S(k){var t=0;accs.forEach(function(a){if(a.kind!=="epargne")t+=a[k]});return r2(t)}
+  /* les titres-restaurant ne sont pas de l'argent qu'on additionne à son
+     solde : ils ne paient que des repas, jamais un prélèvement. */
+  function S(k){var t=0;accs.forEach(function(a){if(a.kind!=="epargne"&&!a.tr)t+=a[k]});return r2(t)}
   var savings=0;accs.forEach(function(a){if(a.kind==="epargne")savings+=a.real});savings=r2(savings);
   var reserved=0; if(state.settings.lockSavings)state.goals.forEach(function(g){reserved+=pa(g.saved)});
   reserved=r2(reserved);
@@ -2939,7 +2947,7 @@ function envUsed(e){
 function dispoAilleurs(){
   var T=today(),H=addDays(T,30),c=calc(),out=[];
   c.accs.forEach(function(a){
-    if(a.kind==="epargne"||a.id==="sg")return;
+    if(a.kind==="epargne"||a.id==="sg"||estTR(a.id))return;
     if(a.real<=0)return;
     var reserve=0;
     state.movements.forEach(function(m){
@@ -3115,7 +3123,7 @@ function planPaie(){
   var D2=paieSuivante(P.date),D2min=addDays(P.date,30);
   if(!D2||D2<D2min)D2=D2min;
   var sgReal=0,glob=0;
-  c.accs.forEach(function(a){ if(a.kind==="epargne")return; glob+=a.real; if(a.id==="sg")sgReal=a.real });
+  c.accs.forEach(function(a){ if(a.kind==="epargne"||estTR(a.id))return; glob+=a.real; if(a.id==="sg")sgReal=a.real });
   glob=r2(glob);
   var cpReal=0; c.accs.forEach(function(a){if(a.id===P.compte)cpReal=a.real});
   var sg=miniPaie("sg",D1,D2,sgReal,P.date);
@@ -3229,6 +3237,8 @@ function budgetJour(){
   state.movements.forEach(function(m){
     if(m.dir!=="out"||m.skip||!m.done)return;
     if(acc(m.account).kind==="epargne")return;
+    /* un repas payé en titres ne sort pas de son budget : elle a gardé son argent */
+    if(estTR(m.account))return;
     if(!m.free&&!m.env)return;
     var dd=(m.dateReal||m.datePlanned||"");
     if(dd.slice(0,7)!==mk)return;
@@ -3353,7 +3363,9 @@ function renderBudget(){
       'aria-label="Montant dépensé"><input data-note="1" placeholder="Quoi ? (facultatif)" '+
       'aria-label="Libellé"><button type="submit">Noter</button>'+
       '<label class="espbtn"><input type="checkbox" data-esp="1">'+
-        '<span>💶 en espèces</span></label></form>'+
+        '<span>💶 en espèces</span></label>'+
+      (trReste()>0?'<label class="espbtn"><input type="checkbox" data-tr="1">'+
+        '<span>🎫 carte resto</span></label>':"")+'</form>'+
   '</div>';
 }
 document.getElementById("budgetBox").addEventListener("submit",function(ev){
@@ -3365,17 +3377,22 @@ document.getElementById("budgetBox").addEventListener("submit",function(ev){
   /* elle paie de plus en plus en espèces : une dépense notée sur la mauvaise
      poche fausse à la fois son solde et son budget du jour. */
   var esp=f.querySelector("[data-esp]"),enEsp=!!(esp&&esp.checked);
-  var ou=enEsp&&acc("cash")?"cash":compteVie();
+  /* un repas payé avec la carte titres : ce n'est pas son argent qui part,
+     donc ça ne doit pas entamer ce qu'elle peut dépenser. */
+  var tr=f.querySelector("[data-tr]"),enTR=!!(tr&&tr.checked);
+  var ou=enTR?"tr":(enEsp&&acc("cash")?"cash":compteVie());
   snapshot();
   state.movements.push({id:uid(),label:note||"Dépense du jour",account:ou,dir:"out",amount:v,
     cat:"Autre",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,skip:false,
     fixId:"",fixMonth:"",free:true,settled:false,env:""});
   inp.value="";f.querySelector("[data-note]").value="";
-  if(esp)esp.checked=false;
+  if(esp)esp.checked=false; if(tr)tr.checked=false;
   renderAll();save();
   var poche=enEsp?calc().accs.filter(function(a){return a.id==="cash"})[0]:null;
-  toast(fmt(v)+" noté"+(enEsp?" en espèces — il te reste "+fmt(poche?poche.real:0)+" en poche"
-                             :soldeDuJour()));
+  toast(fmt(v)+" noté"+(enTR?" sur la carte resto — il y reste "+fmt(trReste())+
+                              ", et ton budget ne bouge pas"
+                           :enEsp?" en espèces — il te reste "+fmt(poche?poche.real:0)+" en poche"
+                                 :soldeDuJour()));
 });
 /* ── Mes projets ───────────────────────────────────────────────────
    Ce pour quoi elle met de côté. Pas de répartition inventée entre les
@@ -3611,6 +3628,8 @@ function renderSoldes(){
   var c=calc(),h="";
   c.accs.forEach(function(a){
     if(a.kind==="epargne")return;
+    /* la carte titres-restaurant ne s'affiche que quand il y a dessus */
+    if(estTR(a.id)&&a.real<=0)return;
     /* l'épargne de la même banque s'affiche juste en dessous : c'est son
        argent, au même endroit, mais ce n'est pas la même poche */
     var poche=null;
@@ -3625,6 +3644,7 @@ function renderSoldes(){
     var od=pa(a.od);
     h+='<span class="sol'+(tot<0?" neg":"")+'"><i>'+esc(a.short||a.name)+'</i>'+fmt(tot)+
        (poche?'<u>'+fmt(a.real)+' à dépenser · '+fmt(poche.real)+' de côté</u>'
+            :estTR(a.id)?'<u>repas seulement</u>'
             :(od>0?'<u>découvert '+fmt(od)+'</u>':""))+'</span>';
   });
   host.innerHTML='<div class="soldes">'+h+'</div>';
@@ -3769,7 +3789,13 @@ document.getElementById("virBox").addEventListener("click",function(ev){
 /* Son épargne Revolut n'est pas bloquée : « ça dépend si j'ai besoin d'argent,
    et de SG si je suis dans la merde ». C'est une réserve, pas un coffre. Un
    compte marqué « liquide » compte donc dans ce qu'elle peut vraiment sortir. */
-function estDispo(a){ return !a||a.kind!=="epargne"||!!a.liquide }
+/* « dispo » = de l'argent qui peut empêcher un rejet. Les titres-restaurant
+   n'empêchent rien : ils ne paient que des repas. */
+function estDispo(a){ return !a?true:(!a.tr&&(a.kind!=="epargne"||!!a.liquide)) }
+function estTR(id){ var a=acc(id); return !!(a&&a.tr) }
+function trReste(){
+  var t=0; calc().accs.forEach(function(a){if(estTR(a.id))t+=a.real}); return r2(t);
+}
 function lowAhead(days,adv,from,avecIncertain){
   var T=today(),H=addDays(T,days||60),c=calc(),bal=0,evs=[];
   c.accs.forEach(function(a){if(estDispo(acc(a.id)))bal+=a.real});
@@ -3922,7 +3948,7 @@ function comptesASec(){
      déjà — deux fois le même avertissement, c'est du bruit. */
   var T=today(),H=eom(),c=calc(),out=[],cv=compteVie();
   c.accs.forEach(function(a){
-    if(a.kind==="epargne"||a.id===cv)return;
+    if(a.kind==="epargne"||a.id===cv||estTR(a.id))return;
     var m=miniPaie(a.id,T,H,a.real);
     if(m.min>=0)return;
     var od=odFor(acc(a.id),m.date),depasse=r2(Math.max(0,-m.min-od));
@@ -3935,7 +3961,7 @@ function comptesASec(){
 function dOuRenflouer(exclu,somme,avant){
   var T=today(),c=calc(),best=null;
   c.accs.forEach(function(a){
-    if(a.kind==="epargne"||a.id===exclu)return;
+    if(a.kind==="epargne"||a.id===exclu||estTR(a.id))return;
     var b=a.real,quand="";
     if(b>=somme)quand=T;
     evsPaie(a.id,T,avant).forEach(function(e){
