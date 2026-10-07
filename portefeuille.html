@@ -1314,7 +1314,7 @@ function migrate(s){
   if(Array.isArray(s.accounts))o.accounts=o.accounts.map(function(d){
     var f=null;for(var i=0;i<s.accounts.length;i++)if(s.accounts[i]&&s.accounts[i].id===d.id)f=s.accounts[i];
     return f?{id:d.id,name:f.name||d.name,tag:d.tag,short:d.short,kind:d.kind,start:ps(f.start),
-              overdraft:pa(f.overdraft),odFrom:f.odFrom||"",odNext:f.odNext==null?null:pa(f.odNext)}:d});
+              overdraft:pa(f.overdraft),odFrom:f.odFrom||"",odNext:f.odNext==null?null:pa(f.odNext),liquide:!!f.liquide}:d});
   function clean(m){
     return {id:String(m.id||uid()),label:String(m.label==null?"":m.label).slice(0,140),
       account:ACCIDS.indexOf(m.account)>=0?m.account:"sg",
@@ -3746,14 +3746,18 @@ document.getElementById("virBox").addEventListener("click",function(ev){
   renderAll(); save();
   toast(fmt(v)+" viré sur SG");
 });
+/* Son épargne Revolut n'est pas bloquée : « ça dépend si j'ai besoin d'argent,
+   et de SG si je suis dans la merde ». C'est une réserve, pas un coffre. Un
+   compte marqué « liquide » compte donc dans ce qu'elle peut vraiment sortir. */
+function estDispo(a){ return !a||a.kind!=="epargne"||!!a.liquide }
 function lowAhead(days,adv,from,avecIncertain){
   var T=today(),H=addDays(T,days||60),c=calc(),bal=0,evs=[];
-  c.accs.forEach(function(a){if(a.kind!=="epargne")bal+=a.real});
+  c.accs.forEach(function(a){if(estDispo(acc(a.id)))bal+=a.real});
   bal=r2(bal);
   state.movements.forEach(function(m){
     if(m.done||m.skip)return;
     if(m.maybe&&!(avecIncertain&&m.dir==="in"))return;
-    if(acc(m.account).kind==="epargne")return;
+    if(!estDispo(acc(m.account)))return;
     if(!m.datePlanned||m.datePlanned<T||m.datePlanned>H)return;
     evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount)});
   });
@@ -3806,7 +3810,7 @@ function lowAhead(days,adv,from,avecIncertain){
         var dejaV=0;
         state.movements.forEach(function(m){
           if(m.dir!=="out"||m.skip||!m.done)return;
-          if(acc(m.account).kind==="epargne")return;
+          if(!estDispo(acc(m.account)))return;
           if(!m.free&&!m.env)return;
           if(((m.dateReal||m.datePlanned||"").slice(0,7))!==k)return;
           dejaV+=pa(m.amount);
