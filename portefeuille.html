@@ -313,6 +313,9 @@ button.chip{cursor:pointer;font-family:inherit}
 .pal.ok b,.pal.ok i{color:var(--credit)}
 .pal.libre b{color:var(--accent)}
 .pal.libre i{font-weight:700;color:var(--ink)}
+.pal.proj{border-bottom:none;padding:5px 0}
+.pal.proj b{color:var(--ink-2);font-size:12.5px}
+.pal.proj span{font-size:12px}
 .objln{margin-top:9px;padding-top:9px;border-top:1px solid var(--rule)}
 .objfld{display:flex;align-items:baseline;gap:5px;font-size:13px;color:var(--ink-2)}
 .objfld input{width:62px;padding:5px 7px;border-radius:8px;border:1px solid var(--rule-strong);
@@ -4123,6 +4126,21 @@ function paliersResto(mk){
   var seuil=(c==null?a:c),rest=r2(Math.max(0,(h-seuil)*tx));
   l+='<div class="pal libre"><b>au-delà</b><span>chaque heure = '+fmt(tx)+' pour tes projets</span>'+
      '<i>'+(rest>0?fmt(rest)+" déjà gagnés":"à partir de "+hrs(seuil))+'</i></div>';
+  /* « il te reste tant d'heures pour ce projet-là » : ce qui manque encore à
+     chaque objectif, et son équivalent en heures de service. */
+  /* ce que son plan amène déjà sur chaque objectif : son permis et sa voiture
+     sont payés par ses virements programmés, pas par ses heures. N'annoncer des
+     heures que s'il manque vraiment quelque chose. */
+  (state.goals||[]).forEach(function(g){
+    var cible=pa(g.target); if(cible<=0||!g.by)return;
+    var T=today(),fin=g.by+"-28";
+    if(fin<T)return;
+    var mois=Math.max(1,Math.round((new Date(fin)-new Date(T))/(30.44*864e5)));
+    var prevu=epargneDans(mois),manque=r2(Math.max(0,cible-prevu));
+    l+='<div class="pal proj"><b>'+(manque>0?hrs(manque/tx):"✅")+'</b>'+
+       '<span>'+esc(g.name)+' — '+esc(ml(g.by))+'</span>'+
+       '<i>'+(manque>0?"il manque "+fmt(manque):"ton plan y arrive")+'</i></div>';
+  });
   return '<div class="paliers">'+l+'</div>';
 }
 function rythmeResto(manque){
@@ -4157,31 +4175,8 @@ function renderResto(){
      pas un 🎉 qui lui ferait croire que tout va bien. */
   var jFin=Math.round((new Date(eom())-new Date(today()))/86400000);
   var Lc=lowAhead(Math.max(1,jFin));
-  if(Lc.min<0){
-    host.innerHTML='<div class="encard restocard">'+
-      '<div class="ln"><h3>🍽️ '+hrs(h)+' ce mois-ci</h3><b class="big">'+fmt(gagne)+'</b></div>'+
-      '<div class="bar"><i class="warn" style="width:'+pct+'%"></i></div>'+
-      '<p class="palert" style="margin:0 0 8px">⛔ <b>Ces heures ne sauveront pas '+
-        esc(ml(mk).split(" ")[0])+'</b> : elles sont payées le 5 '+esc(ml(pm))+
-        '. D\'ici le '+esc(dl(eom()))+' tu descends à <b>'+fmt(Lc.min)+'</b> le '+
-        esc(dl(Lc.date))+', et aucune heure de restaurant ne peut changer ça. '+
-        'Ce qui le change, c\'est ton budget du jour, juste au-dessus.</p>'+
-      '<div class="ln"><span class="cap">Pour la suite : '+
-        (faut==null?"le restaurant seul ne suffirait pas à tenir "+esc(ml(pm))
-         :faut>h?"il te faut <b>"+hrs(r2(faut-h))+" de plus</b> pour que "+esc(ml(pm))+" tienne"+rythmeResto(r2(faut-h))
-         :"<b>"+esc(ml(pm))+" est couvert</b>"+
-           (tranquille!=null&&tranquille>h?" · encore <b>"+hrs(r2(tranquille-h))+
-             "</b> pour garder "+fmt(MARGE_MINI)+" de marge"+rythmeResto(r2(tranquille-h)):""))+'</span></div>'+
-      paliersResto(mk)+
-      '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
-        'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
-      '<div class="ln objln"><span class="cap">Si je veux viser plus haut</span>'+
-        '<span class="objfld"><input inputmode="decimal" data-resto-goal="1" '+
-          'value="'+(perso?(perso===Math.round(perso)?perso:nb(perso)):"")+'" placeholder="libre" '+
-          'aria-label="Mon objectif d\'heures par mois"> h</span></div>'+
-    '</div>';
-    return;
-  }
+  /* Plus de leçon sur « ces heures ne sauveront pas octobre » : elle le sait.
+     Une carte, des paliers, et ce qu'il lui reste à faire pour chacun. */
   if(faut==null)
     dit="le restaurant seul ne suffirait pas à tenir "+esc(ml(pm))+" — regarde l'onglet Mon plan";
   else if(faut>h)
@@ -4193,10 +4188,7 @@ function renderResto(){
         "</b> pour garder "+fmt(MARGE_MINI)+" de marge tout le mois"+rythmeResto(r2(tranquille-h));
   else
     dit="<b>"+esc(ml(pm))+" est tranquille</b> 🎉 — tout ce que tu ajoutes maintenant est pour toi";
-  var noteMois=(Lc.min<MARGE_MINI)
-    ?'<p class="cap" style="margin:6px 0 0;color:var(--ink-2)">Attention : ces heures sont payées le 5 '+
-       esc(ml(pm))+'. Elles ne changent rien à la fin de ce mois-ci, où ton plus bas est <b>'+
-       fmt(Lc.min)+'</b> le '+esc(dl(Lc.date))+'</p>':"";
+  var noteMois="";
   host.innerHTML='<div class="encard restocard">'+
     '<div class="ln"><h3>🍽️ '+hrs(h)+' ce mois-ci</h3><b class="big">'+fmt(gagne)+'</b></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
