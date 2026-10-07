@@ -1698,7 +1698,12 @@ function renderDays(c){
   var run=c.capacity, realRun=c.totalReal, h="", n=0;
   /* chaque compte est suivi séparément : un paiement part d'une carte précise, pas d'un total */
   var aRun={},aReal={},aNeed={},aSaid={};
-  c.accs.forEach(function(a){if(a.kind!=="epargne"){aRun[a.id]=a.margin;aReal[a.id]=a.real;aNeed[a.id]=0}});
+  /* son épargne liquide fait partie des comptes suivis : chez Revolut,
+     passer de l'épargne au courant est un glissement dans l'appli, pas un
+     virement. L'ignorer lui faisait des alertes absurdes. */
+  c.accs.forEach(function(a){
+    if(a.kind!=="epargne"||acc(a.id).liquide){aRun[a.id]=a.margin;aReal[a.id]=a.real;aNeed[a.id]=0}
+  });
   var bascule=addDays(T,15),coupe=false,gros=[];
   evs.forEach(function(m){
     n++;
@@ -1713,14 +1718,24 @@ function renderDays(c){
       aRun[aid]=r2(aReal[aid]+odFor(A,dte));
     }
     var mine=(aRun[aid]==null?run:aRun[aid]);
-    var els=0,elsN=[];
+    /* d'où elle peut VRAIMENT ramener de l'argent : le solde POSITIF d'un
+       autre compte. Jamais son découvert — virer 633 € tirés du découvert de
+       SG pour couvrir 20 € sur Revolut, c'est fabriquer des agios. Jamais la
+       carte titres-restaurant non plus : elle ne paie que des repas. */
+    var els=0,elsN=[],src=[];
     Object.keys(aRun).forEach(function(k){
       if(k===aid)return;
-      var mk2=r2(aReal[k]+odFor(acc(k),dte));
-      aRun[k]=mk2;
-      if(mk2<=0)return;
-      els=r2(els+mk2);elsN.push((acc(k).short||acc(k).name)+" "+fmt(mk2));
+      aRun[k]=r2(aReal[k]+odFor(acc(k),dte));
+      if(estTR(k))return;
+      var dispo=r2(Math.max(0,aReal[k]));
+      if(dispo<=0)return;
+      els=r2(els+dispo);
+      elsN.push((acc(k).short||acc(k).name)+" "+fmt(dispo));
+      src.push({nom:(acc(k).short||acc(k).name),dispo:dispo,
+                meme:k.indexOf(aid+"-")===0||aid.indexOf(k+"-")===0});
     });
+    /* la poche de la même banque d'abord : c'est instantané et gratuit */
+    src.sort(function(x,y){return (y.meme?1:0)-(x.meme?1:0)||y.dispo-x.dispo});
     var cls,verdict;
     if(isIn){
       cls="good";
@@ -1732,9 +1747,18 @@ function renderDays(c){
       verdict=aSaid[aid]?"":"<b>Il te manquera "+fmt(Math.abs(mine))+" sur "+esc(nm)+"</b> ce jour-là.";
       if(!aSaid[aid]){
         aSaid[aid]=1;
-        verdict+=" "+(els>0
-          ? "Vire depuis "+esc(elsN.join(" ou "))+" avant, sinon la banque refuse."
-          : "Et tu n'as rien ailleurs pour couvrir : la banque peut refuser.");
+        /* dire la somme qui MANQUE, pas le solde du compte d'en face :
+           « vire depuis SG 633,11 € » pour un trou de 20 €, c'est absurde. */
+        var besoin=r2(Math.abs(mine));
+        if(!src.length)
+          verdict+=" Et tu n'as rien ailleurs pour couvrir : la banque peut refuser.";
+        else{
+          var s0=src[0],ou=esc(s0.nom)+" ("+fmt(s0.dispo)+" dispo)";
+          if(s0.dispo<besoin&&src[1])ou+=" + "+esc(src[1].nom)+" ("+fmt(src[1].dispo)+")";
+          verdict+=(s0.meme?" Fais glisser <b>":" Ramène <b>")+fmt(besoin)+"</b> depuis "+ou+
+            (s0.meme?" — c'est immédiat, dans la même appli."
+                   :" avant, sinon la banque refuse.");
+        }
       }
     } else if(aReal[aid]!=null&&aReal[aid]<0){
       cls="warn2";
