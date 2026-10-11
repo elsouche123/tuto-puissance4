@@ -3455,10 +3455,14 @@ function ouMettreLArgent(){
     l+='<li><b>'+esc(rouge.nom)+'</b> est à '+fmt(rouge.real)+'. Chaque euro remis dessus t\'économise '+
        '<b>21,12 %</b> par an d\'agios — neuf fois ce que rapporte ton épargne.</li>';
   l+='<li><b>Ton fonds voiture</b> : permis, voiture, mariage — c\'est le même pot, tout finit là.</li></ol>';
+  /* Dernier endroit qui annonçait un solde négatif sur un compte sans
+     découvert. Il ne descend pas à -73 € : il est à zéro, et il manque 73 €
+     pour ce qu'elle avait prévu dessus. */
   if(kiffe)
-    l+='<p class="oucap">'+esc(kiffe.nom)+' descend à '+fmt(kiffe.min)+' le '+dl(kiffe.date)+
-       ', mais <b>aucun prélèvement ne passe dessus</b> : tu ne te fais rien rejeter, tu arrêtes juste '+
-       'de dépenser. Le remettre à flot, c\'est pour continuer à sortir — pas pour éviter des frais.</p>';
+    l+='<p class="oucap">Le '+dl(kiffe.date)+', <b>'+esc(kiffe.nom)+'</b> sera à zéro et il y manquera '+
+       fmt(r2(-kiffe.min))+' pour ce que tu avais prévu dessus. <b>Aucun prélèvement n\'y passe</b> : '+
+       'rien ne peut être rejeté, tu arrêtes juste de dépenser. Le remettre à flot, c\'est pour '+
+       'continuer à sortir — pas pour éviter des frais.</p>';
   return l+'</details>';
 }
 function renderBudget(){
