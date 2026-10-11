@@ -19,7 +19,7 @@
   --c-courses:#8A6420; --c-transport:#1F5FA8; --c-logement:#7A5230; --c-loisir:#0E7490;
   --c-retrait:#5A6570; --c-dette:#8C2F39; --c-autre:#6B5C63;
   --ac-sg:#1F5FA8; --ac-revolut:#6B4FD6; --ac-cash:#17795A;
-  --ac-ldd:#0E7C7B; --ac-ljeune:#2F8FBF; --ac-pel:#0B5E8A;
+  --ac-ldd:#0E7C7B; --ac-ljeune:#2F8FBF; --ac-pel:#0B5E8A; --ac-permis:#B06A12;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   color-scheme:dark;
@@ -36,14 +36,14 @@
   --c-courses:#DCBB72; --c-transport:#84B4E8; --c-logement:#D0A87E; --c-loisir:#6FC4DC;
   --c-retrait:#AEB8C2; --c-dette:#EE9090; --c-autre:#B6A5AC;
   --ac-sg:#7FB6D6; --ac-revolut:#B9A6F5; --ac-cash:#5FC99C;
-  --ac-ldd:#5CC7C5; --ac-ljeune:#84C8E8; --ac-pel:#8FC4E4;
+  --ac-ldd:#5CC7C5; --ac-ljeune:#84C8E8; --ac-pel:#8FC4E4; --ac-permis:#E9A95C;
   --e1:#E7A2BC; --e2:#7FB6D6; --e3:#D9AE5B; --e4:#8CC79B; --e5:#AFA2E7; --e6:#EE9B80;
   --c-revenu:#5FC99C; --c-pourboire:#E0B25E; --c-sante:#5CC7C5; --c-beaute:#F090C4;
   --c-frac:#F0A470; --c-credit:#F08C8C; --c-impots:#9DB3DC; --c-abo:#B9A6F5;
   --c-courses:#DCBB72; --c-transport:#84B4E8; --c-logement:#D0A87E; --c-loisir:#6FC4DC;
   --c-retrait:#AEB8C2; --c-dette:#EE9090; --c-autre:#B6A5AC;
   --ac-sg:#7FB6D6; --ac-revolut:#B9A6F5; --ac-cash:#5FC99C;
-  --ac-ldd:#5CC7C5; --ac-ljeune:#84C8E8; --ac-pel:#8FC4E4;
+  --ac-ldd:#5CC7C5; --ac-ljeune:#84C8E8; --ac-pel:#8FC4E4; --ac-permis:#E9A95C;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -16px rgba(0,0,0,.8);
 }}
 :root[data-theme="dark"]{
@@ -1215,6 +1215,13 @@ var SEED = {
     {id:"tr",name:"Carte titres-restaurant",tag:"Repas",start:0,overdraft:0,kind:"courant",short:"Carte resto",tr:true},
     {id:"ldd",name:"Livret Dévelop. Durable",tag:"Épargne",start:0.92,overdraft:0,kind:"epargne",short:"LDD"},
     {id:"ljeune",name:"Livret Jeune",tag:"Épargne",start:10.20,overdraft:0,kind:"epargne",short:"Livret Jeune"},
+    /* son enveloppe permis : des espèces qu'elle retire à chaque paie et confie
+       à son père. C'est de l'argent bien à elle, mais il est hors d'atteinte —
+       pas de carte, pas de prélèvement, et surtout pas une poche où l'appli
+       pourrait lui proposer de puiser pour boucler un mois. kind "epargne" et
+       jamais "liquide" : il ne compte donc ni dans son budget du jour, ni dans
+       ce qui peut renflouer un compte à sec. */
+    {id:"permis",name:"Enveloppe permis (chez mon père)",tag:"Permis",start:0,overdraft:0,kind:"epargne",short:"Enveloppe permis"},
     {id:"pel",name:"Plan Épargne Logement",tag:"Épargne",start:9080.65,overdraft:0,kind:"epargne",short:"PEL"}
   ],
   movements:[
@@ -1269,7 +1276,7 @@ var SEED = {
   ]
 };
 
-var ACCIDS=["sg","revolut","revolut-ep","cash","tr","ldd","ljeune","pel"];
+var ACCIDS=["sg","revolut","revolut-ep","cash","tr","ldd","ljeune","pel","permis"];
 var TABG={today:["today"],pay:["reg","fix"],more:["plan","save"],debts:["debt"]};
 var LS="portefeuille.v3", state=null, filter="all", tab="today";
 var docRef=null, hydrated=false, saveTimer=null, writing=false, dirty=false, lastSent="", pendingRemote=null;
