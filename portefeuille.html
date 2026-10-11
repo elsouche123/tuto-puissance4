@@ -840,7 +840,7 @@ details.detail[open] summary::before{content:"▾ "}
 
 <header class="top">
   <div class="top-in">
-    <div class="brand"><b>Portefeuille</b><span>au jour le jour</span></div>
+    <div class="brand"><b>Portefeuille</b><span id="brandDate">au jour le jour</span></div>
     <div class="capa" id="capaBox" data-s="ok"><span class="lbl">Aujourd'hui</span><span class="val num" id="barCapa">—</span></div>
     <div class="sync" id="sync" data-s="wait"><span class="dot"></span><span id="syncTxt">…</span></div>
   </div>
@@ -1970,6 +1970,9 @@ function renderSummary(){
      3 cm l'un de l'autre, c'est ce qui rendait l'écran illisible. */
   var b=document.getElementById("barCapa"),jour=budgetJour().parJour;
   b.textContent=fmt(jour);
+  /* la date tout en haut : « je vois pas la date du jour ». Elle est déjà sur la
+     carte du budget, mais c'est ici qu'on regarde en premier. */
+  var bd=document.getElementById("brandDate"); if(bd)bd.textContent=dlong(today());
   document.getElementById("capaBox").setAttribute("data-s",jour<=0?"bad":(jour<8?"tight":"ok"));
   if(lastCapa!==null&&lastCapa!==jour){b.classList.remove("flash");void b.offsetWidth;b.classList.add("flash")}
   lastCapa=jour;
