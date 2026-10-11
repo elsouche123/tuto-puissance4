@@ -871,6 +871,7 @@ details.detail[open] summary::before{content:"▾ "}
   <div id="budgetBox"></div>
   <div id="soldesBox"></div>
   <div id="restoBox"></div>
+  <div id="permisBox"></div>
   <div id="paieBox"></div>
   <div id="virBox"></div>
 
@@ -3887,6 +3888,125 @@ document.getElementById("paieBox").addEventListener("click",function(ev){
   else mettreDeCote(b.getAttribute("data-paieep"),b.getAttribute("data-vers"),v);
   save(); renderAll();
 });
+/* ── Mon enveloppe permis ──────────────────────────────────────────────
+   Sa règle, dans ses mots : « chaque fois que je gagne 20 €, je prépare ma
+   somme pour la psy des deux semaines, et une fois qu'elle est prête, je
+   mets l'argent pour mon permis ». Donc ses espèces se lisent dans cet
+   ordre : d'abord la prochaine séance à payer, le reste va dans
+   l'enveloppe — et une fois dedans, elle n'y touche plus.
+   La carte ne fait jamais entrer un euro qu'elle ne m'a pas donné : elle
+   lit ce qui est coché, pas ce qu'elle espère gagner. */
+function psyAVenir(){
+  var T=today(),out=[];
+  state.movements.forEach(function(m){
+    if(m.dir!=="out"||m.done||m.skip)return;
+    if(m.account!=="cash")return;
+    if(!/EMDR|psy/i.test(m.label||""))return;
+    var d=m.datePlanned||"";
+    if(!d||d<T)return;
+    out.push({d:d,v:pa(m.amount),l:m.label});
+  });
+  out.sort(function(a,b){return a.d<b.d?-1:1});
+  return out;
+}
+function permisPlan(){
+  var T=today(),c=calc(),env=null,esp=0;
+  c.accs.forEach(function(a){
+    if(a.id==="permis")env=a;
+    if(a.id==="cash")esp=a.real;
+  });
+  if(!env)return null;
+  /* ce que le permis réclame, et quand */
+  var ech=[];
+  state.movements.forEach(function(m){
+    if(m.account!=="permis"||m.dir!=="out"||m.done||m.skip||m.maybe)return;
+    if(!m.datePlanned||m.datePlanned<T)return;
+    ech.push({d:m.datePlanned,v:pa(m.amount),l:m.label});
+  });
+  ech.sort(function(a,b){return a.d<b.d?-1:1});
+  var reste=0;ech.forEach(function(e){reste+=e.v});
+  reste=r2(reste);
+  /* ce qui est déjà promis à l'enveloppe mais pas encore retiré */
+  var promis=0,vers=[];
+  state.movements.forEach(function(m){
+    if(m.account!=="permis"||m.dir!=="in"||m.done||m.skip||m.maybe)return;
+    if(!m.datePlanned||m.datePlanned<T)return;
+    promis+=pa(m.amount); vers.push({d:m.datePlanned,v:pa(m.amount)});
+  });
+  promis=r2(promis);
+  var manque=r2(Math.max(0,reste-env.real-promis));
+  /* la psy d'abord : la prochaine échéance seule, pas toutes */
+  var psy=psyAVenir(),prochaine=psy.length?psy[0]:null;
+  var garde=prochaine?prochaine.v:0;
+  var versable=r2(Math.max(0,Math.min(esp-garde,manque)));
+  /* Le creux de l'enveloppe : le jour où elle ne suivra plus. Les retraits
+     déjà datés comptent — sans eux la carte criait au manque alors que la
+     paie du 5 novembre était prévue trois jours avant l'échéance. */
+  var flux=vers.map(function(x){return {d:x.d,v:x.v}})
+    .concat(ech.map(function(e){return {d:e.d,v:-e.v}}));
+  flux.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
+  var bal=env.real,creux=null;
+  flux.forEach(function(f){
+    bal=r2(bal+f.v);
+    if(bal<0&&!creux)creux={d:f.d,manque:r2(-bal)};
+  });
+  return {env:env,esp:esp,reste:reste,promis:promis,manque:manque,ech:ech,
+          prochaine:prochaine,garde:garde,versable:versable,creux:creux};
+}
+function virerVersEnveloppe(v){
+  var T=today();
+  state.movements.push({id:uid(),label:"Je mets de côté pour mon permis",account:"cash",dir:"out",
+    amount:v,cat:"Épargne",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,
+    skip:false,fixId:"",fixMonth:"",free:false,settled:false,env:""});
+  state.movements.push({id:uid(),label:"Enveloppe permis — remise à mon père",account:"permis",dir:"in",
+    amount:v,cat:"Épargne",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,
+    skip:false,fixId:"",fixMonth:"",free:false,settled:false,env:""});
+}
+function renderPermis(){
+  var host=document.getElementById("permisBox"); if(!host)return;
+  var P=permisPlan();
+  if(!P||(P.reste<=0&&P.env.real<=0)){host.innerHTML="";return}
+  var dedans=P.env.real,pct=P.reste>0?Math.min(100,Math.round(dedans/(dedans+P.manque||1)*100)):100;
+  var h='<div class="encard"><div class="ln"><h3>Mon enveloppe permis</h3>'+
+    '<span class="cap">'+(P.ech.length?P.ech.length+(P.ech.length>1?" échéances":" échéance"):"tout est payé")+'</span></div>'+
+    '<div class="bar"><i class="'+(P.manque>0?"warn":"")+'" style="width:'+pct+'%"></i></div>'+
+    '<div class="ln"><span class="cap">Dans l\'enveloppe</span><b class="big">'+fmt(dedans)+'</b></div>'+
+    '<div class="ln"><span class="cap">Il manque encore</span><b>'+fmt(P.manque)+'</b></div>';
+  if(P.promis>0)
+    h+='<p class="cap" style="margin:8px 0 0">Dont <b>'+fmt(P.promis)+'</b> déjà prévus sur une paie à venir.</p>';
+  /* le geste du jour : préparer la psy, puis verser le reste */
+  h+='<div class="affect"><div class="afth">Tes espèces, dans l\'ordre que tu m\'as donné</div>';
+  h+='<div class="afl"><span class="afi">'+(P.esp>=P.garde?"✅":"🔸")+'</span>'+
+     '<span class="afn">'+(P.prochaine
+        ? esc(P.prochaine.l.replace(/\s*—.*$/,""))+' <i>'+dl(P.prochaine.d)+'</i>'
+        : "Rien à payer à la psy pour l'instant")+'</span>'+
+     '<span class="afv">'+fmt(P.garde)+'</span></div>';
+  h+='<div class="afl"><span class="afi">'+(P.versable>0?"👉":"⬜")+'</span>'+
+     '<span class="afn">Pour l\'enveloppe permis<i>'+
+     (P.esp<P.garde
+       ? "garde tout : il te manque "+fmt(r2(P.garde-P.esp))+" pour la psy"
+       : P.versable>0 ? "tu peux les donner à ton père maintenant"
+       : P.manque<=0 ? "l'enveloppe est complète" : "rien de libre pour l'instant")+
+     '</i></span><span class="afv">'+fmt(P.versable)+'</span></div></div>';
+  if(P.versable>0)
+    h+='<div class="virline"><span class="cap">Tes espèces : '+fmt(P.esp)+'</span>'+
+       '<button type="button" id="envGo" data-v="'+P.versable+'">Mettre '+fmt(P.versable)+' dans l\'enveloppe</button></div>';
+  if(P.creux)
+    h+='<p class="cap" style="margin:10px 0 0">Au rythme actuel, l\'enveloppe ne suit plus le <b>'+
+       dl(P.creux.d)+'</b> : il y manquera <b>'+fmt(P.creux.manque)+'</b>.</p>';
+  h+='<div class="paliers">';
+  P.ech.forEach(function(e){
+    h+='<div class="pal"><b>'+fmt(e.v)+'</b><span>'+esc(e.l.replace(/^Auto-école[^—]*—\s*/,""))+'</span><i>'+dl(e.d)+'</i></div>';
+  });
+  h+='</div></div>';
+  host.innerHTML=h;
+}
+document.getElementById("permisBox").addEventListener("click",function(ev){
+  var b=ev.target.closest("#envGo"); if(!b)return;
+  var v=pa(b.getAttribute("data-v")); if(v<=0)return;
+  snapshot(); virerVersEnveloppe(v); renderAll(); save();
+  toast(fmt(v)+" dans l'enveloppe permis");
+});
 function renderVir(){
   var host=document.getElementById("virBox"); if(!host)return;
   /* quand la carte de paie est là, c'est elle qui dit quoi virer :
@@ -4594,7 +4714,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){_hmTick++;_hmCache={};selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
+function renderAll(){_hmTick++;_hmCache={};selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
