@@ -244,7 +244,7 @@ button.chip{cursor:pointer;font-family:inherit}
 .encard .ln{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .encard .big{font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--credit)}
 .encard .big.done{color:var(--debit)}
-.encard form{display:flex;gap:8px;margin-top:12px}
+.encard form{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .encard form input{flex:1 1 auto;min-width:0;padding:11px 12px;border:1px solid var(--rule-strong);
   border-radius:10px;background:var(--card-2);color:var(--ink);font-size:1rem}
 .encard form input:focus{outline:2px solid var(--accent);outline-offset:1px}
@@ -315,6 +315,11 @@ button.chip{cursor:pointer;font-family:inherit}
 .pal.libre i{font-weight:700;color:var(--ink)}
 .pal.proj{border-bottom:none;padding:5px 0}
 .ouca{margin:12px 0 2px;padding:11px 12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,transparent);font-size:.9rem;line-height:1.45}
+details.ouca>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:center}
+details.ouca>summary::-webkit-details-marker{display:none}
+details.ouca>summary::after{content:"＋";color:var(--ink-3);flex:none}
+details.ouca[open]>summary::after{content:"−"}
+details.ouca[open]>summary{margin-bottom:6px}
 .ouca b{color:var(--ink)}
 .ouca ol{margin:7px 0 0;padding-left:21px}
 .ouca li{margin:5px 0}
@@ -341,7 +346,7 @@ button.chip{cursor:pointer;font-family:inherit}
 .rqh{font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:700;text-align:right;white-space:nowrap}
 .rqstop{flex:none;white-space:nowrap}
 .rqstop[data-arm="1"]{border-color:var(--debit);background:var(--debit);color:#fff;font-weight:700}
-.espbtn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);
+.espbtn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);min-width:0;
   padding:6px 2px;cursor:pointer;user-select:none;flex:0 0 auto}
 .espbtn input{width:16px;height:16px;accent-color:var(--accent);margin:0}
 .goals{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:13px}
@@ -361,6 +366,9 @@ button.chip{cursor:pointer;font-family:inherit}
 .goal-act{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .goal-act input{width:90px;padding:7px 9px;font-family:"IBM Plex Mono",monospace}
 
+details.box.fold{margin-top:12px}
+details.box.fold>summary{font-weight:700}
+details.box.fold>summary small{display:block;font-weight:400;font-size:11.5px;color:var(--ink-2);margin-top:1px}
 details.box{margin-top:22px;border:1px solid var(--rule);border-radius:var(--radius);background:var(--card);overflow:hidden}
 details.box>summary{padding:14px 16px;cursor:pointer;font-weight:600;font-size:14px;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px}
 details.box>summary::-webkit-details-marker{display:none}
@@ -455,7 +463,7 @@ footer{margin-top:30px;padding-top:15px;border-top:1px solid var(--rule);color:v
 .mhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:14px 3px 7px;font-size:13px}
 .mhead b{font-size:14px;text-transform:capitalize}
 .mhead span{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;color:var(--debit);font-weight:600}
-.days{margin-top:14px;border-radius:var(--radius);border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+.days{max-width:100%;overflow-x:auto;margin-top:14px;border-radius:var(--radius);border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);overflow:hidden}
 .days>h3{margin:0;padding:12px 15px;font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;border-bottom:1px solid var(--rule);background:var(--card-2)}
 .days>h3 span{float:right;font-family:"Public Sans",sans-serif;font-size:11px;font-weight:400;color:var(--ink-2)}
 .step{display:flex;gap:11px;padding:13px 15px;border-top:1px solid var(--rule)}
@@ -870,14 +878,18 @@ details.detail[open] summary::before{content:"▾ "}
 <section class="tabpanel" id="tab-today">
   <div id="budgetBox"></div>
   <div id="soldesBox"></div>
-  <div id="restoBox"></div>
   <div id="permisBox"></div>
   <div id="paieBox"></div>
   <div id="virBox"></div>
 
-  <div id="daysBox"></div>
+  <details class="box fold" id="foldResto"><summary><span id="sumResto">Mes heures au restaurant</span></summary>
+    <div class="box-body" style="padding:12px 14px"><div id="restoBox"></div></div></details>
 
-  <div id="epargneBox"></div>
+  <details class="box fold" id="foldDays"><summary><span id="sumDays">Jour par jour</span></summary>
+    <div class="box-body" style="padding:12px 14px"><div id="daysBox"></div></div></details>
+
+  <details class="box fold" id="foldEpargne"><summary><span id="sumEpargne">Mon épargne</span></summary>
+    <div class="box-body" style="padding:12px 14px"><div id="epargneBox"></div></div></details>
 
   <details class="box" id="resteBox"><summary>⋯ Tout le reste</summary>
     <div class="box-body" style="padding:12px 14px">
@@ -3432,8 +3444,10 @@ function ouMettreLArgent(){
     if(a.real<-0.01&&(!rouge||a.real<rouge.real))
       rouge={nom:a.short||a.name,real:a.real};
   });
-  var l='<div class="ouca"><b>Si de l\'argent se libère</b> — un rendez-vous annulé, un pourboire, '+
-        'un remboursement :<ol>';
+  /* Replié : c'est une règle de fond, pas une info du jour. Elle a demandé
+     une page d'accueil lisible — ce bloc-là se consulte, il ne s'impose pas. */
+  var l='<details class="ouca"><summary><b>Si de l\'argent se libère</b> — où le mettre</summary>'+
+        '<ol>';
   if(rejet)
     l+='<li><b>'+esc(rejet.nom)+'</b>, tout de suite : le '+dl(rejet.date)+' il dépasse son découvert de <b>'+
        fmt(rejet.manque)+'</b>. Là tes prélèvements sautent, à 28,00 € de frais chacun. C\'est le seul vrai risque.</li>';
@@ -3445,7 +3459,7 @@ function ouMettreLArgent(){
     l+='<p class="oucap">'+esc(kiffe.nom)+' descend à '+fmt(kiffe.min)+' le '+dl(kiffe.date)+
        ', mais <b>aucun prélèvement ne passe dessus</b> : tu ne te fais rien rejeter, tu arrêtes juste '+
        'de dépenser. Le remettre à flot, c\'est pour continuer à sortir — pas pour éviter des frais.</p>';
-  return l+'</div>';
+  return l+'</details>';
 }
 function renderBudget(){
   var host=document.getElementById("budgetBox"); if(!host)return;
@@ -3962,6 +3976,36 @@ function virerVersEnveloppe(v){
     amount:v,cat:"Épargne",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,
     skip:false,fixId:"",fixMonth:"",free:false,settled:false,env:""});
 }
+/* Sa page d'accueil avait fini par tout montrer en même temps : « on comprend
+   plus rien ». Trois cartes restent ouvertes — ce qu'elle peut dépenser, ce
+   qu'elle a, son permis. Le reste se replie derrière un titre qui porte déjà
+   le chiffre, pour qu'un coup d'œil suffise sans rien déplier. Un repli dont
+   la carte est vide disparaît complètement. */
+function fold(id,titre){
+  var d=document.getElementById(id); if(!d)return;
+  var boite=d.querySelector(".box-body>div"),sum=d.querySelector("summary>span");
+  var vide=!boite||!boite.innerHTML.trim();
+  d.hidden=vide;
+  if(vide){d.open=false;return}
+  if(sum)sum.innerHTML=titre;
+}
+/* Les titres des replis : le chiffre d'abord, la phrase en dessous. */
+function titreResto(){
+  var r=restoSt(),mk=curMonth(),h=pa(r.hours[mk]),tx=pa(r.rate)||10;
+  return "Restaurant — "+hrs(h)+" en "+ml(mk)+
+         "<small>"+fmt(r2(h*tx))+" à recevoir le 5 "+ml(addM(mk,1))+"</small>";
+}
+function titreDays(){
+  var L=lowAhead(35);
+  return "Jour par jour, jusqu'à ma paie"+
+         "<small>"+(L&&L.min<0
+           ? "le plus bas : "+fmt(L.min)+" le "+dl(L.date)
+           : "le plus bas : "+fmt(L?L.min:0)+(L?" le "+dl(L.date):"")) +"</small>";
+}
+function titreEpargne(){
+  var t=0;calc().accs.forEach(function(a){if(a.kind==="epargne")t+=a.real});
+  return "Mon épargne<small>"+fmt(r2(t))+" de côté, tous comptes confondus</small>";
+}
 function renderPermis(){
   var host=document.getElementById("permisBox"); if(!host)return;
   var P=permisPlan();
@@ -3994,11 +4038,14 @@ function renderPermis(){
   if(P.creux)
     h+='<p class="cap" style="margin:10px 0 0">Au rythme actuel, l\'enveloppe ne suit plus le <b>'+
        dl(P.creux.d)+'</b> : il y manquera <b>'+fmt(P.creux.manque)+'</b>.</p>';
-  h+='<div class="paliers">';
-  P.ech.forEach(function(e){
-    h+='<div class="pal"><b>'+fmt(e.v)+'</b><span>'+esc(e.l.replace(/^Auto-école[^—]*—\s*/,""))+'</span><i>'+dl(e.d)+'</i></div>';
-  });
-  h+='</div></div>';
+  if(P.ech.length){
+    h+='<details class="ouca"><summary>Le détail des '+P.ech.length+' échéances</summary><div class="paliers">';
+    P.ech.forEach(function(e){
+      h+='<div class="pal"><b>'+fmt(e.v)+'</b><span>'+esc(e.l.replace(/^Auto-école[^—]*—\s*/,""))+'</span><i>'+dl(e.d)+'</i></div>';
+    });
+    h+='</div></details>';
+  }
+  h+='</div>';
   host.innerHTML=h;
 }
 document.getElementById("permisBox").addEventListener("click",function(ev){
@@ -4017,6 +4064,9 @@ function renderVir(){
   if(!sg){host.innerHTML="";return}
   var manque=r2(Math.max(0,-sg.real)),src=dispoAilleurs(),libreTot=0;
   src.forEach(function(x){libreTot+=x.libre}); libreTot=r2(libreTot);
+  /* Quand il n'y a rien à virer ET que SG n'est pas dans le rouge, la carte
+     n'apprend rien : elle occupe juste la place. */
+  if(!src.length&&r2(Math.max(0,-sg.real))<=0){host.innerHTML="";return}
   if(!src.length){
     host.innerHTML='<div class="encard"><div class="ln"><h3>Rien à virer</h3>'+
       '<span class="cap">SG '+fmt(sg.real)+'</span></div>'+
@@ -4714,7 +4764,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){_hmTick++;_hmCache={};selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary()}
+function renderAll(){_hmTick++;_hmCache={};selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
