@@ -3504,12 +3504,10 @@ function renderBudget(){
       ' par jour tu restes au-dessus de zéro.</p>':"")+
     (B.aSec>0?'<p class="palert" style="margin:10px 0 0">'+
       (B.sansPrelev
-        ? '💳 <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' sera vide</b> le '+dl(B.aSecDate)+
-          ' — aucun prélèvement dessus, donc rien ne peut être rejeté : elle sera juste refusée.'+
+        ? '💳 <b>'+esc(acc(B.cv).short||acc(B.cv).name)+' sera à zéro</b> le '+dl(B.aSecDate)+
           (B.poche&&B.poche.real>0
-            ? ' Tu as <b>'+fmt(B.poche.real)+'</b> sur '+esc(B.poche.short||B.poche.name)+
-              ' si tu veux continuer — sinon tu t\'arrêtes, et ça ne coûte rien.'
-            : ' À partir de là tu t\'arrêtes, et ça ne coûte rien.')
+            ? ' — '+fmt(B.poche.real)+' sur '+esc(B.poche.short||B.poche.name)+' si tu veux continuer.'
+            : '.')
         : B.poche&&B.poche.real>=B.aSec
         ? '📌 <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' sera à sec</b> le '+dl(B.aSecDate)+
           ' (il y manquera '+fmt(B.aSec)+'), mais tu as <b>'+fmt(B.poche.real)+'</b> sur '+
@@ -4050,10 +4048,13 @@ function renderPermis(){
        : P.versable>0 ? "tu peux les donner à ton père maintenant"
        : P.manque<=0 ? "l'enveloppe est complète" : "rien de libre pour l'instant")+
      '</i></span><span class="afv">'+fmt(P.versable)+'</span></div></div>';
+  /* Ses espèces n'ont pas de découvert : elles ne « tombent » pas à -100 €,
+     il lui en MANQUE 100. Elle me l'a repris dix fois et elle a raison —
+     un solde négatif sur un compte qui ne peut pas l'être, ça n'existe pas. */
   if(P.espFin&&P.espFin.min<-0.01)
-    h+='<p class="cap" style="margin:10px 0 0">💶 Tes espèces tombent à <b>'+fmt(P.espFin.min)+
-       '</b> le <b>'+dl(P.espFin.date)+'</b> : il faudra retirer <b>'+fmt(r2(-P.espFin.min))+
-       '</b> de SG avant, ou avoir eu les pourboires.</p>';
+    h+='<p class="cap" style="margin:10px 0 0">💶 Le '+dl(P.espFin.date)+
+       ' il te manquera <b>'+fmt(r2(-P.espFin.min))+'</b> en espèces. '+
+       'À retirer de SG avant, sauf si les pourboires sont passés par là.</p>';
   else if(P.espFin)
     h+='<p class="cap" style="margin:10px 0 0">💶 Tes espèces tiennent : au plus bas <b>'+
        fmt(P.espFin.min)+'</b> le '+dl(P.espFin.date)+'. Rien à retirer.</p>';
