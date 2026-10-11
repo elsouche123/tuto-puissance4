@@ -3502,13 +3502,13 @@ function renderBudget(){
       ' de ton budget du mois.</b> Avec les '+fmt(B.total)+' prévus tu repassais à '+
       fmt(B.creux)+' le '+esc(dl(B.creuxDate))+' — à '+fmt(B.partJour)+
       ' par jour tu restes au-dessus de zéro.</p>':"")+
-    (B.aSec>0?'<p class="palert" style="margin:10px 0 0">'+
-      (B.sansPrelev
-        ? '💳 <b>'+esc(acc(B.cv).short||acc(B.cv).name)+' sera à zéro</b> le '+dl(B.aSecDate)+
-          (B.poche&&B.poche.real>0
-            ? ' — '+fmt(B.poche.real)+' sur '+esc(B.poche.short||B.poche.name)+' si tu veux continuer.'
-            : '.')
-        : B.poche&&B.poche.real>=B.aSec
+    /* « Tu peux pas dire que ma carte Revolut sera vide sachant que j'utilise
+       vraiment presque rien. » Un compte sans aucun prélèvement et sans
+       découvert qui arrive à zéro ne déclenche rien : pas de rejet, pas de
+       frais, pas d'agios. Au pire un paiement de confort est refusé. Ce
+       n'est pas une alerte, c'est du bruit — on ne l'affiche plus. */
+    (B.aSec>0&&!B.sansPrelev?'<p class="palert" style="margin:10px 0 0">'+
+      (B.poche&&B.poche.real>=B.aSec
         ? '📌 <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' sera à sec</b> le '+dl(B.aSecDate)+
           ' (il y manquera '+fmt(B.aSec)+'), mais tu as <b>'+fmt(B.poche.real)+'</b> sur '+
           esc(B.poche.short||B.poche.name)+' : un glissement dans ton appli le jour venu.'
@@ -3919,7 +3919,7 @@ function psyAVenir(){
     if(!/EMDR|psy/i.test(m.label||""))return;
     var d=m.datePlanned||"";
     if(!d||d<T)return;
-    out.push({d:d,v:pa(m.amount),l:m.label});
+    out.push({d:d,v:pa(m.amount),l:m.label,flou:!!m.maybe});
   });
   out.sort(function(a,b){return a.d<b.d?-1:1});
   return out;
@@ -4030,8 +4030,10 @@ function renderPermis(){
   function ligne(e,n){
     if(!e)return "";
     return '<div class="afl"><span class="afi">'+(P.esp>=n?"✅":"🔸")+'</span>'+
-      '<span class="afn">'+esc(e.l.replace(/\s*—.*$/,""))+'<i>'+dl(e.d)+
-      (e===P.suivante?" — ou plus tôt si Lou a de la place":"")+'</i></span>'+
+      '<span class="afn">'+esc(e.l.replace(/\s*—.*$/,""))+'<i>'+
+      /* une séance pas encore fixée n'a pas de date : l'annoncer au 26 en
+         ferait une certitude, alors qu'elle attend la réponse de Lou. */
+      (e.flou?"dès que tu as le rendez-vous — je garde l'argent prêt":dl(e.d))+'</i></span>'+
       '<span class="afv">'+fmt(e.v)+'</span></div>';
   }
   if(P.prochaine){
@@ -4057,7 +4059,7 @@ function renderPermis(){
        'À retirer de SG avant, sauf si les pourboires sont passés par là.</p>';
   else if(P.espFin)
     h+='<p class="cap" style="margin:10px 0 0">💶 Tes espèces tiennent : au plus bas <b>'+
-       fmt(P.espFin.min)+'</b> le '+dl(P.espFin.date)+'. Rien à retirer.</p>';
+       fmt(P.espFin.min)+'</b> le '+dl(P.espFin.date)+' Rien à retirer.</p>';
   if(P.versable>0)
     h+='<div class="virline"><span class="cap">Tes espèces : '+fmt(P.esp)+'</span>'+
        '<button type="button" id="envGo" data-v="'+P.versable+'">Mettre '+fmt(P.versable)+' dans l\'enveloppe</button></div>';
