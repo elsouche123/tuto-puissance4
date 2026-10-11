@@ -1270,6 +1270,10 @@ var DS=new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"short"});
 var MY=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric"});
 var MO=new Intl.DateTimeFormat("fr-FR",{month:"long"});
 var MSH=new Intl.DateTimeFormat("fr-FR",{month:"short"});
+/* « mets la date du jour » : sans elle, impossible de savoir si le chiffre est frais */
+var DJM=new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"});
+function dlong(iso){if(!iso)return"";var p=iso.split("-");var d=new Date(+p[0],+p[1]-1,+p[2]);
+  return isNaN(d)?iso:DJM.format(d)}
 function mlong(mk){if(!mk)return"?";var q=mk.split("-");var d=new Date(+q[0],+q[1]-1,1);return isNaN(d)?mk:MY.format(d)}
 function mshort(mk){if(!mk)return"?";var q=mk.split("-");var d=new Date(+q[0],+q[1]-1,1);return isNaN(d)?mk:MSH.format(d)}
 function r2(n){return Math.round((Number(n)||0)*100)/100}
@@ -3343,6 +3347,22 @@ function budgetJour(){
   var jRest=Math.max(1,joursQuiComptent(T,finIso));
   var avantAuj=r2(Math.max(0,enveloppe-r2(deja-dejaAuj)));
   partJour=r2(avantAuj/jRest);
+  /* « si j'ai rien dépensé de la journée, augmente mon budget » : c'est déjà ce que
+     fait le réétalement, mais elle ne le VOIT pas. On recalcule donc le taux
+     d'hier avec la même règle, et on affiche l'écart. */
+  var hier=addDays(T,-1),tauxHier=null;
+  if(hier>=debut){
+    var dejaHier=0;
+    state.movements.forEach(function(m){
+      if(m.dir!=="out"||m.skip||!m.done)return;
+      if(acc(m.account).kind==="epargne"||estTR(m.account))return;
+      if(!m.free&&!m.env)return;
+      var dd=(m.dateReal||m.datePlanned||"");
+      if(dd.slice(0,7)===mk&&dd<hier)dejaHier+=pa(m.amount);
+    });
+    var jH=Math.max(1,joursQuiComptent(hier,finIso));
+    tauxHier=r2(Math.max(0,enveloppe-r2(dejaHier))/jH);
+  }
   var rythme=r2(enveloppe>0?enveloppe/joursPeriode:0);
   cagnotte=r2((estJourOff(T)?0:partJour)-dejaAuj);
   return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,fin:fin,trop:trop,sansPrelev:sansPrelev,
@@ -3351,6 +3371,7 @@ function budgetJour(){
           dispo:dispo,parJour:r2(Math.min(dispo,Math.max(0,cagnotte))),
           partJour:partJour,cagnotte:cagnotte,rythme:rythme,jRest:jRest,dejaAuj:dejaAuj,
           ecart:r2(partJour-rythme),reporte:0,
+          tauxHier:tauxHier,gagne:(tauxHier==null?0:r2(partJour-tauxHier)),
           depasse:r2(Math.max(0,deja-total))};
 }
 function renderBudget(){
@@ -3365,7 +3386,7 @@ function renderBudget(){
          : B.marge<MARGE_MINI ? "⚠️ marge "+fmt(B.marge)+", pas de folie"
          : "✅ marge "+fmt(B.marge));
   host.innerHTML='<div class="encard"><div class="ln"><h3>Ce que je peux dépenser</h3>'+
-    '<span class="cap">'+esc(ml(mk))+'</span></div>'+
+    '<span class="cap">'+esc(dlong(today()))+'</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">Aujourd\'hui</span><b class="big'+
       (B.parJour<=0?" done":"")+'">'+fmt(B.parJour)+'</b></div>'+
@@ -3375,6 +3396,12 @@ function renderBudget(){
       ' · carte '+esc(acc(B.cv).short||acc(B.cv).name)+'</p>'+
     /* le chiffre réagit : on dit pourquoi il a bougé, sinon elle croit
        que l'appli est figée et elle vient me le demander ici. */
+    /* ce que la journée d'hier a rapporté — ou coûté */
+    (B.tauxHier==null||Math.abs(B.gagne)<0.05?''
+      :'<p class="cap" style="margin:4px 0 0">'+(B.gagne>0
+        ? '🎁 <b>+'+fmt(B.gagne)+' par jour depuis hier</b> — tu n\'as pas tout dépensé hier, '+
+          'c\'est réparti sur les jours qui restent.'
+        : '⬇️ <b>−'+fmt(Math.abs(B.gagne))+' par jour depuis hier</b> — hier a coûté plus que ta part.')+'</p>')+
     (Math.abs(B.ecart)<0.5?''
       :'<p class="cap" style="margin:4px 0 0">'+(B.ecart<0
         ? '📉 c\'était '+fmt(B.rythme)+' par jour en début de mois : ce que tu as dépensé en plus est repris sur les '+
