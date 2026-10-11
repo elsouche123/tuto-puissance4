@@ -314,6 +314,10 @@ button.chip{cursor:pointer;font-family:inherit}
 .pal.libre b{color:var(--accent)}
 .pal.libre i{font-weight:700;color:var(--ink)}
 .pal.proj{border-bottom:none;padding:5px 0}
+.ouca{margin:12px 0 2px;padding:11px 12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,transparent);font-size:.9rem;line-height:1.45}
+.ouca b{color:var(--ink)}
+.ouca ol{margin:7px 0 0;padding-left:21px}
+.ouca li{margin:5px 0}
 .affect{margin:12px 0 2px;padding:11px 0 2px;border-top:1px solid var(--rule)}
 .afth{font-size:.86rem;color:var(--ink-2);margin-bottom:7px;line-height:1.4}
 .afl{display:flex;align-items:flex-start;gap:9px;padding:6px 0;font-size:.92rem;line-height:1.35}
@@ -3385,6 +3389,35 @@ function budgetJour(){
           tauxHier:tauxHier,gagne:(tauxHier==null?0:r2(partJour-tauxHier)),
           depasse:r2(Math.max(0,deja-total))};
 }
+/* « si de l'argent se libère, je le mets où ? » Un ordre, pas un avis :
+   1. le compte SANS découvert qui va manquer — une carte refusée coûte
+      plus cher que tout le reste ;
+   2. le découvert de SG tant qu'il est utilisé — chaque euro y rapporte
+      le taux du découvert (21 %/an), neuf fois plus que son épargne ;
+   3. l'épargne, une fois que rien n'est en danger. */
+function ouMettreLArgent(){
+  var T=today(),H=addDays(T,30),c=calc(),cv=compteVie();
+  var pire=null,sg=null;
+  c.accs.forEach(function(a){
+    if(a.kind==="epargne"||estTR(a.id))return;
+    if(a.id==="cash")return;                       /* les espèces ne passent jamais sous zéro */
+    var m=miniPaie(a.id,T,H,a.real);
+    var od=pa(a.od);
+    if(od<=0&&m.min<-0.01&&(!pire||m.min<pire.min))
+      pire={id:a.id,nom:a.short||a.name,min:m.min,date:m.date};
+    if(od>0&&a.real<-0.01)sg={id:a.id,nom:a.short||a.name,real:a.real};
+  });
+  var l='<div class="ouca"><b>Si de l\'argent se libère</b> — un rendez-vous annulé, un pourboire, '+
+        'un remboursement :<ol>';
+  if(pire)
+    l+='<li><b>'+esc(pire.nom)+'</b> d\'abord : il manque <b>'+fmt(Math.abs(pire.min))+
+       '</b> le '+dl(pire.date)+', et ce compte n\'a pas de découvert — une carte y serait refusée.</li>';
+  if(sg)
+    l+='<li><b>'+esc(sg.nom)+'</b> : il est à '+fmt(sg.real)+'. Chaque euro remis dessus t\'économise '+
+       '<b>21,12 %</b> par an d\'agios — neuf fois ce que rapporte ton épargne.</li>';
+  l+='<li><b>Ton fonds voiture</b> : une fois que rien n\'est en danger, tout va là.</li></ol></div>';
+  return l;
+}
 function renderBudget(){
   var host=document.getElementById("budgetBox"); if(!host)return;
   var B=budgetJour(),mk=curMonth();
@@ -3438,6 +3471,7 @@ function renderBudget(){
         : '⚠️ <b>Ta carte '+esc(acc(B.cv).short||acc(B.cv).name)+' va tomber à sec</b> le '+dl(B.aSecDate)+
           ' : il y manquera '+fmt(B.aSec)+'. Ramène <b>'+fmt(Math.ceil(B.aSec/10)*10)+'</b> avant.')+
       '</p>':"")+
+    ouMettreLArgent()+
     '<form data-dep="1"><input inputmode="decimal" placeholder="J\'ai dépensé… ex. 18" '+
       'aria-label="Montant dépensé"><input data-note="1" placeholder="Quoi ? (facultatif)" '+
       'aria-label="Libellé"><button type="submit">Noter</button>'+
