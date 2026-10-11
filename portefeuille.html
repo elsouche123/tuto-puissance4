@@ -318,6 +318,7 @@ button.chip{cursor:pointer;font-family:inherit}
 .ouca b{color:var(--ink)}
 .ouca ol{margin:7px 0 0;padding-left:21px}
 .ouca li{margin:5px 0}
+.oucap{margin:8px 0 0;font-size:.85rem;color:var(--ink-2);line-height:1.45}
 .affect{margin:12px 0 2px;padding:11px 0 2px;border-top:1px solid var(--rule)}
 .afth{font-size:.86rem;color:var(--ink-2);margin-bottom:7px;line-height:1.4}
 .afl{display:flex;align-items:flex-start;gap:9px;padding:6px 0;font-size:.92rem;line-height:1.35}
@@ -3346,14 +3347,7 @@ function budgetJour(){
     if(a.kind==="epargne"&&a.id.indexOf(cv+"-")===0&&a.real>0)poche=a;
   });
   var cvMin=miniPaie(cv,T,eom(),cvReal),aSec=r2(Math.max(0,-cvMin.min));
-  /* un compte sans aucun prélèvement ne peut rien se faire rejeter : à sec,
-     la carte est simplement refusée. Ce n'est pas un danger, c'est la fin du
-     budget plaisir — et ça ne se dit pas sur le même ton. */
-  var sansPrelev=!state.fixed.some(function(f){return f.account===cv&&f.day})&&
-    !state.movements.some(function(m){
-      return m.account===cv&&m.dir==="out"&&!m.done&&!m.skip&&!m.free&&!m.env&&
-             m.datePlanned&&m.datePlanned>=T&&m.datePlanned<=eom();
-    });
+  var sansPrelev=aucunPrelev(cv);
   var enveloppe=r2(Math.max(0,total-trop));
   /* « ça fait pas évoluer la case je peux dépenser » : un taux fixe
      enveloppe/mois ne bouge jamais, quoi qu'elle dépense. On réétale donc
@@ -3395,28 +3389,55 @@ function budgetJour(){
    2. le découvert de SG tant qu'il est utilisé — chaque euro y rapporte
       le taux du découvert (21 %/an), neuf fois plus que son épargne ;
    3. l'épargne, une fois que rien n'est en danger. */
+/* un compte sans aucun prélèvement ne peut rien se faire rejeter : à sec,
+   la carte est simplement refusée. Ce n'est pas un danger, c'est la fin du
+   budget plaisir — et ça ne se dit pas sur le même ton. Revolut est dans ce
+   cas : « aucun abonnement passe, c'est que du kiffe ». */
+function aucunPrelev(id){
+  var T=today(),F=eom();
+  /* un PRÉLÈVEMENT, c'est ce que le créancier déclenche tout seul : une charge
+     fixe, ou un mouvement rattaché à une charge fixe. Un virement qu'elle
+     décide (Pépé, Illan) n'est pas un prélèvement — s'il n'y a pas l'argent,
+     elle ne le fait pas, personne ne lui facture 28 €. */
+  return !state.fixed.some(function(f){return f.account===id&&f.day&&fixAmountFor(f,curMonth())>0})&&
+    !state.movements.some(function(m){
+      return m.account===id&&m.dir==="out"&&!m.done&&!m.skip&&m.fixId&&
+             m.datePlanned&&m.datePlanned>=T&&m.datePlanned<=F;
+    });
+}
 function ouMettreLArgent(){
-  var T=today(),H=addDays(T,30),c=calc(),cv=compteVie();
-  var pire=null,sg=null;
+  /* jusqu'à la fin du mois seulement : au-delà, son virement de paie n'est pas
+     modélisé et SG dérive vers des milliers d'euros qui ne veulent rien dire. */
+  var T=today(),H=eom(),c=calc();
+  var rejet=null,rouge=null,kiffe=null;
   c.accs.forEach(function(a){
-    if(a.kind==="epargne"||estTR(a.id))return;
-    if(a.id==="cash")return;                       /* les espèces ne passent jamais sous zéro */
-    var m=miniPaie(a.id,T,H,a.real);
-    var od=pa(a.od);
-    if(od<=0&&m.min<-0.01&&(!pire||m.min<pire.min))
-      pire={id:a.id,nom:a.short||a.name,min:m.min,date:m.date};
-    if(od>0&&a.real<-0.01)sg={id:a.id,nom:a.short||a.name,real:a.real};
+    if(a.kind==="epargne"||estTR(a.id)||a.id==="cash")return;
+    var m=miniPaie(a.id,T,H,a.real),od=pa(a.od),libre=aucunPrelev(a.id);
+    if(libre){
+      /* pas de prélèvement dessus : à sec, elle s'arrête de dépenser, c'est tout */
+      if(m.min<-0.01&&(!kiffe||m.min<kiffe.min))
+        kiffe={nom:a.short||a.name,min:m.min,date:m.date};
+      return;
+    }
+    if(m.min+od<-0.01&&(!rejet||m.min+od<rejet.marge))
+      rejet={nom:a.short||a.name,manque:r2(-(m.min+od)),date:m.date,marge:m.min+od};
+    if(a.real<-0.01&&(!rouge||a.real<rouge.real))
+      rouge={nom:a.short||a.name,real:a.real};
   });
   var l='<div class="ouca"><b>Si de l\'argent se libère</b> — un rendez-vous annulé, un pourboire, '+
         'un remboursement :<ol>';
-  if(pire)
-    l+='<li><b>'+esc(pire.nom)+'</b> d\'abord : il manque <b>'+fmt(Math.abs(pire.min))+
-       '</b> le '+dl(pire.date)+', et ce compte n\'a pas de découvert — une carte y serait refusée.</li>';
-  if(sg)
-    l+='<li><b>'+esc(sg.nom)+'</b> : il est à '+fmt(sg.real)+'. Chaque euro remis dessus t\'économise '+
+  if(rejet)
+    l+='<li><b>'+esc(rejet.nom)+'</b>, tout de suite : le '+dl(rejet.date)+' il dépasse son découvert de <b>'+
+       fmt(rejet.manque)+'</b>. Là tes prélèvements sautent, à 28,00 € de frais chacun. C\'est le seul vrai risque.</li>';
+  if(rouge)
+    l+='<li><b>'+esc(rouge.nom)+'</b> est à '+fmt(rouge.real)+'. Chaque euro remis dessus t\'économise '+
        '<b>21,12 %</b> par an d\'agios — neuf fois ce que rapporte ton épargne.</li>';
-  l+='<li><b>Ton fonds voiture</b> : une fois que rien n\'est en danger, tout va là.</li></ol></div>';
-  return l;
+  l+='<li><b>Ton fonds voiture</b> : permis, voiture, mariage — c\'est le même pot, tout finit là.</li></ol>';
+  if(kiffe)
+    l+='<p class="oucap">'+esc(kiffe.nom)+' descend à '+fmt(kiffe.min)+' le '+dl(kiffe.date)+
+       ', mais <b>aucun prélèvement ne passe dessus</b> : tu ne te fais rien rejeter, tu arrêtes juste '+
+       'de dépenser. Le remettre à flot, c\'est pour continuer à sortir — pas pour éviter des frais.</p>';
+  return l+'</div>';
 }
 function renderBudget(){
   var host=document.getElementById("budgetBox"); if(!host)return;
