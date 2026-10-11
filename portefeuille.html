@@ -314,6 +314,14 @@ button.chip{cursor:pointer;font-family:inherit}
 .pal.libre b{color:var(--accent)}
 .pal.libre i{font-weight:700;color:var(--ink)}
 .pal.proj{border-bottom:none;padding:5px 0}
+.affect{margin:12px 0 2px;padding:11px 0 2px;border-top:1px solid var(--rule)}
+.afth{font-size:.86rem;color:var(--ink-2);margin-bottom:7px;line-height:1.4}
+.afl{display:flex;align-items:flex-start;gap:9px;padding:6px 0;font-size:.92rem;line-height:1.35}
+.afi{flex:none;width:20px}
+.afn{flex:1;min-width:0;color:var(--ink)}
+.afn i{display:block;font-style:normal;font-size:.76rem;color:var(--ink-3);margin-top:1px}
+.afv{flex:none;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.afv u{text-decoration:none;font-weight:400;color:var(--ink-3)}
 .pal.proj b{color:var(--ink-2);font-size:12.5px}
 .pal.proj span{font-size:12px}
 .objln{margin-top:9px;padding-top:9px;border-top:1px solid var(--rule)}
@@ -609,29 +617,29 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .prest .v{font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:17px}
 .step{display:block;position:relative;padding:0 32px 0 14px;border-top:1px solid var(--rule)}
 .step:first-of-type{border-top:none}
-.sline{display:flex;align-items:flex-start;gap:11px;padding:12px 0;cursor:pointer;margin:0}
-.sline .tickbox{width:32px;height:32px;margin:0;flex:none;position:relative}
+.sline{display:flex;align-items:center;gap:13px;padding:16px 0;cursor:pointer;margin:0}
+.sline .tickbox{width:40px;height:40px;margin:0;flex:none;position:relative;border-width:2.5px;border-radius:11px}
 /* la zone tactile déborde la case : 44 px de côté, comme le recommande Apple,
    sans agrandir le dessin ni décaler la ligne */
-.sline .tickbox::before{content:"";position:absolute;top:-6px;left:-6px;right:-6px;bottom:-6px}
-.sline .tickbox:checked::after{width:8px;height:14px;border-width:0 3px 3px 0}
+.sline .tickbox::before{content:"";position:absolute;top:-8px;left:-8px;right:-8px;bottom:-8px}
+.sline .tickbox:checked::after{width:10px;height:18px;border-width:0 3.5px 3.5px 0}
 .sbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .sday{display:flex;gap:7px;align-items:baseline;line-height:1.1}
 .sday b{font-size:.9rem;font-weight:700;color:var(--ink)}
 .sday i{font-style:normal;font-size:.78rem;font-weight:600;color:var(--ink-2);
   text-transform:uppercase;letter-spacing:.05em}
-.sline .samt{margin-left:auto;font-size:1.06rem;font-weight:700;white-space:nowrap;letter-spacing:-.01em}
-.snm{font-size:1.1rem;line-height:1.32;color:var(--ink);overflow:hidden;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sline .samt{margin-left:auto;font-size:1.18rem;font-weight:800;white-space:nowrap;letter-spacing:-.02em;padding-right:34px}
+.snm{font-size:1.06rem;line-height:1.35;color:var(--ink);overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .suite{border-top:1px solid var(--rule)}
 .suite>summary{cursor:pointer;padding:14px;font-size:.92rem;font-weight:600;color:var(--ink-2);line-height:1.35}
 .suitebox .step:first-of-type{border-top:1px solid var(--rule)}
 .sx.arm{background:var(--debit,#b3261e);color:#fff;border-radius:50%;font-weight:700}
 .sapres{font-size:.76rem;color:var(--ink-3);margin-top:1px}
 .step.ko .sapres,.step.warn2 .sapres{color:var(--debit)}
-.step .sverd{font-size:.95rem;line-height:1.45;color:var(--ink);margin:0;padding:0 0 12px 36px;font-weight:500}
+.step .sverd{font-size:.95rem;line-height:1.45;color:var(--ink);margin:0;padding:0 0 14px 53px;font-weight:500}
 .step.ko .sverd{color:#b3261e}
-.sx{position:absolute;top:8px;right:-4px;width:40px;height:40px;border:none;background:none;
+.sx{position:absolute;top:12px;right:-6px;width:46px;height:46px;border:none;background:none;
   color:var(--muted);font-size:15px;cursor:pointer;line-height:1}
 .soldes{display:flex;gap:8px;margin:10px 0 14px}
 .sol{flex:1;min-width:0;background:var(--card);border:1px solid var(--rule);border-radius:12px;
@@ -4231,6 +4239,43 @@ function heuresMini(mk,cible){
 /* « je veux me projeter avec l'argent que je suis en train de gagner » :
    un nombre d'heures tout seul ne dit rien. On montre les deux paliers qui
    comptent et, au-delà, ce que chaque heure rapporte vraiment pour ses projets. */
+/* « cet argent gagné pour mes projets, détaille stp ». On prend sa paie de
+   restaurant et on la répartit, dans l'ordre des dates, sur ce qu'elle doit
+   vraiment à quelqu'un ou mettre de côté : dettes, crédits, épargne, permis.
+   Pas de pourcentages inventés — l'argent paie les lignes réelles. */
+function affectationResto(mk){
+  var r=restoSt(),h=pa(r.hours[mk]),tx=pa(r.rate)||10,du=r2(h*tx);
+  if(du<=0)return "";
+  var pm=restoPayMk(mk),pay=pm+"-05",fin=addDays(pay,62),T=today();
+  if(pay<T)return "";
+  var cibles=[];
+  state.movements.forEach(function(m){
+    if(m.dir!=="out"||m.done||m.skip||m.maybe)return;
+    var d=m.datePlanned; if(!d||d<pay||d>fin)return;
+    var l=m.label||"";
+    var compte=(m.cat==="Dette"||m.cat==="Crédit"||m.cat==="Épargne"||/auto-école|permis/i.test(l));
+    if(!compte)return;
+    cibles.push({d:d,v:pa(m.amount),l:l});
+  });
+  if(!cibles.length)return "";
+  cibles.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0});
+  var reste=du,l="<div class=\"affect\"><div class=\"afth\">Tes <b>"+fmt(du)+"</b> du "+
+    dl(pay)+" paient, dans l'ordre :</div>";
+  var n=0;
+  cibles.forEach(function(c){
+    if(n>=6)return; n++;
+    var couvert=Math.min(reste,c.v); reste=r2(reste-couvert);
+    var ic=couvert>=c.v-0.01?"✅":(couvert>0.01?"🔸":"⬜");
+    l+='<div class="afl"><span class="afi">'+ic+'</span>'+
+       '<span class="afn">'+esc(c.l.replace(/ — SOLDÉ.*$/,""))+'<i>'+esc(dl(c.d))+'</i></span>'+
+       '<span class="afv">'+(couvert>=c.v-0.01?fmt(c.v)
+         :couvert>0.01?fmt(couvert)+" <u>sur "+fmt(c.v)+"</u>"
+         :"<u>"+fmt(c.v)+"</u>")+'</span></div>';
+  });
+  if(reste>0.5)l+='<div class="afl"><span class="afi">🎯</span><span class="afn">'+
+    "il te reste <b>"+fmt(reste)+"</b> pour ton épargne"+'</span><span class="afv"></span></div>';
+  return l+"</div>";
+}
 function paliersResto(mk){
   var r=restoSt(),tx=pa(r.rate)||10,h=pa(r.hours[mk]);
   var a=heuresMini(mk,0),c=heuresMini(mk,MARGE_MINI),pm=restoPayMk(mk),out=[];
@@ -4322,7 +4367,7 @@ function renderResto(){
     '<div class="ln"><h3>🍽️ '+hrs(h)+' ce mois-ci</h3><b class="big">'+fmt(gagne)+'</b></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">'+dit+'</span></div>'+noteMois+
-    paliersResto(mk)+
+    paliersResto(mk)+affectationResto(mk)+
     '<form data-resto="1"><input inputmode="decimal" placeholder="Je suis à… ex. 06:52" '+
       'aria-label="Heures faites au restaurant"><button type="submit">Noter</button></form>'+
     '<div class="ln objln"><span class="cap">Si je veux viser plus haut</span>'+
