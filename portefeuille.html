@@ -3155,6 +3155,9 @@ function prochainePaie(){
     if(estVirementInterne(m))return;
     if(m.done&&(m.dateReal||m.datePlanned||"")<D1)return;
     if(acc(m.account).kind==="epargne")return;
+    /* ni les espèces : la carte de paie dit « vire X sur SG », et on ne vire
+       pas du liquide. Un gros baby-sitting payé en billets n'est pas une paie. */
+    if(m.account==="cash")return;
     if(pa(m.amount)<300||!m.datePlanned)return;
     if(m.datePlanned<D1||m.datePlanned>H)return;
     if(!out||m.datePlanned<out.date)
@@ -4280,7 +4283,9 @@ function comptesASec(){
 function dOuRenflouer(exclu,somme,avant){
   var T=today(),c=calc(),best=null;
   c.accs.forEach(function(a){
-    if(a.kind==="epargne"||a.id===exclu||estTR(a.id))return;
+    /* Jamais les espèces : on ne vire pas du liquide sur un compte, et le
+       sien est réservé à Lou et à son permis. Même raison que dispoAilleurs. */
+    if(a.kind==="epargne"||a.id===exclu||a.id==="cash"||estTR(a.id))return;
     var b=a.real,quand="";
     if(b>=somme)quand=T;
     evsPaie(a.id,T,avant).forEach(function(e){
