@@ -3143,7 +3143,29 @@ function miniPaie(accId,D1,D2,depart,depuis,sansDepart){
    carte restait bloquée sur « ✅ ta paie est répartie » et ne lui a jamais
    montré le virement à faire le 30. */
 function estVirementInterne(m){
-  return m.cat==="Épargne"||/^(depuis|vers)\s/i.test(m.label||"");
+  /* déplacer de l'argent d'un de ses comptes à un autre n'est ni une paie
+     ni une dépense. Les virements que l'app crée elle-même s'appellent
+     « Vers X » / « Depuis X », mais ceux qu'elle écrit à la main non :
+     on accepte aussi « Virement vers… », « Revolut → SG », « Retiré de ma
+     paie … pour mon enveloppe ». */
+  return m.cat==="Épargne"
+      || /^(depuis|vers)\s/i.test(m.label||"")
+      || /^virement\s+(vers|depuis|interne|sur)/i.test(m.label||"")
+      || /→|->/.test(m.label||"")
+      || estVersEnveloppe(m);
+}
+/* ── Reconnaître un mouvement : par id et par catégorie, JAMAIS par son
+   libellé seul ──────────────────────────────────────────────────────
+   « C'est de l'argent. » Un libellé, elle le réécrit — renommer « Séances
+   avec Lou » avait déjà fait disparaître 160 € réservés pour la psy, et la
+   carte avait annoncé qu'il ne manquait rien. Un id et une catégorie, non.
+   Le libellé ne reste qu'un filet pour les lignes écrites avant ces règles. */
+function estVersEnveloppe(m){
+  return /^env-permis-/.test(m.id||"")
+      || (m.account==="cash"&&m.dir==="in"&&/retire|enveloppe/i.test(m.label||""));
+}
+function estRemb(m){
+  return m.cat==="Dette"||/^rembourser/i.test(m.label||"");
 }
 function prochainePaie(jours){
   /* une paie déjà cochée compte encore : l'argent est sur le compte mais le
@@ -3234,7 +3256,7 @@ function planPaie(jours){
   var rembs=[];
   state.movements.forEach(function(m){
     if(m.done||m.skip||m.dir!=="out")return;
-    if(!/^rembourser/i.test(m.label||""))return;
+    if(!estRemb(m))return;
     if(m.account!==P.compte)return;
     if(!m.datePlanned||m.datePlanned<P.date||m.datePlanned>D2)return;
     rembs.push({date:m.datePlanned,amount:pa(m.amount),label:m.label,compte:m.account});
@@ -3724,7 +3746,7 @@ function dettesProches(){
   var T=today(),par={},ordre=[];
   state.movements.forEach(function(m){
     if(m.done||m.skip||m.dir!=="out")return;
-    if(!/^rembourser/i.test(m.label||""))return;
+    if(!estRemb(m))return;
     var qui=m.label.replace(/^rembourser/i,"").split("—")[0].trim()||"Quelqu'un";
     if(!par[qui]){par[qui]={nom:qui,total:0,lignes:[]};ordre.push(qui)}
     par[qui].total=r2(par[qui].total+pa(m.amount));
@@ -3990,7 +4012,7 @@ function permisPlan(){
   var promis=0,vers=[];
   state.movements.forEach(function(m){
     if(m.account!=="cash"||m.dir!=="in"||m.done||m.skip||m.maybe)return;
-    if(!/retire|enveloppe/i.test(m.label||""))return;
+    if(!estVersEnveloppe(m))return;
     if(!m.datePlanned||m.datePlanned<T)return;
     promis+=pa(m.amount); vers.push({d:m.datePlanned,v:pa(m.amount),l:m.label});
   });
@@ -4597,7 +4619,11 @@ function affectationResto(mk){
     if(m.dir!=="out"||m.done||m.skip||m.maybe)return;
     var d=m.datePlanned; if(!d||d<pay||d>fin)return;
     var l=m.label||"";
-    var compte=(m.cat==="Dette"||m.cat==="Crédit"||m.cat==="Épargne"||/auto-école|permis/i.test(l));
+    /* les échéances d'auto-école se reconnaissent à leur id (ae-…), pas à
+       leur libellé : renommer « conduite » ne doit pas les faire sortir de
+       ce que sa paie du restaurant est censée payer. */
+    var compte=(m.cat==="Dette"||m.cat==="Crédit"||m.cat==="Épargne"||
+                estAutoEcole(m)||/auto-école|permis/i.test(l));
     if(!compte)return;
     cibles.push({d:d,v:pa(m.amount),l:l});
   });
