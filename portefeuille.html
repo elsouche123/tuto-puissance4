@@ -1234,7 +1234,7 @@ var SEED = {
        pourrait lui proposer de puiser pour boucler un mois. kind "epargne" et
        jamais "liquide" : il ne compte donc ni dans son budget du jour, ni dans
        ce qui peut renflouer un compte à sec. */
-    {id:"permis",name:"Mon enveloppe (chez mon père)",tag:"Enveloppe",start:0,overdraft:0,kind:"epargne",short:"Mon enveloppe"},
+    {id:"permis",name:"Mon enveloppe en espèces",tag:"Enveloppe",start:0,overdraft:0,kind:"epargne",short:"Mon enveloppe"},
     {id:"pel",name:"Plan Épargne Logement",tag:"Épargne",start:9080.65,overdraft:0,kind:"epargne",short:"PEL"}
   ],
   movements:[
@@ -3976,7 +3976,7 @@ function virerVersEnveloppe(v){
   state.movements.push({id:uid(),label:"Je mets dans mon enveloppe",account:"cash",dir:"out",
     amount:v,cat:"Épargne",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,
     skip:false,fixId:"",fixMonth:"",free:false,settled:false,env:""});
-  state.movements.push({id:uid(),label:"Enveloppe — remise à mon père",account:"permis",dir:"in",
+  state.movements.push({id:uid(),label:"Mis dans mon enveloppe",account:"permis",dir:"in",
     amount:v,cat:"Épargne",datePlanned:T,month:curMonth(),dateReal:T,done:true,maybe:false,
     skip:false,fixId:"",fixMonth:"",free:false,settled:false,env:""});
 }
@@ -4016,7 +4016,7 @@ function renderPermis(){
   if(!P||(P.reste<=0&&P.env.real<=0)){host.innerHTML="";return}
   var dedans=P.env.real,pct=P.reste>0?Math.min(100,Math.round(dedans/P.reste*100)):100;
   var h='<div class="encard"><div class="ln"><h3>Mon enveloppe</h3>'+
-    '<span class="cap">chez mon père</span></div>'+
+    '<span class="cap">mes espèces, mises de côté</span></div>'+
     '<div class="bar"><i class="'+(P.manque>0?"warn":"")+'" style="width:'+pct+'%"></i></div>'+
     '<div class="ln"><span class="cap">Dedans</span><b class="big">'+fmt(dedans)+'</b></div>';
 
