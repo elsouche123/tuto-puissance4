@@ -1234,7 +1234,7 @@ var SEED = {
        pourrait lui proposer de puiser pour boucler un mois. kind "epargne" et
        jamais "liquide" : il ne compte donc ni dans son budget du jour, ni dans
        ce qui peut renflouer un compte à sec. */
-    {id:"permis",name:"Mon enveloppe en espèces",tag:"Enveloppe",start:0,overdraft:0,kind:"epargne",short:"Mon enveloppe"},
+    {id:"permis",name:"Enveloppe permis (chez mon père)",tag:"Permis",start:0,overdraft:0,kind:"epargne",short:"Enveloppe permis"},
     {id:"pel",name:"Plan Épargne Logement",tag:"Épargne",start:9080.65,overdraft:0,kind:"epargne",short:"PEL"}
   ],
   movements:[
@@ -3907,20 +3907,16 @@ document.getElementById("paieBox").addEventListener("click",function(ev){
   else mettreDeCote(b.getAttribute("data-paieep"),b.getAttribute("data-vers"),v);
   save(); renderAll();
 });
-/* ── Mon enveloppe ────────────────────────────────────────────────────
-   Sa décision : « tu peux faire une enveloppe psy et permis. Comme ça à
-   chaque séance, chaque fois que j'ai l'argent, tu coches, je touche pas,
-   et en plus ça va permis. »
-   Donc UNE enveloppe, deux usages, dans l'ordre : les séances avec Lou
-   d'abord — leur date dépend d'elle, pas de moi — et tout ce qui reste
-   construit le permis. Garder deux poches séparées l'obligeait à arbitrer
-   à chaque billet ; là elle ne touche plus à rien et elle coche quand elle
-   paie.
+/* ── Mes espèces : Lou d'abord, le permis ensuite ─────────────────────
+   « Si j'ai de l'argent liquide qui rentre et que la séance de la psy est
+   payée, ça va chez mon père. Faut pas mélanger les deux. »
+   Deux endroits, et c'est volontaire : ce qu'elle doit à Lou reste dans sa
+   poche, sinon elle devrait aller le rechercher chez son père le jour du
+   rendez-vous. Seul le surplus part dans l'enveloppe — et une fois parti,
+   il ne revient pas. C'est toute la différence entre de l'argent réservé
+   et de l'argent rangé.
    La carte ne fait jamais entrer un euro qu'elle ne m'a pas donné : elle
    lit ce qui est coché, pas ce qu'elle espère gagner. */
-/* Reconnaître une séance à sa CATÉGORIE, pas à son libellé : renommer la
-   ligne « Séances avec Lou » avait suffi à la faire disparaître de la
-   carte, et l'argent n'était plus réservé. La catégorie, elle, ne bouge pas. */
 function estPsy(m){ return m.cat==="Santé"||/EMDR|psy/i.test(m.label||"") }
 function permisPlan(){
   var T=today(),c=calc(),env=null,esp=0;
@@ -3929,22 +3925,29 @@ function permisPlan(){
     if(a.id==="cash")esp=a.real;
   });
   if(!env)return null;
-  /* Ce que l'enveloppe doit payer. Une séance pas encore datée compte quand
-     même : c'est précisément pour elle que l'argent doit être prêt. Une
-     leçon de conduite incertaine, elle, ne réserve rien. */
-  var psy=[],ech=[];
+  /* Ce qu'elle doit à Lou, et qui reste en poche. Une séance sans date
+     compte quand même : c'est précisément pour celle-là que l'argent doit
+     être prêt quand Lou lui proposera un créneau. Si elle en réserve
+     plusieurs, elles s'additionnent — c'est l'enveloppe qu'elle prépare. */
+  var psy=[];
   state.movements.forEach(function(m){
-    if(m.account!=="permis"||m.dir!=="out"||m.done||m.skip)return;
+    if(m.account!=="cash"||m.dir!=="out"||m.done||m.skip)return;
+    if(!estPsy(m))return;
     var d=m.datePlanned||"";
-    if(estPsy(m)){ psy.push({d:d,v:pa(m.amount),l:m.label,flou:!!m.maybe||!d}); return }
-    if(m.maybe||!d||d<T)return;
-    ech.push({d:d,v:pa(m.amount),l:m.label});
+    if(d&&d<T)return;
+    psy.push({d:d,v:pa(m.amount),l:m.label,flou:!!m.maybe||!d});
   });
   psy.sort(function(a,b){return (a.d||"9")<(b.d||"9")?-1:1});
+  var garde=0;psy.forEach(function(e){garde+=e.v}); garde=r2(garde);
+  /* ce que l'enveloppe doit payer, et quand */
+  var ech=[];
+  state.movements.forEach(function(m){
+    if(m.account!=="permis"||m.dir!=="out"||m.done||m.skip||m.maybe)return;
+    if(!m.datePlanned||m.datePlanned<T)return;
+    ech.push({d:m.datePlanned,v:pa(m.amount),l:m.label});
+  });
   ech.sort(function(a,b){return a.d<b.d?-1:1});
-  var duPsy=0;psy.forEach(function(e){duPsy+=e.v}); duPsy=r2(duPsy);
-  var duEch=0;ech.forEach(function(e){duEch+=e.v}); duEch=r2(duEch);
-  var reste=r2(duPsy+duEch);
+  var reste=0;ech.forEach(function(e){reste+=e.v}); reste=r2(reste);
   /* ce qui est déjà promis à l'enveloppe mais pas encore retiré */
   var promis=0,vers=[];
   state.movements.forEach(function(m){
@@ -3954,22 +3957,20 @@ function permisPlan(){
   });
   promis=r2(promis);
   var manque=r2(Math.max(0,reste-env.real-promis));
-  /* Ses espèces n'ont plus rien à retenir : l'enveloppe paie aussi la psy.
-     Tout ce qu'elle a en poche peut y aller, dans la limite de ce qui manque. */
-  var versable=r2(Math.max(0,Math.min(esp,manque)));
-  /* Le creux de l'enveloppe : le jour où elle ne suivra plus. Les retraits
-     déjà datés comptent, et les séances aussi dès qu'elles ont une date. */
+  var versable=r2(Math.max(0,Math.min(esp-garde,manque)));
+  /* jusqu'où ses espèces tiennent, cours et pourboires notés compris */
+  var espFin=miniPaie("cash",T,addDays(T,60),esp);
+  /* Le creux de l'enveloppe : les retraits déjà datés comptent. */
   var flux=vers.map(function(x){return {d:x.d,v:x.v}})
-    .concat(ech.map(function(e){return {d:e.d,v:-e.v}}))
-    .concat(psy.filter(function(e){return !!e.d}).map(function(e){return {d:e.d,v:-e.v}}));
+    .concat(ech.map(function(e){return {d:e.d,v:-e.v}}));
   flux.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:b.v-a.v});
   var bal=env.real,creux=null;
   flux.forEach(function(f){
     bal=r2(bal+f.v);
     if(bal<0&&!creux)creux={d:f.d,manque:r2(-bal)};
   });
-  return {env:env,esp:esp,psy:psy,ech:ech,duPsy:duPsy,duEch:duEch,reste:reste,
-          promis:promis,manque:manque,versable:versable,creux:creux};
+  return {env:env,esp:esp,psy:psy,garde:garde,reste:reste,promis:promis,
+          manque:manque,ech:ech,versable:versable,creux:creux,espFin:espFin};
 }
 function virerVersEnveloppe(v){
   var T=today();
@@ -4013,49 +4014,48 @@ function titreEpargne(){
 function renderPermis(){
   var host=document.getElementById("permisBox"); if(!host)return;
   var P=permisPlan();
-  if(!P||(P.reste<=0&&P.env.real<=0)){host.innerHTML="";return}
-  var dedans=P.env.real,pct=P.reste>0?Math.min(100,Math.round(dedans/P.reste*100)):100;
-  var h='<div class="encard"><div class="ln"><h3>Mon enveloppe</h3>'+
-    '<span class="cap">mes espèces, mises de côté</span></div>'+
-    '<div class="bar"><i class="'+(P.manque>0?"warn":"")+'" style="width:'+pct+'%"></i></div>'+
-    '<div class="ln"><span class="cap">Dedans</span><b class="big">'+fmt(dedans)+'</b></div>';
+  if(!P||(P.reste<=0&&P.env.real<=0&&P.garde<=0)){host.innerHTML="";return}
+  var dedans=P.env.real,tot=r2(dedans+P.manque),pct=tot>0?Math.min(100,Math.round(dedans/tot*100)):100;
+  var h='<div class="encard"><div class="ln"><h3>Mes espèces</h3>'+
+    '<span class="cap">Lou d\'abord, le permis ensuite</span></div>';
 
-  /* à quoi elle sert, dans son ordre à elle */
-  h+='<div class="affect"><div class="afth">Ce qu\'elle doit payer</div>';
-  h+='<div class="afl"><span class="afi">'+(dedans>=P.duPsy?"✅":"🔸")+'</span>'+
-     '<span class="afn">Mes séances avec Lou<i>'+
+  /* 1. ce qui reste en poche */
+  h+='<div class="affect"><div class="afth">Dans ta poche : <b>'+fmt(P.esp)+'</b></div>';
+  h+='<div class="afl"><span class="afi">'+(P.esp>=P.garde?"✅":"🔸")+'</span>'+
+     '<span class="afn">Gardé pour Lou<i>'+
      (P.psy.length
-       ? (P.psy[0].flou?"dès que tu as le rendez-vous — l\'argent est prêt":"le "+dl(P.psy[0].d))
+       ? (P.psy.length>1?P.psy.length+" séances à payer":
+          (P.psy[0].flou?"dès que tu as le rendez-vous":"le "+dl(P.psy[0].d)))+
+         (P.esp<P.garde?" — il te manque "+fmt(r2(P.garde-P.esp)):"")
        : "rien à payer pour l\'instant")+'</i></span>'+
-     '<span class="afv">'+fmt(P.duPsy)+'</span></div>';
-  h+='<div class="afl"><span class="afi">'+(P.duEch<=0?"✅":(dedans>=P.reste?"✅":"⬜"))+'</span>'+
-     '<span class="afn">Mon permis<i>'+(P.ech.length
-       ? P.ech.length+(P.ech.length>1?" échéances":" échéance")+", jusqu\'au "+dl(P.ech[P.ech.length-1].d)
-       : "tout est payé")+'</i></span>'+
-     '<span class="afv">'+fmt(P.duEch)+'</span></div></div>';
-
-  h+='<div class="ln" style="margin-top:8px"><span class="cap">Il manque encore</span><b>'+fmt(P.manque)+'</b></div>';
-  if(P.promis>0)
-    h+='<p class="cap" style="margin:6px 0 0">Dont <b>'+fmt(P.promis)+'</b> déjà prévus sur une paie à venir.</p>';
+     '<span class="afv">'+fmt(P.garde)+'</span></div>';
+  h+='<div class="afl"><span class="afi">'+(P.versable>0?"👉":"⬜")+'</span>'+
+     '<span class="afn">À porter chez ton père<i>'+
+     (P.esp<P.garde ? "rien pour l\'instant : Lou passe avant"
+      : P.versable>0 ? "pour ton permis, et tu n\'y touches plus"
+      : P.manque<=0 ? "ton permis est déjà couvert" : "rien de libre pour l\'instant")+
+     '</i></span><span class="afv">'+fmt(P.versable)+'</span></div></div>';
 
   if(P.versable>0)
-    h+='<div class="virline"><span class="cap">Tes espèces : '+fmt(P.esp)+'</span>'+
-       '<button type="button" id="envGo" data-v="'+P.versable+'">Mettre '+fmt(P.versable)+' dedans</button></div>';
-  else if(P.esp>0&&P.manque<=0)
-    h+='<p class="cap" style="margin:10px 0 0">Ton enveloppe est complète : tes '+fmt(P.esp)+
-       ' en poche sont à toi.</p>';
+    h+='<div class="virline"><span class="cap">Enveloppe permis : '+fmt(dedans)+'</span>'+
+       '<button type="button" id="envGo" data-v="'+P.versable+'">Mettre '+fmt(P.versable)+' dans l\'enveloppe</button></div>';
 
+  /* 2. l'enveloppe permis */
+  h+='<div class="ln" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--rule)">'+
+     '<span class="cap">Enveloppe permis</span><b class="big">'+fmt(dedans)+'</b></div>'+
+     '<div class="bar"><i class="'+(P.manque>0?"warn":"")+'" style="width:'+pct+'%"></i></div>'+
+     '<div class="ln"><span class="cap">Il manque encore</span><b>'+fmt(P.manque)+'</b></div>';
+  if(P.promis>0)
+    h+='<p class="cap" style="margin:6px 0 0">Dont <b>'+fmt(P.promis)+'</b> déjà prévus sur une paie à venir.</p>';
   if(P.creux)
-    h+='<p class="cap" style="margin:10px 0 0">Au rythme actuel, l\'enveloppe ne suit plus le <b>'+
+    h+='<p class="cap" style="margin:8px 0 0">Au rythme actuel, l\'enveloppe ne suit plus le <b>'+
        dl(P.creux.d)+'</b> : il y manquera <b>'+fmt(P.creux.manque)+'</b>.</p>';
 
-  var tout=P.psy.concat(P.ech);
-  if(tout.length){
-    h+='<details class="ouca"><summary>Le détail</summary><div class="paliers">';
-    tout.forEach(function(e){
+  if(P.ech.length){
+    h+='<details class="ouca"><summary>Le détail des '+P.ech.length+' échéances</summary><div class="paliers">';
+    P.ech.forEach(function(e){
       h+='<div class="pal"><b>'+fmt(e.v)+'</b><span>'+
-         esc(e.l.replace(/^Auto-école[^—]*—\s*/,"").replace(/\s*—.*$/,""))+'</span><i>'+
-         (e.d&&!e.flou?dl(e.d):"date à fixer")+'</i></div>';
+         esc(e.l.replace(/^Auto-école[^—]*—\s*/,"").replace(/\s*—.*$/,""))+'</span><i>'+dl(e.d)+'</i></div>';
     });
     h+='</div></details>';
   }
