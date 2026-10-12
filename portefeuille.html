@@ -3270,10 +3270,31 @@ function planPaie(jours){
     state.movements.forEach(function(m){
       if(m.done||m.skip||m.maybe||m.dir!=="in")return;
       if(acc(m.account).kind==="epargne")return;
+      /* mêmes garde-fous que prochainePaie : un virement d'un de ses comptes
+         vers un autre n'est pas une rentrée, et ses espèces ne renflouent
+         jamais SG. Sans ça, « ta rentrée suivante, 1 120 € sur Espèces »
+         désignait le retrait qu'elle fait pour son enveloppe permis —
+         de l'argent qui SORT, présenté comme un secours. */
+      if(estVirementInterne(m)||m.account==="cash")return;
       if(pa(m.amount)<300||!m.datePlanned||m.datePlanned<sg.date)return;
       if(!secours||m.datePlanned<secours.date)
         secours={date:m.datePlanned,montant:pa(m.amount),compte:m.account,label:m.label};
     });
+    /* son salaire mensuel n'est PAS un mouvement : il vient de incomeByMonth,
+       injecté l'avant-dernier jour du mois (evsPaie fait pareil). Sans ça,
+       « ta rentrée suivante » sautait sa paie de CDI du 29 et désignait la
+       paie du restaurant du 5 décembre — une semaine trop tard. */
+    var salAcc=state.salaryAcc||"revolut",mkS=sg.date.slice(0,7),nS;
+    for(nS=0;nS<4;nS++){
+      var incS=pa((state.incomeByMonth||{})[mkS]);
+      if(incS>=300){
+        var finS=new Date(+mkS.slice(0,4),+mkS.slice(5,7),0).getDate();
+        var ddS=mkS+"-"+pad(Math.max(1,finS-1));
+        if(ddS>=sg.date&&(!secours||ddS<secours.date))
+          secours={date:ddS,montant:incS,compte:salAcc,label:"Mon salaire"};
+      }
+      var yS=+mkS.slice(0,4),moS=+mkS.slice(5,7)+1; if(moS>12){moS=1;yS++} mkS=yS+"-"+pad(moS);
+    }
   }
   /* pourquoi il n'y a rien à mettre de côté, dit en clair */
   var raisonEp="";
@@ -4093,19 +4114,24 @@ document.getElementById("permisBox").addEventListener("click",function(ev){
    Il est maintenant annoncé dès qu'on le voit venir : la date, le montant, et
    la rentrée qui le paie. Sans bouton : il n'y a rien à faire aujourd'hui. */
 function virPlusTard(sg){
-  /* « Je vois pas le message de virer l'argent, ça me soûle et m'inquiète » :
-     la carte ne sortait que si SG était DÉJÀ dans le rouge, et la carte de
-     paie n'apparaît que 12 jours avant la paie. Entre les deux, le virement
-     du 30 octobre — le seul geste obligatoire du mois — n'était écrit nulle
-     part. Il est annoncé dès qu'on le voit venir.
-     Pas de calcul maison ici : on demande à la carte de paie ce qu'elle dira
-     le jour J, fenêtre élargie à 45 jours. Le montant affiché aujourd'hui est
-     donc EXACTEMENT celui qu'elle lira le 30 ; un calcul séparé donnerait
-     deux chiffres différents, et deux chiffres différents la perdraient. */
-  var P=planPaie(45);
-  if(!P||!P.virSG||P.virSG<10)return "";
+  /* « La carte du virement doit bouger dynamiquement comme l'appli, en
+     fonction de ce qui rentre et ce qui sort. »
+     Elle est recalculée à chaque renderAll() — donc à chaque euro coché,
+     ajouté, décalé. Deux choses la rendaient quand même rigide :
+     - un horizon écrit en dur (45 jours) : dès qu'une date bougeait au-delà,
+       la carte disparaissait. On cherche maintenant la PROCHAINE paie où
+       qu'elle soit, en élargissant la fenêtre jusqu'à la trouver ;
+     - le chiffre tombait du ciel. Il est maintenant montré pour ce qu'il est :
+       ce qui SORT de SG moins ce qui y RENTRE sur la période, poste par poste
+       dans le détail dépliable. */
+  var P=null,J=[20,30,45,70,95],i;
+  for(i=0;i<J.length&&!P;i++)P=planPaie(J[i]);
+  /* pas de virement possible = pas de carte. Afficher « il faudrait 2 570 €
+     d'ailleurs » sans dire d'où, c'est l'affoler pour rien : le manque, c'est
+     la ligne de verdict qui le dit, cette carte-ci ne sert qu'à l'action. */
+  if(!P||P.virSG<10)return "";
   var E=P.p,nom=acc(E.compte).short||acc(E.compte).name;
-  return '<div class="encard"><div class="ln"><h3>Le virement à faire le '+dl(E.date)+'</h3>'+
+  var h='<div class="encard"><div class="ln"><h3>Le virement à faire le '+dl(E.date)+'</h3>'+
     '<span class="cap">rien à faire aujourd\'hui</span></div>'+
     '<div class="ln"><span class="cap">À virer sur SG</span><b class="big">'+fmt(P.virSG)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">Le '+dl(E.date)+
@@ -4113,15 +4139,36 @@ function virPlusTard(sg){
     fmt(P.virSG)+'</b> sur SG le jour même'+
     (P.virSG<P.besoinSG?' — c\'est tout ce que '+esc(nom)+' peut lâcher sans tomber à sec.'
                        :'. C\'est ce qui fait tenir SG jusqu\'à ta paie suivante.')+'</p>'+
-    /* dire tout de suite qu'un seul virement ne couvrira pas le mois : elle
-       préfère le savoir que le découvrir le 28 */
-    (P.manqueSG>10?'<p class="cap" style="margin:6px 0 0;line-height:1.45">Ça ne couvre pas tout '+
-      'novembre : il restera <b>'+fmt(P.manqueSG)+'</b> à remettre sur SG d\'ici le '+
-      dl(P.sg.date)+'</p>'+
-      '<p class="cap" style="margin:6px 0 0;line-height:1.45">Il y aura donc un '+
-      '<b>deuxième virement</b> dans le mois — je te donnerai le montant exact '+
-      'quand on connaîtra ta paie de CDI.</p>':"")+
-    '<p class="cap" style="margin:6px 0 0">Aujourd\'hui SG est à <b>'+fmt(sg.real)+
+    /* d'où sort le chiffre, en une ligne : ce qui sort moins ce qui rentre */
+    '<p class="cap" style="margin:6px 0 0;line-height:1.45">D\'ici le '+dl(P.D2)+' : '+
+    '<b>'+fmt(P.totS)+'</b> sortent de SG'+
+    (P.totE>0?' et <b>'+fmt(P.totE)+'</b> y rentrent':'')+
+    '. Ce chiffre bouge tout seul à chaque ligne que tu ajoutes, coches ou décales.</p>';
+  if(P.manqueSG>10){
+    h+='<p class="cap" style="margin:6px 0 0;line-height:1.45">Ça ne couvre pas toute la '+
+       'période : il restera <b>'+fmt(P.manqueSG)+'</b> à remettre sur SG d\'ici le '+dl(P.sg.date)+'</p>'+
+       '<p class="cap" style="margin:6px 0 0;line-height:1.45">'+
+       (P.secours?'Ta rentrée suivante, <b>'+fmt(P.secours.montant)+'</b> le '+dl(P.secours.date)+
+                  ' sur <b>'+esc(acc(P.secours.compte).short||acc(P.secours.compte).name)+
+                  '</b>, servira à ça : il y aura un <b>deuxième virement</b>, je te donnerai le montant.'
+                 :'Il faudra donc un <b>deuxième virement</b> dans la période.')+'</p>';
+  }
+  /* le détail poste par poste : le chiffre ne tombe plus du ciel */
+  h+='<details class="ouca"><summary>Le détail</summary>';
+  if(P.sorties.length){
+    h+='<p class="oucap" style="margin:6px 0 2px"><b>Ce qui sort de SG</b></p>';
+    P.sorties.forEach(function(x){
+      h+='<div class="virline"><span>'+dl(x.d)+' · '+esc(x.l||"")+'</span><b>−'+fmt(x.v)+'</b></div>';
+    });
+  }
+  if(P.entrees.length){
+    h+='<p class="oucap" style="margin:8px 0 2px"><b>Ce qui rentre sur SG</b></p>';
+    P.entrees.forEach(function(x){
+      h+='<div class="virline"><span>'+dl(x.d)+' · '+esc(x.l||"")+'</span><b>+'+fmt(x.v)+'</b></div>';
+    });
+  }
+  h+='</details>';
+  return h+'<p class="cap" style="margin:6px 0 0">Aujourd\'hui SG est à <b>'+fmt(sg.real)+
     '</b> : tu n\'as rien à faire. Je te le remets en gros le jour J.</p></div>';
 }
 function renderVir(){
