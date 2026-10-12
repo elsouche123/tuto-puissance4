@@ -3145,11 +3145,11 @@ function miniPaie(accId,D1,D2,depart,depuis,sansDepart){
 function estVirementInterne(m){
   return m.cat==="Épargne"||/^(depuis|vers)\s/i.test(m.label||"");
 }
-function prochainePaie(){
+function prochainePaie(jours){
   /* une paie déjà cochée compte encore : l'argent est sur le compte mais le
      virement reste à faire. Sans ça, cocher « je l'ai reçu » faisait
      disparaître la carte qui dit quoi en faire. */
-  var T=today(),D1=addDays(T,-5),H=addDays(T,12),out=null;
+  var T=today(),D1=addDays(T,-5),H=addDays(T,jours||12),out=null;
   state.movements.forEach(function(m){
     if(m.skip||m.maybe||m.dir!=="in")return;
     if(estVirementInterne(m))return;
@@ -3207,8 +3207,8 @@ function prochaineMiseDeCote(){
   });
   return best;
 }
-function planPaie(){
-  var P=prochainePaie(); if(!P)return null;
+function planPaie(jours){
+  var P=prochainePaie(jours); if(!P)return null;
   var T=today(),D1=(T<P.date?T:P.date),c=calc();
   /* La fenêtre doit couvrir un mois entier. Sinon elle s'arrête à la paie du
      restaurant, qui tombe sur Revolut et ne renfloue donc pas SG : la carte
@@ -3409,6 +3409,7 @@ function budgetJour(){
   cagnotte=r2((estJourOff(T)?0:partJour)-dejaAuj);
   return {total:total,deja:deja,reste:reste,jours:jours,marge:marge,fin:fin,trop:trop,sansPrelev:sansPrelev,
           enveloppe:enveloppe,creux:L60.min,creuxDate:L60.date,
+          margeDate:L60.margeDate,margeSolde:L60.margeSolde,
           debut:debut,joursPeriode:joursPeriode,aSec:aSec,aSecDate:cvMin.date,cv:cv,poche:poche,
           dispo:dispo,parJour:r2(Math.min(dispo,Math.max(0,cagnotte))),
           partJour:partJour,cagnotte:cagnotte,rythme:rythme,jRest:jRest,dejaAuj:dejaAuj,
@@ -3478,6 +3479,21 @@ function ouMettreLArgent(){
        'continuer à sortir — pas pour éviter des frais.</p>';
   return l+'</details>';
 }
+/* « comment ça j'ai 600 € de marge, ça sort d'où ce nombre » : l'ancienne
+   phrase additionnait son plus bas (204 €) et son découvert autorisé (400 €).
+   Elle lisait donc 604,75 € de « marge » : de l'argent emprunté présenté
+   comme un matelas, sans jamais dire d'où il venait. On annonce maintenant
+   son plus bas RÉEL et le jour où il tombe. Le découvert n'apparaît que
+   quand elle y entre pour de vrai — et là on le nomme. */
+function phraseCreux(B){
+  if(B.creux>=0)
+    return "✅ au plus bas <b>"+fmt(B.creux)+"</b> le "+dl(B.creuxDate);
+  if(B.marge<=0)
+    return "⛔ le "+dl(B.margeDate)+" il te manquerait <b>"+fmt(r2(-B.marge))+
+           "</b> de plus que ton découvert";
+  return (B.marge<MARGE_MINI?"⚠️":"📌")+" au plus bas <b>"+fmt(B.margeSolde)+
+         "</b> le "+dl(B.margeDate)+", dans ton découvert — "+fmt(B.marge)+" avant la limite";
+}
 function renderBudget(){
   var host=document.getElementById("budgetBox"); if(!host)return;
   var B=budgetJour(),mk=curMonth();
@@ -3486,9 +3502,7 @@ function renderBudget(){
   var phrase=(B.depasse>0
     ? "😬 Dépassé de <b>"+fmt(B.depasse)+"</b>"
     : fmt(B.partJour)+" par jour · <b>"+fmt(B.dispo)+"</b> jusqu'au "+dl(eom()))+
-    " · "+(B.marge<=0 ? "⛔ stop, tu es au-delà de ta limite"
-         : B.marge<MARGE_MINI ? "⚠️ marge "+fmt(B.marge)+", pas de folie"
-         : "✅ marge "+fmt(B.marge));
+    " · "+phraseCreux(B);
   host.innerHTML='<div class="encard"><div class="ln"><h3>Ce que je peux dépenser</h3>'+
     '<span class="cap">'+esc(dlong(today()))+'</span></div>'+
     '<div class="bar"><i class="'+cls+'" style="width:'+pct+'%"></i></div>'+
@@ -4072,6 +4086,44 @@ document.getElementById("permisBox").addEventListener("click",function(ev){
   snapshot(); virerVersEnveloppe(v); renderAll(); save();
   toast(fmt(v)+" dans l'enveloppe permis");
 });
+/* « Je vois pas le message de virer l'argent, ça me soûle et m'inquiète » :
+   la carte ne sortait que si SG était DÉJÀ dans le rouge, et la carte de paie
+   n'apparaît que 12 jours avant la paie. Entre les deux, le virement du 30
+   octobre — le seul geste obligatoire du mois — n'était écrit nulle part.
+   Il est maintenant annoncé dès qu'on le voit venir : la date, le montant, et
+   la rentrée qui le paie. Sans bouton : il n'y a rien à faire aujourd'hui. */
+function virPlusTard(sg){
+  /* « Je vois pas le message de virer l'argent, ça me soûle et m'inquiète » :
+     la carte ne sortait que si SG était DÉJÀ dans le rouge, et la carte de
+     paie n'apparaît que 12 jours avant la paie. Entre les deux, le virement
+     du 30 octobre — le seul geste obligatoire du mois — n'était écrit nulle
+     part. Il est annoncé dès qu'on le voit venir.
+     Pas de calcul maison ici : on demande à la carte de paie ce qu'elle dira
+     le jour J, fenêtre élargie à 45 jours. Le montant affiché aujourd'hui est
+     donc EXACTEMENT celui qu'elle lira le 30 ; un calcul séparé donnerait
+     deux chiffres différents, et deux chiffres différents la perdraient. */
+  var P=planPaie(45);
+  if(!P||!P.virSG||P.virSG<10)return "";
+  var E=P.p,nom=acc(E.compte).short||acc(E.compte).name;
+  return '<div class="encard"><div class="ln"><h3>Le virement à faire le '+dl(E.date)+'</h3>'+
+    '<span class="cap">rien à faire aujourd\'hui</span></div>'+
+    '<div class="ln"><span class="cap">À virer sur SG</span><b class="big">'+fmt(P.virSG)+'</b></div>'+
+    '<p class="cap" style="margin:6px 0 0;line-height:1.45">Le '+dl(E.date)+
+    ', tes <b>'+fmt(E.montant)+'</b> arrivent sur <b>'+esc(nom)+'</b> : vire-en <b>'+
+    fmt(P.virSG)+'</b> sur SG le jour même'+
+    (P.virSG<P.besoinSG?' — c\'est tout ce que '+esc(nom)+' peut lâcher sans tomber à sec.'
+                       :'. C\'est ce qui fait tenir SG jusqu\'à ta paie suivante.')+'</p>'+
+    /* dire tout de suite qu'un seul virement ne couvrira pas le mois : elle
+       préfère le savoir que le découvrir le 28 */
+    (P.manqueSG>10?'<p class="cap" style="margin:6px 0 0;line-height:1.45">Ça ne couvre pas tout '+
+      'novembre : il restera <b>'+fmt(P.manqueSG)+'</b> à remettre sur SG d\'ici le '+
+      dl(P.sg.date)+'</p>'+
+      '<p class="cap" style="margin:6px 0 0;line-height:1.45">Il y aura donc un '+
+      '<b>deuxième virement</b> dans le mois — je te donnerai le montant exact '+
+      'quand on connaîtra ta paie de CDI.</p>':"")+
+    '<p class="cap" style="margin:6px 0 0">Aujourd\'hui SG est à <b>'+fmt(sg.real)+
+    '</b> : tu n\'as rien à faire. Je te le remets en gros le jour J.</p></div>';
+}
 function renderVir(){
   var host=document.getElementById("virBox"); if(!host)return;
   /* quand la carte de paie est là, c'est elle qui dit quoi virer :
@@ -4085,7 +4137,7 @@ function renderVir(){
   /* Tant que SG est au-dessus de zéro, il n'y a rien à renflouer : proposer
      un virement « pour faire monter le solde » n'apprend rien et inquiète
      pour rien. La carte ne sort que quand SG est vraiment dans le rouge. */
-  if(sg.real>=0){host.innerHTML="";return}
+  if(sg.real>=0){host.innerHTML=virPlusTard(sg);return}
   if(!src.length){host.innerHTML="";return}
   var apres=r2(sg.real+libreTot),lignes="";
   src.forEach(function(x){
