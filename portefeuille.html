@@ -4226,6 +4226,52 @@ document.getElementById("permisBox").addEventListener("click",function(ev){
    octobre — le seul geste obligatoire du mois — n'était écrit nulle part.
    Il est maintenant annoncé dès qu'on le voit venir : la date, le montant, et
    la rentrée qui le paie. Sans bouton : il n'y a rien à faire aujourd'hui. */
+/* « Ce qui me fait peur, c'est les crédits qui passent et j'ai pas la paye,
+   ça arrive le même jour. » Elle a raison, et c'était le trou de la carte :
+   elle disait « vire 938 € le 30 » sans voir que le 30 est aussi le jour où
+   ses deux crédits Expresso sont prélevés sur SG — alors que sa paie, elle,
+   arrive sur Revolut. Si la banque présente les prélèvements avant qu'elle
+   n'ait fait le virement, ils sont rejetés. Le bon geste n'est pas de virer
+   plus, c'est de virer PLUS TÔT.
+   On refait donc le trajet de SG jusqu'au jour de paie inclus, en ne comptant
+   que ce qu'elle ne choisit PAS : les prélèvements et les paiements
+   automatiques. Ses propres virements (épargne, PEL, remboursements à ses
+   proches) sont exclus — elle les fera après, c'est elle qui tient la date. */
+function estChoisi(m){ return m.cat==="Épargne"||m.cat==="Dette" }
+function risquePaie(P){
+  var T=today(),D=P.p.date,c=calc(),bal=0,evs=[];
+  c.accs.forEach(function(a){if(a.id==="sg")bal=a.real});
+  state.movements.forEach(function(m){
+    if(m.account!=="sg"||m.done||m.skip||m.maybe)return;
+    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>D)return;
+    if(m.dir==="out"&&estChoisi(m))return;
+    evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount),l:m.label});
+  });
+  var mk=T.slice(0,7),last=D.slice(0,7),vu={};
+  while(mk<=last&&!vu[mk]){
+    vu[mk]=1;
+    (function(k){
+      var fin=new Date(+k.slice(0,4),+k.slice(5,7),0).getDate();
+      state.fixed.forEach(function(f){
+        if(!f.day||f.account!=="sg"||f.cat==="Épargne")return;
+        if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===k}))return;
+        var amt=fixAmountFor(f,k); if(amt<=0)return;
+        var dd=k+"-"+pad(Math.min(parseInt(f.day,10)||1,fin));
+        if(dd<T||dd>D)return;
+        evs.push({d:dd,v:-amt,l:f.label});
+      });
+    })(mk);
+    var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
+  }
+  evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:a.v-b.v});
+  var mn=bal,mnd=T,jour=[];
+  evs.forEach(function(e){
+    bal=r2(bal+e.v);
+    if(bal<mn){mn=bal;mnd=e.d}
+    if(e.d===D&&e.v<0)jour.push({v:r2(-e.v),l:e.l});
+  });
+  return {min:mn,date:mnd,manque:r2(-(mn+odAt(mnd))),jour:jour};
+}
 function virPlusTard(sg){
   /* « La carte du virement doit bouger dynamiquement comme l'appli, en
      fonction de ce qui rentre et ce qui sort. »
@@ -4244,8 +4290,12 @@ function virPlusTard(sg){
      la ligne de verdict qui le dit, cette carte-ci ne sert qu'à l'action. */
   if(!P||P.virSG<10)return "";
   var E=P.p,nom=acc(E.compte).short||acc(E.compte).name;
+  /* le risque de rejet se calcule avant la carte : il change aussi son titre.
+     Annoncer « rien à faire aujourd'hui » au-dessus d'un « vire 70 € avant le
+     29 », c'est se contredire dans la même carte. */
+  var R=risquePaie(P),urgent=R.manque>1,veille=dl(addDays(E.date,-1));
   var h='<div class="encard"><div class="ln"><h3>Le virement à faire le '+dl(E.date)+'</h3>'+
-    '<span class="cap">rien à faire aujourd\'hui</span></div>'+
+    '<span class="cap">'+(urgent?'un geste avant le '+veille:'rien à faire aujourd\'hui')+'</span></div>'+
     '<div class="ln"><span class="cap">À virer sur SG</span><b class="big">'+fmt(P.virSG)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">Le '+dl(E.date)+
     ', tes <b>'+fmt(E.montant)+'</b> arrivent sur <b>'+esc(nom)+'</b> : vire-en <b>'+
@@ -4266,6 +4316,26 @@ function virPlusTard(sg){
                   '</b>, servira à ça : il y aura un <b>deuxième virement</b>, je te donnerai le montant.'
                  :'Il faudra donc un <b>deuxième virement</b> dans la période.')+'</p>';
   }
+  /* le vrai danger : les prélèvements du jour de paie, présentés avant
+     qu'elle n'ait pu virer */
+  if(urgent){
+    var srcs=dispoAilleurs(),libre=0,noms=[];
+    srcs.forEach(function(x){libre+=x.libre;noms.push(x.nom)});
+    libre=r2(libre);
+    var aVirer=Math.ceil(R.manque/10)*10;
+    var totJour=0;R.jour.forEach(function(x){totJour=r2(totJour+x.v)});
+    h+='<div class="cwarn" style="margin-top:10px"><b>⚠️ N\'attends pas le jour J</b> — '+
+      'Le '+dl(E.date)+', <b>'+fmt(totJour)+'</b> de prélèvements tombent sur SG — '+
+      'le jour même où ta paie arrive, mais sur '+esc(nom)+'. Si ta banque les présente '+
+      'avant que tu aies viré, ils sont rejetés.</div>'+
+      '<p class="cap" style="margin:6px 0 0;line-height:1.45">Sans rien faire, SG descend à <b>'+
+      fmt(R.min)+'</b> le '+dl(R.date)+', soit <b>'+fmt(R.manque)+'</b> au-delà de ton découvert.'+
+      (libre>=R.manque
+        ? ' Vire <b>'+fmt(aVirer)+'</b> depuis <b>'+esc(noms.join(" ou "))+'</b> avant le '+
+          veille+' : après, tes prélèvements passent sans que tu y penses.'
+        : ' Tu n\'as que '+fmt(libre)+' de disponible ailleurs aujourd\'hui — dis-le-moi, '+
+          'on décale ce qui peut l\'être.')+'</p>';
+  }
   /* le détail poste par poste : le chiffre ne tombe plus du ciel */
   h+='<details class="ouca"><summary>Le détail</summary>';
   if(P.sorties.length){
@@ -4281,8 +4351,9 @@ function virPlusTard(sg){
     });
   }
   h+='</details>';
-  return h+'<p class="cap" style="margin:6px 0 0">Aujourd\'hui SG est à <b>'+fmt(sg.real)+
-    '</b> : tu n\'as rien à faire. Je te le remets en gros le jour J.</p></div>';
+  return h+'<p class="cap" style="margin:6px 0 0">Aujourd\'hui SG est à <b>'+fmt(sg.real)+'</b>'+
+    (urgent?' — le petit virement ci-dessus est la seule chose à faire d\'ici le '+veille
+           :' : tu n\'as rien à faire. Je te le remets en gros le jour J.')+'</p></div>';
 }
 function renderVir(){
   var host=document.getElementById("virBox"); if(!host)return;
