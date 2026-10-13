@@ -2452,6 +2452,12 @@ function spentFree(){
 /* en dessous de cette marge, un seul imprévu suffit à déclencher un rejet
    (20 € de frais de rejet + 8 € de commission d'intervention) : on demande l'avance */
 var MARGE_MINI=150;
+/* « J'ai peur d'être grave dans la merde si mes crédits passent pas, c'est
+   plié ma merde. » Un crédit rejeté, ce ne sont pas des frais : c'est un
+   incident de paiement. On ne vise donc pas le centime près — on lui fait
+   garder 100 € de découvert libre après le passage de ses crédits, pour
+   qu'une dépense oubliée de 30 € ne fasse pas tout tomber. */
+var COUSSIN_CREDIT=100;
 var EFFSHARE=0.5;
 function debtOrder(a,b){var p=(a.p||0)-(b.p||0);return p?p:a.r-b.r}
 function buildPlan(){
@@ -4245,7 +4251,7 @@ function risquePaie(P){
     if(m.account!=="sg"||m.done||m.skip||m.maybe)return;
     if(!m.datePlanned||m.datePlanned<T||m.datePlanned>D)return;
     if(m.dir==="out"&&estChoisi(m))return;
-    evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount),l:m.label});
+    evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount),l:m.label,cred:m.cat==="Crédit"});
   });
   var mk=T.slice(0,7),last=D.slice(0,7),vu={};
   while(mk<=last&&!vu[mk]){
@@ -4258,19 +4264,24 @@ function risquePaie(P){
         var amt=fixAmountFor(f,k); if(amt<=0)return;
         var dd=k+"-"+pad(Math.min(parseInt(f.day,10)||1,fin));
         if(dd<T||dd>D)return;
-        evs.push({d:dd,v:-amt,l:f.label});
+        evs.push({d:dd,v:-amt,l:f.label,cred:f.cat==="Crédit"});
       });
     })(mk);
     var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
   }
   evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:a.v-b.v});
-  var mn=bal,mnd=T,jour=[];
+  var mn=bal,mnd=T,jour=[],dCred="",vCred=0;
   evs.forEach(function(e){
     bal=r2(bal+e.v);
     if(bal<mn){mn=bal;mnd=e.d}
     if(e.d===D&&e.v<0)jour.push({v:r2(-e.v),l:e.l});
+    /* le jour de ses crédits : c'est LUI l'ancre, pas le jour de paie.
+       « Pour moi je dois virer Revolut la veille de mes crédits. » Elle a
+       raison : un virement fait le jour même court après le prélèvement. */
+    if(e.cred&&e.v<0&&(!dCred||e.d<dCred)){dCred=e.d;vCred=0}
+    if(e.cred&&e.v<0&&e.d===dCred)vCred=r2(vCred-e.v);
   });
-  return {min:mn,date:mnd,manque:r2(-(mn+odAt(mnd))),jour:jour};
+  return {min:mn,date:mnd,manque:r2(-(mn+odAt(mnd))),jour:jour,dCred:dCred,vCred:vCred};
 }
 function virPlusTard(sg){
   /* « La carte du virement doit bouger dynamiquement comme l'appli, en
@@ -4322,19 +4333,30 @@ function virPlusTard(sg){
     var srcs=dispoAilleurs(),libre=0,noms=[];
     srcs.forEach(function(x){libre+=x.libre;noms.push(x.nom)});
     libre=r2(libre);
-    var aVirer=Math.ceil(R.manque/10)*10;
+    /* viser le manque tout juste, c'est lui laisser 8 € de marge le jour où
+       ses crédits passent. On ajoute le coussin, et on retombe sur ce qu'elle
+       a vraiment ailleurs si le coussin ne rentre pas. */
+    var ideal=Math.ceil((R.manque+COUSSIN_CREDIT)/10)*10;
+    var aVirer=Math.min(ideal,Math.floor(libre));
     var totJour=0;R.jour.forEach(function(x){totJour=r2(totJour+x.v)});
-    h+='<div class="cwarn" style="margin-top:10px"><b>⚠️ N\'attends pas le jour J</b> — '+
-      'Le '+dl(E.date)+', <b>'+fmt(totJour)+'</b> de prélèvements tombent sur SG — '+
-      'le jour même où ta paie arrive, mais sur '+esc(nom)+'. Si ta banque les présente '+
-      'avant que tu aies viré, ils sont rejetés.</div>'+
-      '<p class="cap" style="margin:6px 0 0;line-height:1.45">Sans rien faire, SG descend à <b>'+
-      fmt(R.min)+'</b> le '+dl(R.date)+', soit <b>'+fmt(R.manque)+'</b> au-delà de ton découvert.'+
-      (libre>=R.manque
-        ? ' Vire <b>'+fmt(aVirer)+'</b> depuis <b>'+esc(noms.join(" ou "))+'</b> avant le '+
-          veille+' : après, tes prélèvements passent sans que tu y penses.'
-        : ' Tu n\'as que '+fmt(libre)+' de disponible ailleurs aujourd\'hui — dis-le-moi, '+
-          'on décale ce qui peut l\'être.')+'</p>';
+    h+='<div class="cwarn" style="margin-top:10px"><b>⚠️ Vire la veille de tes crédits</b> — '+
+      (R.dCred?'tes crédits (<b>'+fmt(R.vCred)+'</b>) sont prélevés sur SG le '+dl(R.dCred)+', '
+              :'tes prélèvements tombent sur SG le '+dl(E.date)+', ')+
+      'le jour même où ta paie arrive — mais sur '+esc(nom)+'. Un virement fait ce jour-là '+
+      'court après le prélèvement. Un crédit rejeté, ce n\'est pas des frais : c\'est un '+
+      'incident de paiement.</div>'+
+      '<p class="cap" style="margin:6px 0 0;line-height:1.45">Le '+dl(E.date)+', <b>'+fmt(totJour)+
+      '</b> partent de SG au total. Sans rien faire tu descends à <b>'+fmt(R.min)+'</b>, soit <b>'+
+      fmt(R.manque)+'</b> au-delà de ton découvert.</p>'+
+      '<p class="cap" style="margin:6px 0 0;line-height:1.45">'+
+      (libre>R.manque
+        ? '👉 <b>Vire '+fmt(aVirer)+'</b> depuis <b>'+esc(noms.join(" ou "))+'</b> <b>le '+veille+
+          '</b> — pas le jour même.'+
+          (aVirer<ideal?' (C\'est tout ce que tu as ailleurs ; il te resterait '+
+             fmt(r2(aVirer-R.manque))+' de marge.)'
+                       :' Tes crédits passeraient avec '+fmt(r2(aVirer-R.manque))+' de marge.')
+        : 'Tu n\'as que <b>'+fmt(libre)+'</b> de disponible ailleurs, et il en faut '+
+          fmt(R.manque)+'. Dis-le-moi, on décale ce qui peut l\'être — jamais un crédit.')+'</p>';
   }
   /* le détail poste par poste : le chiffre ne tombe plus du ciel */
   h+='<details class="ouca"><summary>Le détail</summary>';
