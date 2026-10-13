@@ -4004,6 +4004,33 @@ function renderPaie(){
     return '<div class="pstep"><div class="phead"><b>'+ic+' '+titre+'</b>'+(bouton||"")+'</div>'+
       (sous?'<p class="cap">'+sous+'</p>':"")+(extra||"")+'</div>';
   }
+  /* « La priorité c'est les crédits et après Pépé. » Sa règle, écrite en tête
+     de la carte de paie. Le jour de paie, ses crédits sont prélevés sur SG
+     pendant qu'elle a sa paie en main sur Revolut : un virement à son
+     grand-père fait le matin peut faire rejeter le crédit de l'après-midi.
+     Un crédit rejeté, ce ne sont pas des frais, c'est un incident de paiement
+     — alors qu'un remboursement à un proche attend un jour sans rien casser. */
+  var RP=risquePaie(P);
+  if(RP.dCred&&RP.vCred>0){
+    n++;
+    var dJour=[];
+    state.movements.forEach(function(m){
+      if(m.done||m.skip||m.maybe||m.dir!=="out"||!estRemb(m))return;
+      /* seulement ceux qui tombent le jour de ses crédits ou juste après :
+         un remboursement prévu trois semaines plus tard ne menace rien, et
+         l'énumérer brouille la seule consigne qui compte ce jour-là */
+      if(!m.datePlanned||m.datePlanned<RP.dCred||m.datePlanned>addDays(RP.dCred,2))return;
+      dJour.push(m);
+    });
+    var qui=dJour.map(function(m){
+      return "<b>"+esc(m.label.replace(/^rembourser/i,"").split("—")[0].trim())+" "+fmt(m.amount)+"</b>";
+    }).join(" · ");
+    etapes+=etape("🔴","Tes crédits d'abord — "+fmt(RP.vCred),
+      "prélevés le "+dl(RP.dCred)+" sur SG"+
+      (dJour.length?". Attends qu'ils soient passés avant de rembourser "+qui+"."
+                   :". Laisse-les passer avant tout geste."),
+      '<span class="cap">priorité 1</span>');
+  }
   if(P.virSG>0){
     n++;
     var liste="",tout=[];
