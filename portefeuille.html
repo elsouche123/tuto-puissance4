@@ -2163,8 +2163,17 @@ function renderRows(){
   host.innerHTML=h;
 }
 function missingFixed(){
+  /* les charges fixes de ce mois-ci qui n'ont pas encore de ligne à cocher.
+     Deux pièges, qui faisaient annoncer « 13 prélèvements, 469,36 € » alors
+     qu'il n'y en avait que 10 pour 465,37 € :
+     - une charge arrêtée (Ornikar, « s'arrête après sept. ») ne sera jamais
+       prélevée ce mois-ci : la proposer, c'est proposer d'inventer 3,99 € ;
+     - une charge sans jour ni montant (ses séances d'EMDR à venir, son
+       budget voiture de mai 2027) ne peut pas devenir une ligne datée. */
   var mk=curMonth();
   return state.fixed.filter(function(f){
+    if(!f.day)return false;
+    if(fixAmountFor(f,mk)<=0)return false;
     return !state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===mk});
   });
 }
@@ -2246,7 +2255,20 @@ function renderFixed(){
     '<span class="r">'+fmt(tot)+'/mois</span>';
   var miss=missingFixed(),bn=document.getElementById("fixBanner"),bd=document.getElementById("fixBadge");
   if(miss.length){
-    bn.innerHTML='<div class="banner"><span><b>'+miss.length+'</b> de tes prélèvements de '+MO.format(d)+' ne sont pas encore suivis ('+fmt(miss.reduce(function(t,f){return t+pa(f.amount)},0))+').</span><button class="btn sm" type="button" id="genFix">Les suivre ce mois-ci</button></div>';
+    /* « Je comprends pas cette phrase. » « Suivis » ne voulait rien dire, et
+       la phrase laissait croire que 469,36 € manquaient quelque part. Elle
+       dit maintenant ce qui manque (la ligne à cocher), ce que ça ne change
+       pas (le budget et les prévisions les comptent déjà) et ce que fait
+       le bouton. */
+    var mTot=fmt(miss.reduce(function(t,f){return t+fixAmountFor(f,curMonth())},0));
+    /* « de octobre » : avril, août et octobre veulent « d' » */
+    var mNom=MO.format(d),mDe=(/^[aeiouyéè]/i.test(mNom)?"d'":"de ")+mNom;
+    bn.innerHTML='<div class="banner"><span><b>'+miss.length+'</b> prélèvement'+
+      (miss.length>1?"s":"")+' '+mDe+' ('+mTot+') ne sont pas encore '+
+      'dans ta liste du mois. <b>Ils sont déjà comptés</b> dans ton budget et dans '+
+      'tes prévisions — ce qui manque, c\'est juste la ligne à cocher le jour où '+
+      'ils passent.</span><button class="btn sm" type="button" id="genFix">Créer les '+
+      miss.length+' lignes</button></div>';
     bd.hidden=false;bd.textContent=miss.length;
   } else {bn.innerHTML="";bd.hidden=true}
 }
@@ -5034,7 +5056,11 @@ fixHost.addEventListener("click",function(e){
     var last=new Date(y,mo,0).getDate();
     missingFixed().forEach(function(f){
       var day=f.day?Math.min(Math.max(1,parseInt(f.day,10)),last):0;
-      state.movements.push({id:uid(),label:f.label,account:f.account,dir:"out",amount:pa(f.amount),
+      /* le montant DU MOIS, pas le montant de base : son coach passe à 85 €
+         à partir d'octobre (nextAmount). En créant la ligne à 50 €, le bouton
+         la rendait silencieusement 35 € plus riche dans toutes ses prévisions
+         — son point le plus bas sautait de 233,77 € à 268,77 € d'un clic. */
+      state.movements.push({id:uid(),label:f.label,account:f.account,dir:"out",amount:fixAmountFor(f,mk),
         cat:f.cat,datePlanned:day?y+"-"+pad(mo)+"-"+pad(day):"",month:mk,dateReal:"",done:false,maybe:false,
         fixId:f.id,fixMonth:mk});
     });
