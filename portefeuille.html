@@ -3518,7 +3518,11 @@ function ouMettreLArgent(){
   var rejet=null,rouge=null,kiffe=null;
   c.accs.forEach(function(a){
     if(a.kind==="epargne"||estTR(a.id)||a.id==="cash")return;
-    var m=miniPaie(a.id,T,H,a.real),od=pa(a.od),libre=aucunPrelev(a.id);
+    /* pour le risque de REJET on ne compte que ce qu'elle subit (même calcul
+       que le verdict et la carte de virement) ; pour un compte sans
+       prélèvement, au contraire, c'est bien sa dépense qui le vide. */
+    var libre=aucunPrelev(a.id),od=pa(a.od);
+    var m=libre?miniPaie(a.id,T,H,a.real):miniSubi(a.id,T,H,a.real);
     if(libre){
       /* pas de prélèvement dessus : à sec, elle s'arrête de dépenser, c'est tout */
       if(m.min<-0.01&&(!kiffe||m.min<kiffe.min))
@@ -3534,9 +3538,17 @@ function ouMettreLArgent(){
      une page d'accueil lisible — ce bloc-là se consulte, il ne s'impose pas. */
   var l='<details class="ouca"><summary><b>Si de l\'argent se libère</b> — où le mettre</summary>'+
         '<ol>';
-  if(rejet)
+  /* troisième voix sur le même geste. Elle doit dire la même chose que la
+     carte de virement et que le verdict, ou se taire : « tout de suite » quand
+     la carte dit « le 30 », c'est ce qui lui a fait croire à un bug. */
+  var PO=planPaie(45),RO=PO?risquePaie(PO):null;
+  if(rejet&&PO&&PO.virSG>=10&&RO&&RO.manque<=0){
+    l+='<li><b>SG</b> : rien à faire d\'ici le '+dl(PO.p.date)+' Tes prélèvements passent, '+
+       'et le virement de <b>'+fmt(PO.virSG)+'</b> est déjà prévu ce jour-là.</li>';
+  } else if(rejet)
     l+='<li><b>'+esc(rejet.nom)+'</b>, tout de suite : le '+dl(rejet.date)+' il dépasse son découvert de <b>'+
-       fmt(rejet.manque)+'</b>. Là tes prélèvements sautent, à 28,00 € de frais chacun. C\'est le seul vrai risque.</li>';
+       fmt(rejet.manque)+'</b>. Là tes prélèvements sautent, jusqu\'à <b>20,00 €</b> de frais chacun plus '+
+       '8,00 € de commission. C\'est le seul vrai risque.</li>';
   if(rouge)
     l+='<li><b>'+esc(rouge.nom)+'</b> est à '+fmt(rouge.real)+'. Chaque euro remis dessus t\'économise '+
        '<b>21,12 %</b> par an d\'agios — neuf fois ce que rapporte ton épargne.</li>';
@@ -4271,44 +4283,54 @@ document.getElementById("permisBox").addEventListener("click",function(ev){
    automatiques. Ses propres virements (épargne, PEL, remboursements à ses
    proches) sont exclus — elle les fera après, c'est elle qui tient la date. */
 function estChoisi(m){ return m.cat==="Épargne"||m.cat==="Dette" }
-function risquePaie(P){
-  var T=today(),D=P.p.date,c=calc(),bal=0,evs=[];
-  c.accs.forEach(function(a){if(a.id==="sg")bal=a.real});
+/* Le trajet d'un compte en ne comptant que ce qu'il SUBIT : prélèvements,
+   crédits, paiements automatiques. Ses propres virements — épargne, PEL,
+   remboursements à ses proches — sont exclus : ils ne font rejeter personne,
+   c'est elle qui tient leur date et elle les décale d'un jour sans rien
+   casser. Les compter gonflait chaque alerte de 240 € un 31 octobre.
+   UN SEUL calcul, partagé par la carte de virement, le verdict et « où mettre
+   l'argent » : c'est d'avoir eu trois calculs qu'elle a vu trois chiffres
+   différents pour le même geste, et conclu — à raison — à un gros bug. */
+function miniSubi(accId,D1,D2,depart){
+  var bal=depart,evs=[];
   state.movements.forEach(function(m){
-    if(m.account!=="sg"||m.done||m.skip||m.maybe)return;
-    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>D)return;
+    if(m.account!==accId||m.done||m.skip||m.maybe)return;
+    if(!m.datePlanned||m.datePlanned<D1||m.datePlanned>D2)return;
     if(m.dir==="out"&&estChoisi(m))return;
     evs.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount),l:m.label,cred:m.cat==="Crédit"});
   });
-  var mk=T.slice(0,7),last=D.slice(0,7),vu={};
+  var mk=D1.slice(0,7),last=D2.slice(0,7),vu={};
   while(mk<=last&&!vu[mk]){
     vu[mk]=1;
     (function(k){
       var fin=new Date(+k.slice(0,4),+k.slice(5,7),0).getDate();
       state.fixed.forEach(function(f){
-        if(!f.day||f.account!=="sg"||f.cat==="Épargne")return;
+        if(!f.day||f.account!==accId||f.cat==="Épargne")return;
         if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===k}))return;
         var amt=fixAmountFor(f,k); if(amt<=0)return;
         var dd=k+"-"+pad(Math.min(parseInt(f.day,10)||1,fin));
-        if(dd<T||dd>D)return;
+        if(dd<D1||dd>D2)return;
         evs.push({d:dd,v:-amt,l:f.label,cred:f.cat==="Crédit"});
       });
     })(mk);
     var y=+mk.slice(0,4),mo=+mk.slice(5,7)+1; if(mo>12){mo=1;y++} mk=y+"-"+pad(mo);
   }
-  evs.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:a.v-b.v});
-  var mn=bal,mnd=T,jour=[],dCred="",vCred=0;
+  evs.sort(function(x,y){return x.d<y.d?-1:x.d>y.d?1:x.v-y.v});
+  var mn=bal,mnd=D1,jour=[],dCred="",vCred=0;
   evs.forEach(function(e){
     bal=r2(bal+e.v);
     if(bal<mn){mn=bal;mnd=e.d}
-    if(e.d===D&&e.v<0)jour.push({v:r2(-e.v),l:e.l});
-    /* le jour de ses crédits : c'est LUI l'ancre, pas le jour de paie.
-       « Pour moi je dois virer Revolut la veille de mes crédits. » Elle a
-       raison : un virement fait le jour même court après le prélèvement. */
+    if(e.d===D2&&e.v<0)jour.push({v:r2(-e.v),l:e.l});
     if(e.cred&&e.v<0&&(!dCred||e.d<dCred)){dCred=e.d;vCred=0}
     if(e.cred&&e.v<0&&e.d===dCred)vCred=r2(vCred-e.v);
   });
-  return {min:mn,date:mnd,manque:r2(-(mn+odAt(mnd))),jour:jour,dCred:dCred,vCred:vCred};
+  return {min:mn,date:mnd,fin:bal,jour:jour,dCred:dCred,vCred:vCred,
+          manque:r2(-(mn+odAt(mnd)))};
+}
+function risquePaie(P){
+  var c=calc(),bal=0;
+  c.accs.forEach(function(a){if(a.id==="sg")bal=a.real});
+  return miniSubi("sg",today(),P.p.date,bal);
 }
 function virPlusTard(sg){
   /* « La carte du virement doit bouger dynamiquement comme l'appli, en
@@ -4615,7 +4637,10 @@ function comptesASec(){
   var T=today(),H=eom(),c=calc(),out=[],cv=compteVie();
   c.accs.forEach(function(a){
     if(a.kind==="epargne"||a.id===cv||estTR(a.id))return;
-    var m=miniPaie(a.id,T,H,a.real);
+    /* ce qu'il SUBIT : un compte ne se fait pas rejeter un prélèvement parce
+       qu'elle a prévu d'y prendre 150 € pour son PEL. Même calcul partagé que
+       la carte de virement — sinon deux chiffres pour le même danger. */
+    var m=miniSubi(a.id,T,H,a.real);
     if(m.min>=0)return;
     var od=odFor(acc(a.id),m.date),depasse=r2(Math.max(0,-m.min-od));
     out.push({id:a.id,nom:a.short||a.name,min:m.min,date:m.date,od:od,
@@ -4711,18 +4736,40 @@ function renderEtat(){
   }
   /* l'argent au mauvais endroit : le total peut passer alors qu'un compte
      précis se fait rejeter ses prélèvements */
-  var sec="";
+  /* « À aucun moment tu me dis de virer de Revolut à SG, et je vois la fin du
+     mois, c'est la grosse merde. » Elle avait trois chiffres différents sous
+     les yeux pour le MÊME geste : la carte de virement disait 932 € le 30, ce
+     verdict disait 490 € le 30, et « où mettre l'argent » disait « tout de
+     suite ». Trois messages qui se contredisent, c'est zéro message : aucun
+     n'est cru, et il ne reste que la peur de la fin de mois.
+     Une seule source maintenant. Quand la carte de virement couvre déjà le
+     compte, ce verdict reprend SON montant et SA date — il ne recalcule rien.
+     Et la gravité se juge sur ce qu'elle SUBIT : ses propres virements
+     (épargne, PEL, remboursements) ne font rejeter aucun prélèvement, elle
+     les décale. Les compter gonflait le dépassement de 240 € un 31 octobre. */
+  var sec="",PP=planPaie(45),RPV=PP?risquePaie(PP):null;
   comptesASec().forEach(function(x){
-    var dOu=dOuRenflouer(x.id,x.pourZero,x.date);
+    var couvert=PP&&PP.virSG>=10&&x.id==="sg";
+    /* pour SG, la gravité vient de risquePaie : prélèvements seulement */
+    var mini=couvert&&RPV?RPV.min:x.min, dJ=couvert&&RPV?RPV.date:x.date;
+    var od=odFor(acc(x.id),dJ), dep=r2(Math.max(0,-mini-od));
+    if(couvert&&dep<=0&&mini>=-od){
+      /* le geste est déjà écrit en haut, et rien ne sera rejeté : on ne
+         répète pas une alerte résolue */
+      return;
+    }
+    var dOu=couvert?null:dOuRenflouer(x.id,x.pourZero,x.date);
     var combien=Math.ceil(x.pourZero/10)*10;
     sec+='<p class="palert" style="margin:10px 0 0;line-height:1.45">'+
-      (x.depasse>0?'⛔ <b>Ton compte '+esc(x.nom)+' dépassera son découvert de '+fmt(x.depasse)+
-                   '</b> le '+esc(dl(x.date))+' — tes prélèvements seraient rejetés ('+fmt(28)+' de frais chacun).'
-                 :'⚠️ <b>Ton compte '+esc(x.nom)+' descendra à '+fmt(x.min)+'</b> le '+esc(dl(x.date))+
-                   ', dans son découvert autorisé de '+fmt(x.od)+'.')+
-      (dOu?' Tu auras l\'argent sur <b>'+esc(dOu.nom)+'</b> : vire <b>'+fmt(combien)+
-           '</b> le '+esc(dl(dOu.quand))
-         :' Et aucun de tes autres comptes n\'aura de quoi le renflouer à temps.')+
+      (dep>0?'⛔ <b>Ton compte '+esc(x.nom)+' dépassera son découvert de '+fmt(dep)+
+             '</b> le '+esc(dl(dJ))+' — tes prélèvements seraient rejetés (jusqu\'à 20,00 € de frais chacun, plus 8,00 € de commission).'
+            :'⚠️ <b>Ton compte '+esc(x.nom)+' descendra à '+fmt(mini)+'</b> le '+esc(dl(dJ))+
+             ', dans son découvert autorisé de '+fmt(od)+'.')+
+      (couvert?' C\'est le virement déjà prévu plus haut : <b>'+fmt(PP.virSG)+'</b> depuis <b>'+
+               esc(acc(PP.p.compte).short||acc(PP.p.compte).name)+'</b> le '+esc(dl(PP.p.date))
+             :dOu?' Tu auras l\'argent sur <b>'+esc(dOu.nom)+'</b> : vire <b>'+fmt(combien)+
+                  '</b> le '+esc(dl(dOu.quand))
+                 :' Et aucun de tes autres comptes n\'aura de quoi le renflouer à temps.')+
       '</p>';
   });
   host.innerHTML='<div class="encard"><div class="ln"><h3>'+esc(titre)+'</h3>'+
