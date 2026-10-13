@@ -876,6 +876,7 @@ details.detail[open] summary::before{content:"▾ "}
 <div class="wrap">
 
 <section class="tabpanel" id="tab-today">
+  <div id="retardBox"></div>
   <div id="budgetBox"></div>
   <div id="soldesBox"></div>
   <div id="permisBox"></div>
@@ -3550,6 +3551,56 @@ function ouMettreLArgent(){
    comme un matelas, sans jamais dire d'où il venait. On annonce maintenant
    son plus bas RÉEL et le jour où il tombe. Le découvert n'apparaît que
    quand elle y entre pour de vrai — et là on le nomme. */
+/* « Ça a juste créé, pas coché en mode payé. »
+   Normal : le bouton crée les lignes du mois, et aucune de ses dix n'était
+   encore passée. Mais il manquait la suite — l'app créait des lignes puis ne
+   lui redemandait jamais rien. Une ligne dont la date est passée et qui
+   n'est toujours pas cochée, c'est soit de l'argent déjà parti qu'elle croit
+   avoir, soit de l'argent attendu qui n'est jamais arrivé. Dans les deux cas
+   il faut le lui demander — et seulement le lui demander : cocher dix
+   prélèvements toute seule, sans qu'elle ait vu son relevé, ce serait
+   exactement la bêtise qu'elle ne veut pas. */
+function enRetard(){
+  var T=today(),out=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe)return;
+    if(!m.datePlanned||m.datePlanned>=T)return;
+    out.push(m);
+  });
+  out.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
+  return out;
+}
+function renderRetard(){
+  var host=document.getElementById("retardBox"); if(!host)return;
+  var L=enRetard();
+  if(!L.length){host.innerHTML="";return}
+  var net=0;L.forEach(function(m){net+=(m.dir==="in"?1:-1)*pa(m.amount)});net=r2(net);
+  var h='<div class="encard"><div class="ln"><h3>'+L.length+' ligne'+(L.length>1?"s":"")+
+    ' dont la date est passée</h3><span class="cap">'+(net<0?fmt(net):"+"+fmt(net))+' au total</span></div>'+
+    '<p class="cap" style="margin:4px 0 8px;line-height:1.45">Est-ce que '+
+    (L.length>1?"c'est passé":"c'est passé")+' sur ton compte ? Je ne coche rien tout seul : '+
+    'tant que tu n\'as pas vérifié, je les garde comme prévus.</p>';
+  L.slice(0,8).forEach(function(m){
+    var a=acc(m.account);
+    h+='<div class="virline"><span>'+dl(m.datePlanned)+' · '+esc(m.label)+
+       ' <span class="cap">('+esc(a.short||a.name)+')</span></span>'+
+       '<b>'+(m.dir==="in"?"+":"−")+fmt(m.amount)+'</b></div>';
+  });
+  if(L.length>8)h+='<p class="cap" style="margin:6px 0 0">… et '+(L.length-8)+' autre'+
+    (L.length-8>1?"s":"")+', dans ta liste du mois.</p>';
+  h+='<div class="virline" style="margin-top:8px"><span class="cap">Si tout est bien passé</span>'+
+     '<button type="button" id="retardAll">Tout cocher</button></div></div>';
+  host.innerHTML=h;
+}
+document.getElementById("retardBox").addEventListener("click",function(ev){
+  if(!ev.target.closest("#retardAll"))return;
+  var L=enRetard(); if(!L.length)return;
+  snapshot();
+  var avantB=budgetJour().partJour,n=L.length;
+  L.forEach(function(m){markPaid(m)});
+  renderAll();save();
+  toast(n+" ligne"+(n>1?"s":"")+" cochée"+(n>1?"s":"")+effetBudget(avantB));
+});
 function phraseCreux(B){
   if(B.creux>=0)
     return "✅ au plus bas <b>"+fmt(B.creux)+"</b> le "+dl(B.creuxDate);
@@ -4924,7 +4975,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){_hmTick++;_hmCache={};selects();renderPadAcc();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
+function renderAll(){_hmTick++;_hmCache={};selects();renderPadAcc();renderRetard();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
