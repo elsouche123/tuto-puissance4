@@ -4144,13 +4144,22 @@ function permisPlan(){
   ech.sort(function(a,b){return a.d<b.d?-1:1});
   var duPsy=0;psy.forEach(function(e){duPsy+=e.v}); duPsy=r2(duPsy);
   var duEch=0;ech.forEach(function(e){duEch+=e.v}); duEch=r2(duEch);
-  /* ce qu'elle a prévu d'y mettre : ses retraits de paie, déjà datés */
-  var promis=0,vers=[];
+  /* Ce qui va entrer dans l'enveloppe d'ici la dernière échéance. Pas
+     seulement ses retraits de paie : « je mets tout mon espèce dans une
+     enveloppe chez moi » — ses 20 € de cours à Linoy en billets y vont aussi.
+     Ne compter que les retraits annonçait « il manquera 15 € » juste au-dessus
+     d'un « l'enveloppe suit : au plus bas 145 € », qui, lui, comptait bien ses
+     cours. Deux lignes voisines qui se contredisent, encore. */
+  var promis=0,vers=[],dernier=T;
+  psy.forEach(function(e){if(e.d&&e.d>dernier)dernier=e.d});
+  ech.forEach(function(e){if(e.d>dernier)dernier=e.d});
   state.movements.forEach(function(m){
     if(m.account!=="cash"||m.dir!=="in"||m.done||m.skip||m.maybe)return;
-    if(!estVersEnveloppe(m))return;
-    if(!m.datePlanned||m.datePlanned<T)return;
-    promis+=pa(m.amount); vers.push({d:m.datePlanned,v:pa(m.amount),l:m.label});
+    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>dernier)return;
+    promis+=pa(m.amount);
+    /* le détail ne liste que les gros retraits de paie : trente lignes de
+       20 € de Linoy noieraient les deux qui comptent */
+    if(estVersEnveloppe(m))vers.push({d:m.datePlanned,v:pa(m.amount),l:m.label});
   });
   promis=r2(promis);
   var manque=r2(Math.max(0,r2(duPsy+duEch)-env.real-promis));
