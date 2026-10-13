@@ -4123,7 +4123,16 @@ document.getElementById("paieBox").addEventListener("click",function(ev){
    où, elle lui dit juste si l'enveloppe suit.
    La carte ne fait jamais entrer un euro qu'elle ne m'a pas donné : elle
    lit ce qui est coché, pas ce qu'elle espère gagner. */
-function estPsy(m){ return m.cat==="Santé"||/EMDR|psy/i.test(m.label||"") }
+/* Lou, et Lou seule. « Catégorie Santé » suffisait tant que sa psy était la
+   seule dépense de santé en liquide — mais une séance de kinésiologue, un
+   médecin, une pharmacie payés en billets passeraient devant son permis ET
+   s'afficheraient sous le nom « Lou ». On s'ancre donc sur l'id (psy-…), que
+   renommer la ligne ne change pas ; la catégorie et le libellé ne restent
+   qu'un filet pour les lignes écrites avant cette règle. */
+function estPsy(m){
+  return /^psy-/.test(m.id||"")
+      || (m.cat==="Santé"&&/emdr|psy|lou/i.test(m.label||""));
+}
 function estAutoEcole(m){ return /^ae-/.test(m.id||"") }
 function permisPlan(){
   var T=today(),c=calc(),env=null;
@@ -4162,12 +4171,25 @@ function permisPlan(){
     if(estVersEnveloppe(m))vers.push({d:m.datePlanned,v:pa(m.amount),l:m.label});
   });
   promis=r2(promis);
+  /* « T'es censé me déduire de l'argent de mon permis, non ? » Oui : tout ce
+     qui sort de l'enveloppe en liquide et qui n'est ni Lou ni l'auto-école —
+     une séance de kinésiologue, un coiffeur, un cadeau payé en billets —
+     mange ce qui reste pour le permis. Ça n'entrait nulle part dans le
+     calcul : seule la ligne « l'enveloppe suit » le voyait. */
+  var autres=0;
+  state.movements.forEach(function(m){
+    if(m.account!=="cash"||m.dir!=="out"||m.done||m.skip||m.maybe)return;
+    if(estPsy(m)||estAutoEcole(m))return;
+    if(!m.datePlanned||m.datePlanned<T||m.datePlanned>dernier)return;
+    autres+=pa(m.amount);
+  });
+  autres=r2(autres);
   /* « Pour l'argent qui rentre en liquide, de côté permis APRÈS. » Sa règle,
      déjà dite une fois : « quand j'ai pas l'argent, ça va directement pour la psy
      et après le reste pour le permis ». Le manque se calcule donc dans cet ordre —
      Lou est servie la première, le permis prend ce qui reste — au lieu d'un seul
      total qui ne disait pas laquelle des deux sauterait. */
-  var dispoEnv=r2(env.real+promis);
+  var dispoEnv=r2(env.real+promis-autres);
   var manquePsy=r2(Math.max(0,duPsy-dispoEnv));
   var manqueEch=r2(Math.max(0,duEch-r2(Math.max(0,dispoEnv-duPsy))));
   var manque=r2(manquePsy+manqueEch);
@@ -4175,7 +4197,7 @@ function permisPlan(){
      l'ordre — cours, pourboires notés, retraits de paie, séances, conduite. */
   var espFin=miniPaie("cash",T,addDays(T,90),env.real);
   return {env:env,esp:env.real,psy:psy,ech:ech,duPsy:duPsy,duEch:duEch,
-          promis:promis,manque:manque,manquePsy:manquePsy,manqueEch:manqueEch,
+          promis:promis,autres:autres,manque:manque,manquePsy:manquePsy,manqueEch:manqueEch,
           vers:vers,espFin:espFin};
 }
 function virerVersEnveloppe(v){
@@ -4257,6 +4279,9 @@ function renderPermis(){
     h+='</div>';
   }
 
+  if(P.autres>0)
+    h+='<p class="oucap" style="margin:6px 0 0">− <b>'+fmt(P.autres)+'</b> d\'autres dépenses '+
+       'en liquide prévues (ni Lou, ni l\'auto-école) : elles sortent de la même enveloppe.</p>';
   h+='<div class="ln" style="margin-top:8px"><span class="cap">'+
      (P.manque>0?"Il manquera":"Tout est couvert")+'</span><b>'+fmt(P.manque)+'</b></div>';
   if(P.espFin&&P.espFin.min<-0.01)
