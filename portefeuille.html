@@ -3720,7 +3720,10 @@ function epargneDans(mois){
     (function(k){
       state.fixed.forEach(function(f){
         if(!f.day||acc(f.account).kind==="epargne")return;
-        if(!/PEL|pargne/i.test(f.label))return;
+        /* par la catégorie, pas par le mot « PEL » dans le libellé :
+           renommer sa ligne lui faisait perdre 150 € par mois (330 € dès
+           février) dans sa projection à 8 mois, sans un mot. */
+        if(f.cat!=="Épargne"&&!/PEL|pargne/i.test(f.label))return;
         if(state.movements.some(function(m){return m.fixId===f.id&&m.fixMonth===k}))return;
         var amt=fixAmountFor(f,k); if(amt<=0)return;
         var fin=new Date(+k.slice(0,4),+k.slice(5,7),0).getDate();
@@ -3956,17 +3959,32 @@ function renderSoldes(){
 /* ── Ce que je range pour mes projets ──────────────────────────── */
 function renderEpargne(){
   var host=document.getElementById("epargneBox"); if(!host)return;
-  var mk=curMonth(),mois=0;
+  /* « 90 € de côté ce mois-ci, d'où ça sort, j'ai pas 90 de côté » :
+     elle avait raison. Cette ligne ne comptait QUE les mouvements PAS ENCORE
+     faits — son virement de 90 € prévu le 31 — et les annonçait comme s'ils
+     étaient déjà rangés. Ce qu'elle avait vraiment mis de côté en octobre
+     (391,14 €) n'y était pas, et les 119 € qu'elle avait repris non plus.
+     On montre maintenant le NET réellement fait, et le prévu à part. */
+  var mk=curMonth(),fait=0,prevu=0;
   state.movements.forEach(function(m){
-    if(m.done||m.skip||m.maybe||m.dir!=="in")return;
-    if(acc(m.account).kind!=="epargne")return;
-    if((m.datePlanned||"").slice(0,7)!==mk)return;
-    mois=r2(mois+pa(m.amount));
+    if(m.skip||acc(m.account).kind!=="epargne")return;
+    if(((m.dateReal||m.datePlanned||"").slice(0,7))!==mk)return;
+    var v=(m.dir==="in"?1:-1)*pa(m.amount);
+    if(m.done){fait=r2(fait+v);return}
+    if(m.maybe)return;
+    prevu=r2(prevu+v);
   });
   var tot=epargneTotale(),dans8=epargneDans(8);
+  var titre = fait>0.004 ? fmt(fait)+" mis de côté ce mois-ci"
+            : fait<-0.004 ? fmt(-fait)+" repris sur ton épargne ce mois-ci"
+            : "Rien mis de côté ce mois-ci";
+  var suite = fmt(tot)+" au total"+
+    (Math.abs(prevu)>0.004 ? " · "+(prevu>0?"+"+fmt(prevu)+" prévus":fmt(-prevu)+" à reprendre")+
+                             " d'ici le "+dl(eom()) : "")+
+    " · "+fmt(dans8)+" dans 8 mois";
   host.innerHTML='<button class="bigline" type="button" data-goto="more">'+
-    '<span><b>🎯 '+fmt(mois)+' de côté ce mois-ci</b><br>'+
-    '<span class="cap">'+fmt(tot)+' au total · '+fmt(dans8)+' dans 8 mois</span></span>'+
+    '<span><b>🎯 '+titre+'</b><br>'+
+    '<span class="cap">'+suite+'</span></span>'+
     '<span class="chev">›</span></button>';
 }
 function renderPaie(){
