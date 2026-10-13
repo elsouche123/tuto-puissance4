@@ -4162,12 +4162,21 @@ function permisPlan(){
     if(estVersEnveloppe(m))vers.push({d:m.datePlanned,v:pa(m.amount),l:m.label});
   });
   promis=r2(promis);
-  var manque=r2(Math.max(0,r2(duPsy+duEch)-env.real-promis));
+  /* « Pour l'argent qui rentre en liquide, de côté permis APRÈS. » Sa règle,
+     déjà dite une fois : « quand j'ai pas l'argent, ça va directement pour la psy
+     et après le reste pour le permis ». Le manque se calcule donc dans cet ordre —
+     Lou est servie la première, le permis prend ce qui reste — au lieu d'un seul
+     total qui ne disait pas laquelle des deux sauterait. */
+  var dispoEnv=r2(env.real+promis);
+  var manquePsy=r2(Math.max(0,duPsy-dispoEnv));
+  var manqueEch=r2(Math.max(0,duEch-r2(Math.max(0,dispoEnv-duPsy))));
+  var manque=r2(manquePsy+manqueEch);
   /* Le jour où l'enveloppe ne suit plus : tout ce qui entre et sort, dans
      l'ordre — cours, pourboires notés, retraits de paie, séances, conduite. */
   var espFin=miniPaie("cash",T,addDays(T,90),env.real);
   return {env:env,esp:env.real,psy:psy,ech:ech,duPsy:duPsy,duEch:duEch,
-          promis:promis,manque:manque,vers:vers,espFin:espFin};
+          promis:promis,manque:manque,manquePsy:manquePsy,manqueEch:manqueEch,
+          vers:vers,espFin:espFin};
 }
 function virerVersEnveloppe(v){
   var T=today();
@@ -4221,18 +4230,21 @@ function renderPermis(){
 
   h+='<div class="affect"><div class="afth">Ce qu\'elle doit payer</div>';
   if(P.duPsy>0)
-    h+='<div class="afl"><span class="afi">'+(P.esp>=P.duPsy?"✅":"🔸")+'</span>'+
+    h+='<div class="afl"><span class="afi">'+(P.manquePsy<=0?"✅":"🔸")+'</span>'+
        '<span class="afn">Lou<i>'+
        (P.psy.length>1?P.psy.length+" paiements prévus"
-        :P.psy[0].flou?"dès que tu as la date — il te manquera "+fmt(r2(Math.max(0,P.duPsy-P.esp)))
+        :P.psy[0].flou?"dès que tu as la date"+(P.manquePsy>0?" — il te manquera "+fmt(P.manquePsy):"")
         :"le "+dl(P.psy[0].d))+'</i></span>'+
        '<span class="afv">'+fmt(P.duPsy)+'</span></div>';
   if(P.duEch>0)
-    h+='<div class="afl"><span class="afi">'+(P.manque<=0?"✅":"⬜")+'</span>'+
+    h+='<div class="afl"><span class="afi">'+(P.manqueEch<=0?"✅":"⬜")+'</span>'+
        '<span class="afn">Mon permis<i>'+P.ech.length+
        (P.ech.length>1?" échéances":" échéance")+", du "+dl(P.ech[0].d)+" au "+
        dl(P.ech[P.ech.length-1].d)+'</i></span>'+
        '<span class="afv">'+fmt(P.duEch)+'</span></div>';
+  if(P.duPsy>0&&P.duEch>0)
+    h+='<p class="oucap" style="margin:4px 0 0">Lou passe en premier : le liquide qui '+
+       'rentre va à elle, et le permis prend ce qui reste.</p>';
   h+='</div>';
 
   if(P.vers.length){
