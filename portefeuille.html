@@ -4162,6 +4162,17 @@ function permisPlan(){
   ech.sort(function(a,b){return a.d<b.d?-1:1});
   var duPsy=0;psy.forEach(function(e){duPsy+=e.v}); duPsy=r2(duPsy);
   var duEch=0;ech.forEach(function(e){duEch+=e.v}); duEch=r2(duEch);
+  /* « ça doit vraiment faire le yoyo, ce que je mets dans l'enveloppe. » Oui :
+     « il manquera » se recalcule à chaque euro qui entre ou sort du liquide,
+     donc il monte et descend tout le temps. Ce qui ne bouge JAMAIS, c'est ce
+     qu'elle a déjà payé à l'auto-école. On l'affiche à côté : un chiffre qui
+     ne fait que monter, pour qu'elle ait un repère stable. */
+  var paye=0,nPaye=0,nTot=0;
+  state.movements.forEach(function(m){
+    if(!estAutoEcole(m)||m.skip||m.dir!=="out")return;
+    nTot++; if(m.done){paye+=pa(m.amount);nPaye++}
+  });
+  paye=r2(paye);
   /* Ce qui va entrer dans l'enveloppe d'ici la dernière échéance. Pas
      seulement ses retraits de paie : « je mets tout mon espèce dans une
      enveloppe chez moi » — ses 20 € de cours à Linoy en billets y vont aussi.
@@ -4206,7 +4217,8 @@ function permisPlan(){
      l'ordre — cours, pourboires notés, retraits de paie, séances, conduite. */
   var espFin=miniPaie("cash",T,addDays(T,90),env.real);
   return {env:env,esp:env.real,psy:psy,ech:ech,duPsy:duPsy,duEch:duEch,
-          promis:promis,autres:autres,manque:manque,manquePsy:manquePsy,manqueEch:manqueEch,
+          promis:promis,autres:autres,paye:paye,nPaye:nPaye,nTot:nTot,
+          manque:manque,manquePsy:manquePsy,manqueEch:manqueEch,
           vers:vers,espFin:espFin};
 }
 function virerVersEnveloppe(v){
@@ -4291,6 +4303,14 @@ function renderPermis(){
   if(P.autres>0)
     h+='<p class="oucap" style="margin:6px 0 0">− <b>'+fmt(P.autres)+'</b> d\'autres dépenses '+
        'en liquide prévues (ni Lou, ni l\'auto-école) : elles sortent de la même enveloppe.</p>';
+  if(P.nTot>0){
+    var totPermis=r2(P.paye+P.duEch);
+    h+='<div class="ln" style="margin-top:8px"><span class="cap">Mon permis, payé jusqu\'ici'+
+       ' <small>('+P.nPaye+' échéance'+(P.nPaye>1?"s":"")+' sur '+P.nTot+')</small></span>'+
+       '<b class="big">'+fmt(P.paye)+'</b></div>'+
+       '<div class="bar"><i style="width:'+(totPermis>0?Math.round(P.paye/totPermis*100):0)+'%"></i></div>'+
+       '<p class="oucap" style="margin:4px 0 0">sur '+fmt(totPermis)+' au total — ce chiffre ne redescend jamais.</p>';
+  }
   h+='<div class="ln" style="margin-top:8px"><span class="cap">'+
      (P.manque>0?"Il manquera":"Tout est couvert")+'</span><b>'+fmt(P.manque)+'</b></div>';
   if(P.espFin&&P.espFin.min<-0.01)
