@@ -4260,6 +4260,56 @@ function titreEpargne(){
   var t=0;calc().accs.forEach(function(a){if(a.kind==="epargne")t+=a.real});
   return "Mon épargne<small>"+fmt(r2(t))+" de côté, tous comptes confondus</small>";
 }
+/* « Chaque fois que je te dis j'ai gagné des pourboires ou Linoy, tu baisses
+   ce que je dois retirer pour le permis. » Sa règle, et elle a raison : un
+   pourboire ne réduit pas ce qu'elle doit à l'auto-école, il réduit ce qu'elle
+   doit PRÉLEVER SUR SA PAIE pour remplir l'enveloppe. Sans ça elle sur-remplit
+   l'enveloppe — de l'argent bloqué en billets chez son père pendant que ses
+   comptes sont tendus.
+   Chaque retrait de paie est donc recalculé pour couvrir exactement ce que
+   l'enveloppe doit sortir jusqu'au retrait suivant, plus un matelas. Tout ce
+   qui rentre en liquide entre-temps le fait baisser tout seul. */
+var ENV_MATELAS=100;
+function envSync(){
+  var T=today(),c=calc(),env=null;
+  c.accs.forEach(function(a){ if(a.id==="cash")env=a });
+  if(!env)return;
+  var outs=[];
+  state.movements.forEach(function(m){
+    if(!/^env-permis-o/.test(m.id||"")||m.done)return;
+    if(!m.datePlanned||m.datePlanned<T)return;
+    outs.push(m);
+  });
+  if(!outs.length)return;
+  outs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
+  var paire={};
+  outs.forEach(function(m){ paire[m.id]=1; paire[m.id.replace("-o","-i")]=1 });
+  var ev=[];
+  state.movements.forEach(function(m){
+    if(m.account!=="cash"||m.done||m.skip||m.maybe||paire[m.id])return;
+    if(!m.datePlanned||m.datePlanned<T)return;
+    ev.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount)});
+  });
+  ev.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0});
+  var bal=env.real,j=0,chg=false;
+  outs.forEach(function(o,i){
+    var fin=(i+1<outs.length)?outs[i+1].datePlanned:"9999-12-31";
+    while(j<ev.length&&ev[j].d<=o.datePlanned){bal=r2(bal+ev[j].v);j++}
+    var b=bal,bas=b,k=j;
+    while(k<ev.length&&ev[k].d<fin){b=r2(b+ev[k].v); if(b<bas)bas=b; k++}
+    var besoin=Math.max(0,Math.ceil((ENV_MATELAS-bas)/10)*10);
+    /* un retrait de 0 € n'a rien à faire dans sa liste : on le raye, et il
+       réapparaît tout seul si ses rentrées en liquide baissent. */
+    var jum=o.id.replace("-o","-i");
+    if(r2(pa(o.amount))!==besoin||(!!o.skip)!==(besoin<=0)){
+      chg=true;
+      o.amount=besoin; o.skip=(besoin<=0);
+      state.movements.forEach(function(m){ if(m.id===jum){m.amount=besoin;m.skip=(besoin<=0)} });
+    }
+    bal=r2(bal+besoin);
+  });
+  return chg;
+}
 function renderPermis(){
   var host=document.getElementById("permisBox"); if(!host)return;
   var P=permisPlan();
@@ -5270,7 +5320,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){_hmTick++;_hmCache={};selects();renderPadAcc();renderRetard();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
+function renderAll(){_hmTick++;_hmCache={};envSync();selects();renderPadAcc();renderRetard();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
