@@ -4939,7 +4939,12 @@ function heuresMini(mk,cible){
 function affectationResto(mk){
   var r=restoSt(),h=pa(r.hours[mk]),tx=pa(r.rate)||10,du=r2(h*tx);
   if(du<=0)return "";
-  var pm=restoPayMk(mk),pay=pm+"-05",fin=addDays(pay,62),T=today();
+  /* jusqu'à la VEILLE de la paie suivante, pas 62 jours au hasard : au-delà,
+     c'est une autre paie qui finance, et faire porter à celle-ci des dépenses
+     couvertes par la suivante la faisait passer pour insuffisante. */
+  var pm=restoPayMk(mk),pay=pm+"-05",T=today();
+  var fin=addDays(paieSuivante(pay),-1);
+  if(fin<pay)fin=addDays(pay,30);
   if(pay<T)return "";
   var cibles=[];
   state.movements.forEach(function(m){
@@ -4949,6 +4954,13 @@ function affectationResto(mk){
     /* les échéances d'auto-école se reconnaissent à leur id (ae-…), pas à
        leur libellé : renommer « conduite » ne doit pas les faire sortir de
        ce que sa paie du restaurant est censée payer. */
+    /* « Tu dis que mon enveloppe paye les 90, et au niveau des heures tu ne
+       coches pas les 90. » Les deux étaient comptés : le retrait de 460 € qui
+       REMPLIT l'enveloppe, et les 90 € d'auto-école qui en SORTENT. Sa paie
+       du restaurant payait donc deux fois le même argent, et la carte
+       affichait l'auto-école comme non couverte alors que l'enveloppe la
+       couvre. Ce qui se paie en liquide est déjà représenté par le retrait. */
+    if(m.account==="cash")return;
     var compte=(m.cat==="Dette"||m.cat==="Crédit"||m.cat==="Épargne"||
                 estAutoEcole(m)||/auto-école|permis/i.test(l));
     if(!compte)return;
