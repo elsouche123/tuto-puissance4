@@ -669,6 +669,8 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 .bigline .chev{color:var(--ink-2);font-size:20px}
 #resteBox{margin-top:14px}
 .step.virt{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.step.virline{background:var(--warn-soft);border-left:4px solid var(--warn)}
+.step.virline .snm{font-style:normal;font-weight:700}
 .step.virt .snm{font-style:italic}
 .vdot{display:grid;place-content:center;font-size:13px}
 .restocard{margin-top:14px}
@@ -1705,10 +1707,15 @@ function renderDays(c){
   var PP=planPaie();
   if(PP&&PP.virSG>0&&PP.p.compte!=="sg"){
     var dv=PP.p.date<T?T:PP.p.date;
-    evs.push({id:"vir-plan-out",label:"Virement vers SG (à faire)",account:PP.p.compte,dir:"out",
-      amount:PP.virSG,cat:"Autre",datePlanned:dv,virtuel:true});
+    /* « Pas un rappel, mais en couleur warning, dans les trucs de paiement au
+       jour le jour où je coche. » La ligne de sortie porte donc une vraie case
+       à cocher : la cocher FAIT le virement (les deux mouvements sont créés),
+       elle n'a rien à ressaisir. La ligne d'arrivée reste un simple repère. */
+    evs.push({id:"vir-plan-out",label:"VIREMENT À FAIRE — "+fmt(PP.virSG)+" vers SG",
+      account:PP.p.compte,dir:"out",amount:PP.virSG,cat:"Autre",datePlanned:dv,
+      virtuel:true,vir:"out"});
     evs.push({id:"vir-plan-in",label:"Virement depuis "+(acc(PP.p.compte).short||acc(PP.p.compte).name),
-      account:"sg",dir:"in",amount:PP.virSG,cat:"Autre",datePlanned:dv,virtuel:true});
+      account:"sg",dir:"in",amount:PP.virSG,cat:"Autre",datePlanned:dv,virtuel:true,vir:"in"});
   }
   evs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
 
@@ -1840,9 +1847,11 @@ function renderDays(c){
          pas à deviner qu'il continue derrière un repli */
       h+='<details class="suite" open><summary></summary><div class="suitebox">';
     }
-    h+='<div class="step '+cls+(m.virtuel?" strong virt":"")+'" data-id="'+esc(m.id)+'">'+
+    h+='<div class="step '+(m.vir?"warn2":cls)+(m.virtuel?" strong virt":"")+(m.vir?" virline":"")+
+       '" data-id="'+esc(m.id)+'">'+
        '<label class="sline">'+
-         (m.virtuel?'<span class="tickbox vdot">➡️</span>'
+         (m.vir==="out"?'<input type="checkbox" class="tickbox" data-act="payvir" aria-label="Je l\'ai viré">'
+          :m.virtuel?'<span class="tickbox vdot">➡️</span>'
                    :'<input type="checkbox" class="tickbox" data-act="pay" aria-label="'+(isIn?"Je l\'ai reçu":"C\'est passé")+'">')+
          '<span class="sbody">'+
            '<span class="sday"><b>'+esc(jour)+'</b><i>'+esc(acc(m.account).short||acc(m.account).name)+'</i>'+
@@ -5728,6 +5737,32 @@ function onTick(e){
 }
 document.getElementById("daysBox").addEventListener("change",function(e){
   var el=e.target;
+  /* cocher « VIREMENT À FAIRE » exécute vraiment le virement : deux lignes
+     cochées sont créées, SG monte, Revolut descend. Sinon elle devrait le
+     saisir à la main après l'avoir fait dans sa banque — et on sait ce qui
+     arrive quand il faut ressaisir : ça ne se fait pas. */
+  if(el.getAttribute("data-act")==="payvir"){
+    var PPx=planPaie(); if(!PPx||PPx.virSG<=0){el.checked=false;return}
+    /* garde-fou : si elle coche AVANT que sa paie soit tombée, on enregistrerait
+       un virement depuis un compte vide — Revolut à -784 €, un solde impossible.
+       On ne vire jamais plus que ce qui est réellement là. */
+    var src=acc(PPx.p.compte),dispo=0;
+    calc().accs.forEach(function(a){ if(a.id===PPx.p.compte)dispo=a.real });
+    if(dispo<10){
+      el.checked=false;
+      toast("Ta paie n'est pas encore arrivée sur "+(src.short||src.name)+
+            " — coche le jour où elle tombe.",false);
+      return;
+    }
+    var vv=Math.min(PPx.virSG,Math.floor(dispo));
+    snapshot();
+    virerVersSG(PPx.p.compte,vv);
+    renderAll();save();
+    toast(fmt(vv)+" viré sur SG"+(vv<PPx.virSG
+      ? " — c'est tout ce qu'il y avait sur "+esc(src.short||src.name)+", je te redemanderai le reste"
+      : " — tes prélèvements sont couverts"));
+    return;
+  }
   if(el.getAttribute("data-act")!=="pay")return;
   var row=el.closest(".step");if(!row)return;
   var m=null,id=row.getAttribute("data-id");
