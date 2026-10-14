@@ -4411,12 +4411,23 @@ function virPlusTard(sg){
   if(limite<today())limite=today();
   var h='<div class="encard"><div class="ln"><h3>Le virement à faire le '+dl(E.date)+'</h3>'+
     '<span class="cap">'+(urgent?'un geste à faire maintenant':'rien à faire aujourd\'hui')+'</span></div>'+
-    '<div class="ln"><span class="cap">À virer sur SG</span><b class="big">'+fmt(P.virSG)+'</b></div>'+
+    /* « Je comprends pas pourquoi "rien à faire aujourd'hui" et juste en dessous
+       1 080, et chaque fois ça augmente. » Le gros chiffre n'était daté que dans
+       le titre : lu seul, il ressemblait à une somme due aujourd'hui. On remet
+       la date dessus. */
+    '<div class="ln"><span class="cap">À virer le '+dl(E.date)+'</span><b class="big">'+fmt(P.virSG)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">Le '+dl(E.date)+
     ', tes <b>'+fmt(E.montant)+'</b> arrivent sur <b>'+esc(nom)+'</b> : vire-en <b>'+
     fmt(P.virSG)+'</b> sur SG le jour même'+
     (P.virSG<P.besoinSG?' — c\'est tout ce que '+esc(nom)+' peut lâcher sans tomber à sec.'
                        :'. C\'est ce qui fait tenir SG jusqu\'à ta paie suivante.')+'</p>'+
+    /* et pourquoi il monte : ce n'est pas sa dette qui grossit, c'est la
+       capacité de Revolut. Son besoin, lui, ne bouge pas. */
+    (P.virSG<P.besoinSG
+      ? '<p class="cap" style="margin:6px 0 0;line-height:1.45">Ce montant <b>monte quand '+
+        esc(nom)+' se remplit</b> : c\'est ce qu\'il peut te prêter, pas ce que tu dois. '+
+        'Ton besoin, lui, reste à <b>'+fmt(P.besoinSG)+'</b>.</p>'
+      : "")+
     /* d'où sort le chiffre, en une ligne : ce qui sort moins ce qui rentre */
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">D\'ici le '+dl(P.D2)+' : '+
     '<b>'+fmt(P.totS)+'</b> sortent de SG'+
