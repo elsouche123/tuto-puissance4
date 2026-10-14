@@ -2,6 +2,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap">
 <style>
+.grph{font:600 12.5px/1.2 inherit;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);margin:22px 2px 9px;padding:0}
+.grph:first-of-type{margin-top:18px}
 :root{
   color-scheme:light;
   --paper:#F3F0F1; --card:#FFFFFF; --card-2:#FAF6F7;
@@ -881,18 +884,25 @@ details.detail[open] summary::before{content:"▾ "}
 <div class="wrap">
 
 <section class="tabpanel" id="tab-today">
+  <!-- « Mets tout ce qui est important au-dessus, mais tout bien organisé. »
+       Trois temps, dans l'ordre où elle s'en sert : ce qu'elle a à FAIRE, puis
+       où elle EN EST, puis le reste. Le jour par jour remonte dans le premier
+       groupe et s'ouvre tout seul : c'est la seule liste qu'elle lit. -->
   <div id="retardBox"></div>
-  <div id="budgetBox"></div>
-  <div id="soldesBox"></div>
-  <div id="permisBox"></div>
   <div id="paieBox"></div>
   <div id="virBox"></div>
 
+  <details class="box fold" id="foldDays" open><summary><span id="sumDays">Jour par jour</span></summary>
+    <div class="box-body" style="padding:12px 14px"><div id="daysBox"></div></div></details>
+
+  <h2 class="grph">Où j'en suis</h2>
+  <div id="budgetBox"></div>
+  <div id="soldesBox"></div>
+  <div id="permisBox"></div>
+
+  <h2 class="grph">Le reste</h2>
   <details class="box fold" id="foldResto"><summary><span id="sumResto">Mes heures au restaurant</span></summary>
     <div class="box-body" style="padding:12px 14px"><div id="restoBox"></div></div></details>
-
-  <details class="box fold" id="foldDays"><summary><span id="sumDays">Jour par jour</span></summary>
-    <div class="box-body" style="padding:12px 14px"><div id="daysBox"></div></div></details>
 
   <details class="box fold" id="foldEpargne"><summary><span id="sumEpargne">Mon épargne</span></summary>
     <div class="box-body" style="padding:12px 14px"><div id="epargneBox"></div></div></details>
@@ -1375,7 +1385,7 @@ function migrate(s){
       datePlanned:/^\d{4}-\d{2}-\d{2}$/.test(m.datePlanned||"")?m.datePlanned:"",
       month:/^\d{4}-\d{2}$/.test(m.month||"")?m.month:"",
       dateReal:/^\d{4}-\d{2}-\d{2}$/.test(m.dateReal||"")?m.dateReal:"",
-      done:!!m.done,maybe:!!m.maybe,skip:!!m.skip,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free,settled:!!m.settled,env:m.env||""};
+      done:!!m.done,maybe:!!m.maybe,skip:!!m.skip,fixId:m.fixId||"",fixMonth:m.fixMonth||"",free:!!m.free,settled:!!m.settled,env:m.env||"",psy:!!m.psy};
   }
   if(Array.isArray(s.movements)){
     var old=["m-avance","m-lissage"];
@@ -1724,10 +1734,11 @@ function renderDays(c){
      surtout mon portefeuille, dans le truc à cocher pas à pas. » Ses rappels
      étaient donc rangés là où elle ne va pas. On les met dans la seule liste
      qu'elle lit : à leur date, dans le fil, avec une case à cocher. */
-  (state.todos||[]).forEach(function(t){
-    if(t.done||!t.date||t.date<T||t.date>horizon)return;
-    evs.push({id:"td-row-"+t.id,label:t.label,datePlanned:t.date,todo:true,amount:0,dir:"out"});
-  });
+  /* « Non, les démarches me servent à rien, remets-les là où c'était. » Je les
+     avais glissées ici en me fiant à « je regarde surtout le jour par jour » :
+     je lui ai rempli sa seule liste utile de lignes qu'elle ne veut pas y voir.
+     Elles restent dans « Mon plan », où elles étaient. Cette liste-ci ne
+     contient plus que de l'argent. */
   evs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
 
   var float=0,floatN=[];
@@ -4164,8 +4175,23 @@ document.getElementById("paieBox").addEventListener("click",function(ev){
    renommer la ligne ne change pas ; la catégorie et le libellé ne restent
    qu'un filet pour les lignes écrites avant cette règle. */
 function estPsy(m){
-  return /^psy-/.test(m.id||"")
+  return /^psy-/.test(m.id||"") || m.psy===true
       || (m.cat==="Santé"&&/emdr|psy|lou/i.test(m.label||""));
+}
+/* Le mot « Lou » dans un libellé n'est pas une donnée : elle peut réécrire la
+   ligne quand elle veut. Un test de renommage l'a montré — tous les libellés
+   réécrits, et les 160 € de la psy disparaissaient de la carte du permis, qui
+   tombait de 1 740 € à 1 580 € sans rien dire. On marque donc la ligne une
+   fois pour toutes (m.psy) : le libellé ne sert plus qu'à la reconnaître la
+   première fois, jamais à la recalculer ensuite. */
+function psyStamp(){
+  var ch=false;
+  state.movements.forEach(function(m){
+    if(m.psy===true)return;
+    if(/^psy-/.test(m.id||"")||(m.cat==="Santé"&&/emdr|psy|lou/i.test(m.label||"")))
+      {m.psy=true;ch=true}
+  });
+  if(ch)save();
 }
 function estAutoEcole(m){ return /^ae-/.test(m.id||"") }
 function permisPlan(){
@@ -4326,10 +4352,19 @@ function envSync(){
     /* un retrait de 0 € n'a rien à faire dans sa liste : on le raye, et il
        réapparaît tout seul si ses rentrées en liquide baissent. */
     var jum=o.id.replace("-o","-i");
-    if(r2(pa(o.amount))!==besoin||(!!o.skip)!==(besoin<=0)){
+    /* le libellé AUSSI. Le montant passait bien de 1 120 € à 1 160 €, mais le
+       texte disait toujours « Je retire 1 120 € » : elle lisait l'ancien
+       chiffre et concluait, à raison, que rien n'avait bougé. Un libellé qui
+       contient un montant doit être réécrit en même temps que le montant. */
+    var dou=/CDI/i.test(o.label||"")?"ma paie de CDI":"ma paie du restaurant";
+    var lo="Je retire "+fmt(besoin)+" de "+dou+" pour mon enveloppe";
+    var li="Retiré de "+dou+" — "+fmt(besoin)+" dans mon enveloppe";
+    if(r2(pa(o.amount))!==besoin||(!!o.skip)!==(besoin<=0)||o.label!==lo){
       chg=true;
-      o.amount=besoin; o.skip=(besoin<=0);
-      state.movements.forEach(function(m){ if(m.id===jum){m.amount=besoin;m.skip=(besoin<=0)} });
+      o.amount=besoin; o.skip=(besoin<=0); o.label=lo;
+      state.movements.forEach(function(m){
+        if(m.id===jum){m.amount=besoin;m.skip=(besoin<=0);m.label=li}
+      });
     }
     bal=r2(bal+besoin);
   });
@@ -4367,12 +4402,27 @@ function renderPermis(){
 
   if(P.vers.length){
     h+='<div class="affect" style="border-top:1px solid var(--rule)"><div class="afth">Ce qui va y entrer</div>';
+    var aSortir=0;
     P.vers.forEach(function(v){
+      aSortir+=v.v;
       h+='<div class="afl"><span class="afi">💶</span><span class="afn">'+
          esc(v.l.replace(/\s*—.*$/,""))+'<i>'+dl(v.d)+'</i></span>'+
          '<span class="afv">+'+fmt(v.v)+'</span></div>';
     });
     h+='</div>';
+    /* « Chaque fois que je coche Linoy ou un pourboire, ça doit diminuer ce que
+       je dois mettre de côté. » L'appli le faisait déjà — elle rabotait le
+       retrait du 29 novembre — mais 20 € à l'intérieur d'une ligne de 1 160 €,
+       ça ne se voit pas, et elle a conclu « ça a pas changé, ça a pas réduit ».
+       Elle avait raison : un calcul juste qui ne se voit pas, pour elle, n'a
+       pas eu lieu. On sort donc le total, en gros, à côté du geste qui le fait
+       bouger. */
+    aSortir=r2(aSortir);
+    h+='<div class="ln" style="margin-top:8px"><span class="cap">À sortir de tes paies, '+
+       'encore</span><b class="big">'+fmt(aSortir)+'</b></div>'+
+       '<p class="oucap" style="margin:4px 0 0">C\'est <b>ce chiffre-là</b> qui bouge quand '+
+       'tu coches : 20 € de Linoy encaissés, 20 € de moins à retirer ; 30 € dépensés en '+
+       'billets, 30 € de plus. Arrondi aux 10 € au-dessus, pour garder un peu de marge.</p>';
   }
 
   if(P.autres>0)
@@ -4386,15 +4436,32 @@ function renderPermis(){
        '<div class="bar"><i style="width:'+(totPermis>0?Math.round(P.paye/totPermis*100):0)+'%"></i></div>'+
        '<p class="oucap" style="margin:4px 0 0">sur '+fmt(totPermis)+' au total — ce chiffre ne redescend jamais.</p>';
   }
+  /* « Tout est couvert » juste au-dessus de « le 23 oct. il te manquera
+     100 € dans l'enveloppe » : les deux lignes se contredisaient. « Couvert »
+     regarde le TOTAL sur toute la période, la ligne du dessous regarde le
+     TIMING. Les deux peuvent diverger — l'argent arrive, mais trop tard. On
+     le dit dans le titre au lieu de le cacher. */
+  var trou=(P.espFin&&P.espFin.min<-0.01)?r2(-P.espFin.min):0;
   h+='<div class="ln" style="margin-top:8px"><span class="cap">'+
-     (P.manque>0?"Il manquera":"Tout est couvert")+'</span><b>'+fmt(P.manque)+'</b></div>';
+     (P.manque>0?"Il manquera"
+      :trou>0?"Il manquera, le temps que l\'argent rentre"
+      :"Tout est couvert")+'</span><b>'+fmt(P.manque>0?P.manque:trou)+'</b></div>';
   if(P.espFin&&P.espFin.min<-0.01)
     h+='<p class="cap" style="margin:8px 0 0">Le <b>'+dl(P.espFin.date)+
        '</b> il te manquera <b>'+fmt(r2(-P.espFin.min))+'</b> dans l\'enveloppe. '+
        'À combler avec tes pourboires, ou à retirer de SG avant.</p>';
+  else if(P.espFin&&Math.abs(P.espFin.min-ENV_MATELAS)<0.5)
+    /* « Ça veut rien dire vu que j'ai plus. » Exact : je taille ses retraits
+       pour que l'enveloppe ne tombe jamais sous 100 €, puis je lui annonçais
+       fièrement qu'elle tombait à 100 €. Je lui rendais ma propre consigne en
+       la déguisant en mesure. On dit ce que c'est. */
+    h+='<p class="cap" style="margin:8px 0 0">L\'enveloppe ne descend jamais sous <b>'+
+       fmt(ENV_MATELAS)+'</b> : c\'est la marge que je garde exprès, et je calcule '+
+       'tes retraits pour ça. Ce n\'est pas une alerte.</p>';
   else if(P.espFin)
-    h+='<p class="cap" style="margin:8px 0 0">L\'enveloppe suit : au plus bas <b>'+
-       fmt(P.espFin.min)+'</b> le '+dl(P.espFin.date)+'</p>';
+    h+='<p class="cap" style="margin:8px 0 0">Au plus bas, il restera <b>'+
+       fmt(P.espFin.min)+'</b> dans l\'enveloppe le '+dl(P.espFin.date)+' — soit '+
+       fmt(r2(P.espFin.min-ENV_MATELAS))+' de plus que la marge que je garde.</p>';
 
   var tout=P.psy.concat(P.ech);
   if(tout.length){
@@ -4514,7 +4581,8 @@ function virPlusTard(sg){
   var jourCred=R.dCred||E.date,limite=addDays(jourCred,-3);
   if(limite<today())limite=today();
   var h='<div class="encard"><div class="ln"><h3>Le virement à faire le '+dl(E.date)+'</h3>'+
-    '<span class="cap">'+(urgent?'un geste à faire maintenant':'rien à faire aujourd\'hui')+'</span></div>'+
+    '<span class="cap">'+(urgent?'un geste à faire maintenant'
+                                :'rien à faire avant le '+dl(E.date))+'</span></div>'+
     /* « Je comprends pas pourquoi "rien à faire aujourd'hui" et juste en dessous
        1 080, et chaque fois ça augmente. » Le gros chiffre n'était daté que dans
        le titre : lu seul, il ressemblait à une somme due aujourd'hui. On remet
@@ -4595,9 +4663,13 @@ function virPlusTard(sg){
     });
   }
   h+='</details>';
+  /* « Et ça je comprends pas. » — « Je te le remets en gros le jour J » ne veut
+     rien dire pour qui n'a pas écrit l'appli. On dit la seule chose utile :
+     combien il y a maintenant, et quel jour elle aura quelque chose à faire. */
   return h+'<p class="cap" style="margin:6px 0 0">Aujourd\'hui SG est à <b>'+fmt(sg.real)+'</b>'+
     (urgent?' — le petit virement ci-dessus est à faire maintenant, pas à la fin du mois.'
-           :' : tu n\'as rien à faire. Je te le remets en gros le jour J.')+'</p></div>';
+           :'. Rien à virer d\'ici là : le virement du '+dl(E.date)+' s\'affichera ici '+
+            'avec une case à cocher, et dans ta liste jour par jour.')+'</p></div>';
 }
 function renderVir(){
   var host=document.getElementById("virBox"); if(!host)return;
@@ -5345,7 +5417,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){_hmTick++;_hmCache={};envSync();selects();renderPadAcc();renderRetard();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
+function renderAll(){_hmTick++;_hmCache={};psyStamp();envSync();selects();renderPadAcc();renderRetard();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
