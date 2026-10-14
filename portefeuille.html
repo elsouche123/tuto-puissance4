@@ -670,6 +670,9 @@ input.monthinc:focus{outline:2px solid var(--accent);outline-offset:1px}
 #resteBox{margin-top:14px}
 .step.virt{background:color-mix(in srgb,var(--accent) 7%,transparent)}
 .step.virline{background:var(--warn-soft);border-left:4px solid var(--warn)}
+.step.todoline{background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.step.todoline .snm{font-weight:600}
+.step.todoline .sday i{color:var(--ink-3)}
 .step.virline .snm{font-style:normal;font-weight:700}
 .step.virt .snm{font-style:italic}
 .vdot{display:grid;place-content:center;font-size:13px}
@@ -1717,6 +1720,14 @@ function renderDays(c){
     evs.push({id:"vir-plan-in",label:"Virement depuis "+(acc(PP.p.compte).short||acc(PP.p.compte).name),
       account:"sg",dir:"in",amount:PP.virSG,cat:"Autre",datePlanned:dv,virtuel:true,vir:"in"});
   }
+  /* « Dans l'onglet à payer, les démarches, je ne regarde jamais. Je regarde
+     surtout mon portefeuille, dans le truc à cocher pas à pas. » Ses rappels
+     étaient donc rangés là où elle ne va pas. On les met dans la seule liste
+     qu'elle lit : à leur date, dans le fil, avec une case à cocher. */
+  (state.todos||[]).forEach(function(t){
+    if(t.done||!t.date||t.date<T||t.date>horizon)return;
+    evs.push({id:"td-row-"+t.id,label:t.label,datePlanned:t.date,todo:true,amount:0,dir:"out"});
+  });
   evs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
 
   var float=0,floatN=[];
@@ -1765,6 +1776,20 @@ function renderDays(c){
   });
   var bascule=addDays(T,15),coupe=false,gros=[];
   evs.forEach(function(m){
+    if(m.todo){
+      /* une démarche ne touche aucun solde : on saute tout le calcul */
+      var T1=today();
+      var jt=m.datePlanned===T1?"auj.":m.datePlanned===addDays(T1,1)?"demain":dl(m.datePlanned);
+      h+='<div class="step todoline" data-id="'+esc(m.id)+'">'+
+         '<label class="sline">'+
+           '<input type="checkbox" class="tickbox" data-act="paytodo" aria-label="C\'est fait">'+
+           '<span class="sbody">'+
+             '<span class="sday"><b>'+esc(jt)+'</b><i>à faire</i></span>'+
+             '<span class="snm">'+esc(m.label)+'</span>'+
+           '</span>'+
+         '</label></div>';
+      return;
+    }
     n++;
     var amt=pa(m.amount), isIn=m.dir==="in", aid=m.account, A=acc(aid), nm=A.short||A.name;
     /* le découvert autorisé peut changer de montant en route : la marge se
@@ -5811,6 +5836,15 @@ document.getElementById("daysBox").addEventListener("change",function(e){
      cochées sont créées, SG monte, Revolut descend. Sinon elle devrait le
      saisir à la main après l'avoir fait dans sa banque — et on sait ce qui
      arrive quand il faut ressaisir : ça ne se fait pas. */
+  if(el.getAttribute("data-act")==="paytodo"){
+    var rowT=el.closest(".step");if(!rowT)return;
+    var idt=rowT.getAttribute("data-id").replace(/^td-row-/,"");
+    var t=null;(state.todos||[]).forEach(function(x){if(x.id===idt)t=x});
+    if(!t){el.checked=false;return}
+    snapshot(); t.done=true; renderAll(); save();
+    toast("« "+t.label+" » : c'est fait");
+    return;
+  }
   if(el.getAttribute("data-act")==="payvir"){
     var PPx=planPaie(); if(!PPx||PPx.virSG<=0){el.checked=false;return}
     /* garde-fou : si elle coche AVANT que sa paie soit tombée, on enregistrerait
