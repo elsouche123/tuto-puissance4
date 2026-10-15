@@ -4488,28 +4488,21 @@ function renderPermis(){
          '<span class="afv">+'+fmt(v.v)+'</span></div>';
     });
     h+='</div>';
-    /* « Chaque fois que je coche Linoy ou un pourboire, ça doit diminuer ce que
-       je dois mettre de côté. » L'appli le faisait déjà — elle rabotait le
-       retrait du 29 novembre — mais 20 € à l'intérieur d'une ligne de 1 160 €,
-       ça ne se voit pas, et elle a conclu « ça a pas changé, ça a pas réduit ».
-       Elle avait raison : un calcul juste qui ne se voit pas, pour elle, n'a
-       pas eu lieu. On sort donc le total, en gros, à côté du geste qui le fait
-       bouger. */
+    /* « Ça j'y comprends rien du tout vraiment. » Et elle avait raison : quand
+       il n'y a qu'un seul retrait, le MÊME montant s'affichait deux fois à deux
+       lignes d'écart — « Retiré de ma paie de CDI +750 € », puis « À sortir de
+       tes paies, encore 750 € » — suivi de deux pavés d'explication. Deux noms
+       pour un seul chiffre, ça ne clarifie pas, ça fait douter. Le total ne
+       s'affiche donc plus que s'il y a vraiment plusieurs retraits à additionner,
+       et l'explication tient en deux phrases. */
     aSortir=r2(aSortir);
-    h+='<div class="ln" style="margin-top:8px"><span class="cap">À sortir de tes paies, '+
-       'encore</span><b class="big">'+fmt(aSortir)+'</b></div>'+
-       '<p class="oucap" style="margin:4px 0 0">C\'est <b>ce chiffre-là</b> qui bouge quand '+
-       'tu coches : 20 € de Linoy encaissés, 20 € de moins à retirer ; 30 € dépensés en '+
-       'billets, 30 € de plus. Arrondi aux 10 € au-dessus, pour garder un peu de marge.</p>'+
-       /* « Ça marche pas le truc de l'enveloppe, le virement a pas baissé. » Il
-          avait baissé — 1 160 € → 960 € — mais elle regardait l'autre gros
-          chiffre, celui du virement vers SG, qui lui n'a aucune raison de
-          bouger quand elle encaisse des billets. Deux gros chiffres à deux
-          cartes d'écart, et rien qui disait que ce sont deux choses séparées.
-          On le dit, des deux côtés. */
-       '<p class="oucap" style="margin:6px 0 0"><b>À ne pas confondre</b> avec le '+
-       'virement vers SG : celui-là paie tes prélèvements, et le liquide que tu '+
-       'encaisses ne le fait pas baisser. Ici, c\'est ton enveloppe — Lou et ton permis.</p>';
+    if(P.vers.length>1)
+      h+='<div class="ln" style="margin-top:8px"><span class="cap">En tout, à sortir '+
+         'de tes paies</span><b class="big">'+fmt(aSortir)+'</b></div>';
+    h+='<p class="oucap" style="margin:6px 0 0">Ces <b>'+fmt(aSortir)+'</b>, c\'est ce '+
+       'qu\'il te reste à retirer de ta paie pour Lou et ton permis. '+
+       '<b>Chaque billet que tu encaisses le fait baisser d\'autant</b> : 20 € de Linoy, '+
+       '20 € de moins à retirer. Et si tu dépenses en liquide, il remonte.</p>';
   }
 
   if(P.autres>0)
