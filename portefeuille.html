@@ -2,6 +2,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap">
 <style>
+.alerte{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:10px;
+  padding:11px 13px;margin:10px 0 2px}
+.alerte b{display:block;margin-bottom:4px}
+.alerte p{margin:0;font-size:13.5px;line-height:1.5}
+.big.neg{color:var(--warn)}
 .grph{font:600 12.5px/1.2 inherit;letter-spacing:.09em;text-transform:uppercase;
   color:var(--muted);margin:22px 2px 9px;padding:0}
 .grph:first-of-type{margin-top:18px}
@@ -4379,7 +4384,20 @@ function renderPermis(){
   var h='<div class="encard"><div class="ln"><h3>Mon enveloppe</h3>'+
     '<span class="cap">tout mon liquide</span></div>'+
     '<div class="bar"><i class="'+(P.manque>0?"warn":"")+'" style="width:'+pct+'%"></i></div>'+
-    '<div class="ln"><span class="cap">Dedans aujourd\'hui</span><b class="big">'+fmt(P.esp)+'</b></div>';
+    '<div class="ln"><span class="cap">Dedans aujourd\'hui</span><b class="big'+
+    (P.esp<-0.01?' neg':'')+'">'+fmt(P.esp)+'</b></div>';
+  /* Des billets en négatif, ça n'existe pas. Un test l'a sorti : en cochant des
+     paiements en espèces que l'enveloppe ne pouvait pas payer, la carte
+     affichait tranquillement « Dedans aujourd'hui −1 340,00 € ». Un compte
+     bancaire peut être à découvert, pas une enveloppe. Donc on le dit, au lieu
+     de bâtir tout le reste de la carte sur un chiffre impossible. */
+  if(P.esp<-0.01)
+    h+='<div class="alerte"><b>⚠️ Ça, ce n\'est pas possible.</b><p>Ton enveloppe '+
+       'est à <b>'+fmt(P.esp)+'</b> : on ne peut pas avoir des billets en négatif. '+
+       'Soit tu as coché un paiement en espèces que l\'enveloppe ne pouvait pas '+
+       'payer, soit il te manque une rentrée en liquide que tu ne m\'as pas dite. '+
+       'Tant que c\'est comme ça, tous les chiffres en dessous sont faux. '+
+       'Dis-moi ce qui s\'est passé et je remets droit.</p></div>';
 
   h+='<div class="affect"><div class="afth">Ce qu\'elle doit payer</div>';
   if(P.duPsy>0)
