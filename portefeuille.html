@@ -4452,7 +4452,16 @@ function renderPermis(){
        'encore</span><b class="big">'+fmt(aSortir)+'</b></div>'+
        '<p class="oucap" style="margin:4px 0 0">C\'est <b>ce chiffre-là</b> qui bouge quand '+
        'tu coches : 20 € de Linoy encaissés, 20 € de moins à retirer ; 30 € dépensés en '+
-       'billets, 30 € de plus. Arrondi aux 10 € au-dessus, pour garder un peu de marge.</p>';
+       'billets, 30 € de plus. Arrondi aux 10 € au-dessus, pour garder un peu de marge.</p>'+
+       /* « Ça marche pas le truc de l'enveloppe, le virement a pas baissé. » Il
+          avait baissé — 1 160 € → 960 € — mais elle regardait l'autre gros
+          chiffre, celui du virement vers SG, qui lui n'a aucune raison de
+          bouger quand elle encaisse des billets. Deux gros chiffres à deux
+          cartes d'écart, et rien qui disait que ce sont deux choses séparées.
+          On le dit, des deux côtés. */
+       '<p class="oucap" style="margin:6px 0 0"><b>À ne pas confondre</b> avec le '+
+       'virement vers SG : celui-là paie tes prélèvements, et le liquide que tu '+
+       'encaisses ne le fait pas baisser. Ici, c\'est ton enveloppe — Lou et ton permis.</p>';
   }
 
   if(P.autres>0)
@@ -4630,6 +4639,10 @@ function virPlusTard(sg){
         esc(nom)+' se remplit</b> : c\'est ce qu\'il peut te prêter, pas ce que tu dois. '+
         'Ton besoin, lui, reste à <b>'+fmt(P.besoinSG)+'</b>.</p>'
       : "")+
+    '<p class="oucap" style="margin:6px 0 0"><b>Rien à voir avec ton enveloppe.</b> '+
+    'Ce virement-là sert à tes prélèvements sur SG. Tes pourboires, tes cours de '+
+    'Linoy, l\'argent de tes grands-mères : ça remplit l\'enveloppe et ça baisse '+
+    'ce que tu dois retirer pour le permis — pas ce virement-ci.</p>'+
     /* d'où sort le chiffre, en une ligne : ce qui sort moins ce qui rentre */
     '<p class="cap" style="margin:6px 0 0;line-height:1.45">D\'ici le '+dl(P.D2)+' : '+
     '<b>'+fmt(P.totS)+'</b> sortent de SG'+
