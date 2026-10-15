@@ -1541,8 +1541,28 @@ function renderAccounts(c){
     } else g='<div class="gauge-legend" style="margin-top:11px"><span>Pas de découvert</span><span class="num">dispo '+fmt(a.margin)+'</span></div>';
     h+='<article class="panel acc" style="--ac:'+accC(a.id)+'"><div class="acc-top"><span class="acc-name">'+esc(a.name)+'</span><span class="acc-tag">'+esc(a.tag)+'</span></div>'+
        '<div class="acc-real num'+(a.real<0?" neg":"")+'">'+fmt(a.real)+'</div><div class="acc-sub">solde réel, lignes pointées</div>'+g+
-       '<div class="acc-proj"><span>Si tout le prévu passe</span><span class="num">'+fmt(a.projected)+'</span></div></article>';
+       '<div class="acc-proj"><span>Si tout le prévu passe, hors virements '+
+       'entre comptes</span><span class="num'+(a.projected<0?" neg":"")+'">'+
+       fmt(a.projected)+'</span></div></article>';
   });
+  /* « Je suis pas dans la merde s'il reste 5 200 €, je sais pas du tout. »
+     Elle lisait « Revolut : si tout le prévu passe, 4 948 € » sur une carte,
+     pendant que celle d'à côté annonçait « SG : −8 162 € ». Les deux sont faux
+     pris séparément : tout rentre sur Revolut, tout sort de SG, et c'est elle
+     qui fait le virement entre les deux. Les additionner ne sauve rien non
+     plus — la somme vaut −2 054 €, parce qu'elle compte aussi tout ce qui
+     part vers son PEL et son fonds voiture. Donc on n'invente pas un
+     troisième chiffre : on renvoie à celui que l'appli calcule vraiment. */
+  (function(){
+    var L=lowAhead(60);
+    h+='<p class="oucap" style="margin:10px 2px 0">Ces quatre chiffres ne sont '+
+       '<b>pas</b> une pr\u00e9vision de ce qu\u2019il te restera. Chacun ignore les '+
+       'virements que tu fais entre tes comptes : tout rentre sur Revolut, tout '+
+       'sort de SG, donc Revolut a l\u2019air riche et SG a l\u2019air catastrophique. '+
+       'Les additionner ne marche pas non plus \u2014 \u00e7a compte aussi ce qui part '+
+       'vers ton PEL et ton fonds voiture. <b>Le seul chiffre qui veut dire quelque '+
+       'chose, c\u2019est ton point le plus bas : '+fmt(L.min)+' le '+dl(L.date).replace(/\.$/,'')+'.</b></p>';
+  })();
   document.getElementById("accounts").innerHTML=h;
   var sv="",tot=0;
   c.accs.forEach(function(a){
