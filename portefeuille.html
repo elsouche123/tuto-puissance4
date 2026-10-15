@@ -1752,7 +1752,12 @@ function renderDays(c){
   /* le virement que la carte du haut lui demande de faire : sans lui dans
      la liste, on lui annonce qu'il va lui manquer de l'argent sur SG alors
      qu'on vient de lui dire de l'alimenter. Deux écrans qui se contredisent. */
-  var PP=planPaie();
+  /* « Mets "vire tant d'argent" et je coche quand ça sera fait. » La ligne
+     existait déjà, mais elle n'apparaissait jamais : planPaie() sans argument
+     ne regarde que les tout prochains jours, et sa paie tombe le 30. Du coup
+     son jour par jour affichait « SG → −77,07 € » le 30 octobre, un solde
+     négatif qui n'arrivera pas, parce que le virement n'était nulle part. */
+  var PP=planPaie()||planPaie(45);
   if(PP&&PP.virSG>0&&PP.p.compte!=="sg"){
     var dv=PP.p.date<T?T:PP.p.date;
     /* « Pas un rappel, mais en couleur warning, dans les trucs de paiement au
@@ -1774,7 +1779,20 @@ function renderDays(c){
      je lui ai rempli sa seule liste utile de lignes qu'elle ne veut pas y voir.
      Elles restent dans « Mon plan », où elles étaient. Cette liste-ci ne
      contient plus que de l'argent. */
-  evs.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:1});
+  /* Dans une même journée, l'ordre d'affichage change le solde courant qu'elle
+     lit. Les crédits du 30 passaient avant le virement, donc la liste annonçait
+     « SG → −77,07 € » avant de remonter à 1 059,93 € — un découvert qui
+     n'arrivera jamais, puisqu'elle vire le matin. On remet l'ordre réel :
+     le virement d'abord, puis ce qui rentre, puis ce qui sort. */
+  /* L'ordre réel de sa journée de paie : sa paie tombe, ELLE vire, puis les
+     prélèvements passent. Mettre le virement en premier faisait afficher
+     « Revolut → −992 € » et une fausse alerte ; le mettre en dernier faisait
+     afficher « SG → −77 € ». C'est entre les deux. */
+  function rang(e){ return e.vir?1 : (e.dir==="in"?0:2) }
+  evs.sort(function(a,b){
+    if(a.datePlanned!==b.datePlanned)return a.datePlanned<b.datePlanned?-1:1;
+    return rang(a)-rang(b);
+  });
 
   var float=0,floatN=[];
   state.movements.forEach(function(m){
@@ -5991,7 +6009,7 @@ document.getElementById("daysBox").addEventListener("change",function(e){
     return;
   }
   if(el.getAttribute("data-act")==="payvir"){
-    var PPx=planPaie(); if(!PPx||PPx.virSG<=0){el.checked=false;return}
+    var PPx=planPaie()||planPaie(45); if(!PPx||PPx.virSG<=0){el.checked=false;return}
     /* garde-fou : si elle coche AVANT que sa paie soit tombée, on enregistrerait
        un virement depuis un compte vide — Revolut à -784 €, un solde impossible.
        On ne vire jamais plus que ce qui est réellement là. */
