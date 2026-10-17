@@ -901,9 +901,14 @@ details.detail[open] summary::before{content:"▾ "}
   <details class="box fold" id="foldDays" open><summary><span id="sumDays">Jour par jour</span></summary>
     <div class="box-body" style="padding:12px 14px"><div id="daysBox"></div></div></details>
 
+  <!-- « Je veux le voir juste en dessous de mes dépenses pas à pas. » Ses
+       soldes se lisent en même temps que la liste qu'elle coche : elle veut
+       vérifier d'un coup d'œil ce qu'il y a vraiment sur chaque compte. On les
+       colle donc directement sous le jour par jour, avant tout le reste. -->
+  <div id="soldesBox"></div>
+
   <h2 class="grph">Où j'en suis</h2>
   <div id="budgetBox"></div>
-  <div id="soldesBox"></div>
   <div id="permisBox"></div>
 
   <h2 class="grph">Le reste</h2>
