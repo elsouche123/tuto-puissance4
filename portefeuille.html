@@ -894,13 +894,14 @@ details.detail[open] summary::before{content:"▾ "}
        Trois temps, dans l'ordre où elle s'en sert : ce qu'elle a à FAIRE, puis
        où elle EN EST, puis le reste. Le jour par jour remonte dans le premier
        groupe et s'ouvre tout seul : c'est la seule liste qu'elle lit. -->
-  <!-- « Non, vraiment au-dessus, au-dessus. » Ses quatre soldes sont la
-       première chose qu'elle veut voir en ouvrant l'appli : combien il y a,
-       vraiment, sur chaque compte. Tout le reste vient après. -->
+  <!-- Le plan de sa paie passe devant tout : c'est la seule carte qui lui dit
+       quoi faire, dans quel ordre, le jour où l'argent arrive. Viennent ensuite
+       ses quatre soldes, qu'elle veut voir sans chercher. -->
+  <div id="paieBox"></div>
+
   <div id="soldesBox"></div>
 
   <div id="retardBox"></div>
-  <div id="paieBox"></div>
   <div id="virBox"></div>
 
   <details class="box fold" id="foldDays" open><summary><span id="sumDays">Jour par jour</span></summary>
@@ -4189,8 +4190,14 @@ function renderPaie(){
     alerte='<div class="palert"><b>'+(deborde?"⚠️":"📌")+' '+esc(dl(P.sg.date))+'</b>'+
       '<p class="cap">SG tombe à '+fmt(deborde?bas:(P.virSuivant>Math.ceil(P.manqueSG)?P.sgApres.min:bas))+
       (deborde?" — au-delà de tes "+fmt(lim)+".":".")+
-      ' Ton '+esc(P.secours.label.split("—")[0].trim())+' arrive le même jour : <b>vire '+
-      fmt(aRevirer)+'</b> dans la journée.</p></div>';
+      /* « Ton Mon salaire arrive le même jour » : le libellé de la rentrée
+         commence déjà par « Mon », et le « Ton » collait devant. On enlève
+         l'article quand le libellé porte déjà le sien. */
+      ' '+(function(n){
+        return /^(mon|ma|mes|le|la|les|l')\b/i.test(n) ? n.charAt(0).toUpperCase()+n.slice(1)
+                                                      : 'Ton '+n;
+      })(esc(P.secours.label.split("—")[0].trim()))+
+      ' arrive le même jour : <b>vire '+fmt(aRevirer)+'</b> dans la journée.</p></div>';
   }
   /* plus rien à faire : la paie est répartie. On n'affiche plus la
      consigne — seulement ce qui reste à surveiller, s'il y a. */
