@@ -897,6 +897,9 @@ details.detail[open] summary::before{content:"▾ "}
   <!-- Le plan de sa paie passe devant tout : c'est la seule carte qui lui dit
        quoi faire, dans quel ordre, le jour où l'argent arrive. Viennent ensuite
        ses quatre soldes, qu'elle veut voir sans chercher. -->
+  <!-- Ce que je dois faire là, tout de suite. Dès qu'elle coche, tout se recalcule. -->
+  <div id="actionBox"></div>
+
   <div id="paieBox"></div>
 
   <div id="soldesBox"></div>
@@ -4766,6 +4769,54 @@ function virPlusTard(sg){
            :'. Rien à virer d\'ici là : le virement du '+dl(E.date)+' s\'affichera ici '+
             'avec une case à cocher, et dans ta liste jour par jour.')+'</p></div>';
 }
+/* Les gestes que je lui pose (virements, glissements) portent « À FAIRE » dans
+   leur libellé. Cette carte les sort tout en haut tant qu'ils ne sont pas cochés. */
+function aFaire(){
+  var T=today(),l=[];
+  state.movements.forEach(function(m){
+    if(m.done||m.skip||m.maybe)return;
+    if(m.dir!=="out")return;
+    if(!/\u00c0 FAIRE/i.test(m.label||""))return;
+    if(!m.datePlanned||m.datePlanned>T)return;
+    l.push(m);
+  });
+  l.sort(function(a,b){return a.datePlanned<b.datePlanned?-1:a.datePlanned>b.datePlanned?1:0});
+  return l;
+}
+function jumelle(m){
+  var p=null;
+  state.movements.forEach(function(x){
+    if(p||x.id===m.id||x.done||x.skip)return;
+    if(x.datePlanned===m.datePlanned&&pa(x.amount)===pa(m.amount)&&x.dir!==m.dir)p=x;
+  });
+  return p;
+}
+function renderAction(){
+  var host=document.getElementById("actionBox"); if(!host)return;
+  var l=aFaire(),T=today();
+  if(!l.length){host.innerHTML="";return}
+  var h='<div class="encard"><div class="ln"><h3>\u00c0 faire maintenant</h3>'+
+    '<span class="cap">'+l.length+(l.length>1?" gestes":" geste")+'</span></div>';
+  l.forEach(function(m){
+    var p=jumelle(m);
+    h+='<div class="virline"><span><b>'+fmt(pa(m.amount))+'</b> '+
+       esc(acc(m.account).short||acc(m.account).name)+
+       (p?' \u2192 '+esc(acc(p.account).short||acc(p.account).name):"")+
+       (m.datePlanned<T?' <span class="chip late">en retard</span>':"")+
+       '<br><span class="cap">'+esc(m.label)+'</span></span>'+
+       '<button type="button" data-fait="'+esc(m.id)+'">C\u2019est fait</button></div>';
+  });
+  h+='<p class="oucap" style="margin:8px 0 0">D\u00e8s que tu coches, tous tes chiffres se recalculent tout seuls.</p></div>';
+  host.innerHTML=h;
+}
+document.getElementById("actionBox").addEventListener("click",function(ev){
+  var b=ev.target.closest("[data-fait]"); if(!b)return;
+  var m=find(state.movements,b.getAttribute("data-fait")); if(!m)return;
+  var T=today(),p=jumelle(m);
+  m.done=true; m.dateReal=T;
+  if(p){p.done=true; p.dateReal=T}
+  renderAll(); save();
+});
 function renderVir(){
   var host=document.getElementById("virBox"); if(!host)return;
   /* quand la carte de paie est là, c'est elle qui dit quoi virer :
@@ -5512,7 +5563,7 @@ document.getElementById("envBox").addEventListener("submit",function(ev){
   var left=r2(pa(e.amount)-envUsed(e));
   toast(left>0?"Il te reste "+fmt(left)+" pour "+e.name:"Tu as épuisé "+e.name);
 });
-function renderAll(){_hmTick++;_hmCache={};psyStamp();envSync();selects();renderPadAcc();renderRetard();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
+function renderAll(){_hmTick++;_hmCache={};psyStamp();envSync();selects();renderAction();renderPadAcc();renderRetard();renderVir();renderPaie();renderTodos();renderEtat();renderBudget();renderSoldes();renderPermis();renderEpargne();renderProjets();renderResto();renderRisque();renderEnvs();renderRows();renderFixed();renderFrac();renderGoals();renderPlan();renderCalc();renderSchedule();renderDebts();renderDetteVraie();renderPlanVrai();renderSettings();renderSummary();fold("foldResto",titreResto());fold("foldDays",titreDays());fold("foldEpargne",titreEpargne())}
 
 /* ---------- events ---------- */
 function find(a,id){for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
