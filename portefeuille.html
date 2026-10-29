@@ -6000,9 +6000,13 @@ function onSkip(e){
        colore et on le dit, sinon elle appuie dans le vide. */
     el.setAttribute("data-arm","1"); el.classList.add("arm");
     var lab=(row.querySelector(".snm")||row.querySelector("b"));
-    toast("Appuie encore sur ✕ pour dire que « "+
-      ((lab?lab.textContent:"").slice(0,30)||"cette ligne")+" » n'est pas passé");
-    setTimeout(function(){if(el.isConnected){el.removeAttribute("data-arm");el.classList.remove("arm")}},5000);
+    toast("La croix est devenue rouge : appuie encore dessus pour enlever « "+
+      ((lab?lab.textContent:"").slice(0,30)||"cette ligne")+" »");
+    /* « La croix ça marche pas. » Elle marchait, mais le deuxième appui
+       devait venir en moins de 5 secondes — le temps de lire le message,
+       la croix s’était déjà désarmée et son appui suivant la réarmait.
+       Elle tapait en boucle sans que rien ne parte. */
+    setTimeout(function(){if(el.isConnected){el.removeAttribute("data-arm");el.classList.remove("arm")}},15000);
     return;
   }
   snapshot();
