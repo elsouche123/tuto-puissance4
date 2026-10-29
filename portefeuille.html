@@ -3384,6 +3384,17 @@ function planPaie(jours){
   /* ce que le compte de paie peut lâcher sans tomber en négatif lui-même */
   var cp=miniPaie(P.compte,D1,D2,cpReal,P.date,true);
   var dispo=Math.floor(Math.max(0,cp.min));
+  /* « Pourquoi je laisse 50 sur Revolut ? » : la carte lui réclamait 50 €
+     vers SG alors qu'il restait 10,89 € sur Revolut, et s'annonçait
+     elle-même à −39,11 €. cp.min est le creux du compte de paie SUR TOUT LE
+     MOIS en ignorant les jours d'avant la paie : une rentrée de demain le
+     remonte au-dessus du solde d'aujourd'hui. Or le virement, c'est
+     aujourd'hui qu'on lui demande de le faire. On ne lui demande jamais de
+     déplacer de l'argent qui n'est pas encore sur le compte. */
+  /* et on lui laisse de quoi vivre sur le compte de paie : la vider jusqu'au
+     dernier euro pour gagner 10 € sur SG, ce n'est pas un virement, c'est une
+     corvée. Même seuil de miettes que ci-dessous. */
+  if(P.date<=T)dispo=Math.min(dispo,Math.floor(Math.max(0,cpReal-10)));
   var besoinSG=Math.ceil(Math.max(0,-sg.min));
   /* en dessous de 10 €, ça ne vaut pas un virement : on n'encombre pas
      sa carte avec « vire 4 € » */
