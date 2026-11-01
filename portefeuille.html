@@ -3117,6 +3117,20 @@ function renderDebts(){
       '<button class="btn sm" type="button" data-act="dopay">OK</button></span></span></span>'+
     '</div>';
   });
+  /* « C'est pas le bon chiffre. » Cette carte additionnait state.debts, une
+     liste que je ne remplis plus : mes dettes aux proches sont des mouvements
+     datés, et c'est dettesProches() qui les connaît. Elle annonçait donc
+     « 0,00 € aux proches » pendant que la carte du haut, dans le même onglet,
+     affichait 772 €. Quand la liste manuelle est vide, on montre les vraies. */
+  var prx=dettesProches();
+  if(!state.debts.length&&prx.length){
+    h=prx.map(function(x){
+      tp=r2(tp+x.total);
+      return '<div class="lrow"><span class="nm" style="padding:0 2px">'+esc(x.nom)+'</span>'+
+        '<span class="rest" style="color:var(--debit)">'+fmt(x.total)+'</span>'+
+        '<span class="ctrl"><span class="cap">soldé le '+dl(x.fin)+'</span></span></div>';
+    }).join("");
+  }
   document.getElementById("debtList").innerHTML=h||'<div class="empty">Aucune dette.</div>';
   var lh="",tl=0,tm=0;
   state.loans.forEach(function(l){
