@@ -3980,6 +3980,16 @@ function dettesBanque(){
     while(k<=f.until){ n++; var y=+k.slice(0,4),mo=+k.slice(5,7)+1; if(mo>12){mo=1;y++} k=y+"-"+pad(mo) }
     out.push({nom:f.label,mens:pa(f.amount),n:n,reste:r2(pa(f.amount)*n),fin:f.until});
   });
+  /* « Combien il me reste en crédit ? » La somme des mensualités à venir n'est
+     PAS ce que je dois : chaque mensualité contient des intérêts et de
+     l'assurance que je ne paierais pas si je soldais. Le vrai chiffre, c'est
+     le capital restant dû que ma banque affiche, relevé dans state.loans et
+     rapproché de la charge fixe par le montant de la mensualité. */
+  out.forEach(function(x){
+    var l=null;
+    (state.loans||[]).forEach(function(y){ if(!l&&Math.abs(pa(y.monthly)-x.mens)<0.005)l=y });
+    x.cap=l?pa(l.rest):x.reste;
+  });
   /* les soldes anticipés déjà programmés */
   var ant=0,antD="";
   state.movements.forEach(function(m){
@@ -3993,10 +4003,11 @@ function renderDetteVraie(){
   var host=document.getElementById("detteVraie"); if(!host)return;
   var pr=dettesProches(),bq=dettesBanque(),tp=0,tm=0;
   pr.forEach(function(x){tp+=x.total});
-  bq.mens=0; bq.lignes.forEach(function(x){bq.mens=r2(bq.mens+x.reste);tm+=x.mens});
+  bq.mens=0; bq.cap=0;
+  bq.lignes.forEach(function(x){bq.mens=r2(bq.mens+x.reste);bq.cap=r2(bq.cap+x.cap);tm+=x.mens});
   /* ce qu'il reste dû à la banque, c'est le capital — pas la somme de ce
      qu'elle va verser, qui inclut les intérêts qu'un solde anticipé annule */
-  var tb=r2(Math.max(bq.mens,bq.ant)); tp=r2(tp);
+  var tb=r2(Math.max(bq.cap,bq.ant)); tp=r2(tp);
   var h="";
   pr.forEach(function(x){
     var det=x.lignes.map(function(l){
@@ -4010,14 +4021,13 @@ function renderDetteVraie(){
   var hb="";
   bq.lignes.forEach(function(x){
     hb+='<div class="pline"><span>'+esc(x.nom)+' <span class="cap">· '+x.n+' mensualité'+(x.n>1?"s":"")+
-      ' de '+fmt(x.mens)+'</span></span><b>'+fmt(x.reste)+'</b></div>';
+      ' de '+fmt(x.mens)+'</span></span><b>'+fmt(x.cap)+'</b></div>';
   });
   if(bq.ant>0)hb+='<div class="pline"><span>Versements anticipés que j\'ai prévus</span><b>'+
     fmt(bq.ant)+'</b></div>'+
     '<p class="cap" style="margin:6px 0 0">Soldé le '+dl(bq.antD)+'. Attention : mensualités + '+
     'versements anticipés font <b>'+fmt(r2(bq.mens+bq.ant))+'</b>, alors que mon capital restant dû '+
-    'tourne autour de 2 045 €. Le décompte de ma banque donnera le vrai chiffre, et je baisserai '+
-    'le versement de mars d\'autant.</p>';
+    'est de <b>'+fmt(bq.cap)+'</b>. Je baisserai mon versement d\'autant.</p>';
   var fin=pr.length?pr[pr.length-1].fin:"";
   host.innerHTML='<div class="encard pcard"><div class="ln"><h3>Ce que je dois, pour de vrai</h3>'+
     '<span class="cap">d\'après mes paiements prévus</span></div>'+
