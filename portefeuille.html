@@ -4021,9 +4021,16 @@ function renderDetteVraie(){
   var fin=pr.length?pr[pr.length-1].fin:"";
   host.innerHTML='<div class="encard pcard"><div class="ln"><h3>Ce que je dois, pour de vrai</h3>'+
     '<span class="cap">d\'après mes paiements prévus</span></div>'+
-    '<div class="ln"><span class="cap">Total</span><b class="big">'+fmt(r2(tp+tb))+'</b></div>'+
-    '<p class="cap" style="margin:4px 0 10px">'+fmt(tp)+' à mes proches · '+fmt(tb)+' à la banque'+
-      (tm?' ('+fmt(tm)+' prélevés chaque mois)':"")+'</p>'+
+    /* « Sépare ce que je dois aux gens et les crédits. » Un total unique
+       mélangeait deux choses qui n'ont rien à voir : de l'argent qu'elle rend
+       à des proches quand elle peut, et des mensualités prélevées d'office
+       jusqu'en 2028. Deux chiffres, côte à côte, chacun avec sa date de fin. */
+    '<div class="soldes">'+
+      '<span class="sol"><i>À MES PROCHES</i>'+fmt(tp)+
+        (tp>0?(fin?'<u>soldé le '+dl(fin)+'</u>':""):'<u>plus rien 🎉</u>')+'</span>'+
+      '<span class="sol"><i>MES CRÉDITS</i>'+fmt(tb)+
+        (tm?'<u>'+fmt(tm)+' par mois</u>':"")+'</span>'+
+    '</div>'+
     h+
     (hb?'<div class="pstep"><div class="phead"><b>Mes crédits</b><span>'+fmt(tb)+'</span></div>'+hb+'</div>':"")+
     (fin?'<p class="cap" style="margin:10px 0 0">🎯 Tes proches sont tous remboursés le <b>'+dl(fin)+'</b>.</p>':"")+
