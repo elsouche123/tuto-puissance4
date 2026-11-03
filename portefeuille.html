@@ -6057,7 +6057,28 @@ function onSkip(e){
   toast(msg+effetBudget(avantB));
   renderAll();save();
 }
-function markPaid(m){
+/* « J'ai coché que j'avais fait et ça se met pas à jour, ça c'est vraiment
+   chiant. » Un virement, c'est deux lignes : −500 € sur Revolut et +500 € sur
+   SG. Elle cochait celle de SG, l'autre restait en attente, et l'appli lui
+   inventait 500 € : SG montait sans que Revolut descende. Cocher un côté
+   coche l'autre. Deux comptes différents, même jour, même montant, sens
+   opposés, et au moins un libellé qui parle de virement — sans cette
+   dernière condition, un cours de 20 € reçu en espèces se ferait appairer
+   avec une dépense de 20 € du même jour. */
+function jumelleVir(m){
+  if(!m.datePlanned)return null;
+  var p=null;
+  state.movements.forEach(function(x){
+    if(p||x.id===m.id||x.done||x.skip||x.maybe)return;
+    if(x.account===m.account||x.dir===m.dir)return;
+    if(x.datePlanned!==m.datePlanned)return;
+    if(Math.abs(pa(x.amount)-pa(m.amount))>0.005)return;
+    if(!/vir/i.test((m.label||"")+" "+(x.label||"")))return;
+    p=x;
+  });
+  return p;
+}
+function markPaid(m,sansJumelle){
   m.done=true;m.maybe=false;
   m.dateReal=(m.datePlanned&&m.datePlanned<=today())?m.datePlanned:today();
   if(m.fixId){ /* on retient le jour pour les mois suivants */
@@ -6065,6 +6086,10 @@ function markPaid(m){
     if(f&&!f.day)f.day=String(parseInt(m.dateReal.slice(8,10),10));
   }
   m.settled = !!(state.balanceAsOf && m.dateReal<state.balanceAsOf);
+  if(!sansJumelle){
+    var j=jumelleVir(m);
+    if(j){ markPaid(j,true); j.dateReal=m.dateReal; }
+  }
   return m.settled;
 }
 /* « Ça fait pas évoluer la case je peux dépenser. » Cocher un paiement prévu
