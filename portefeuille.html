@@ -4477,9 +4477,15 @@ function envSync(){
        texte disait toujours « Je retire 1 120 € » : elle lisait l'ancien
        chiffre et concluait, à raison, que rien n'avait bougé. Un libellé qui
        contient un montant doit être réécrit en même temps que le montant. */
-    var dou=/CDI/i.test(o.label||"")?"ma paie de CDI":"ma paie du restaurant";
-    var lo="Je retire "+fmt(besoin)+" de "+dou+" pour mon enveloppe";
-    var li="Retiré de "+dou+" — "+fmt(besoin)+" dans mon enveloppe";
+    /* « Quand tu dis je retire, c'est je mets de côté dans mon épargne
+       Revolut. » « Je retire » lui faisait comprendre un retrait d'espèces au
+       distributeur, alors que c'est un virement de son compte courant vers
+       son épargne. Le libellé nomme maintenant les deux comptes. */
+    var dest=null; state.movements.forEach(function(m){ if(m.id===jum)dest=m });
+    var nd=dest?(acc(dest.account).short||acc(dest.account).name):"mon épargne";
+    var ns=acc(o.account).short||acc(o.account).name;
+    var lo="Je mets "+fmt(besoin)+" de côté sur "+nd+" (depuis "+ns+")";
+    var li=fmt(besoin)+" mis de côté sur "+nd+" (depuis "+ns+")";
     if(r2(pa(o.amount))!==besoin||(!!o.skip)!==(besoin<=0)||o.label!==lo){
       chg=true;
       o.amount=besoin; o.skip=(besoin<=0); o.label=lo;
