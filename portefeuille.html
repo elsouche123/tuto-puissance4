@@ -4484,8 +4484,14 @@ function envSync(){
     var dest=null; state.movements.forEach(function(m){ if(m.id===jum)dest=m });
     var nd=dest?(acc(dest.account).short||acc(dest.account).name):"mon épargne";
     var ns=acc(o.account).short||acc(o.account).name;
-    var lo="Je mets "+fmt(besoin)+" de côté sur "+nd+" (depuis "+ns+")";
-    var li=fmt(besoin)+" mis de côté sur "+nd+" (depuis "+ns+")";
+    /* ce calcul comble un trou en ESPÈCES (Lou, les ongles). Si la ligne
+       d'arrivée est son enveloppe en liquide, c'est bien un retrait au
+       distributeur qu'on lui demande, pas un virement vers l'épargne. */
+    var enEsp=!!(dest&&dest.account==="cash");
+    var lo=enEsp?("Je retire "+fmt(besoin)+" en espèces (depuis "+ns+")")
+               :("Je mets "+fmt(besoin)+" de côté sur "+nd+" (depuis "+ns+")");
+    var li=enEsp?(fmt(besoin)+" retirés en espèces (depuis "+ns+")")
+               :(fmt(besoin)+" mis de côté sur "+nd+" (depuis "+ns+")");
     if(r2(pa(o.amount))!==besoin||(!!o.skip)!==(besoin<=0)||o.label!==lo){
       chg=true;
       o.amount=besoin; o.skip=(besoin<=0); o.label=lo;
