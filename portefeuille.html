@@ -4441,7 +4441,12 @@ function titreEpargne(){
    Chaque retrait de paie est donc recalculé pour couvrir exactement ce que
    l'enveloppe doit sortir jusqu'au retrait suivant, plus un matelas. Tout ce
    qui rentre en liquide entre-temps le fait baisser tout seul. */
-var ENV_MATELAS=100;
+/* « Pourquoi autant ? J'ai déjà 80, il manque que 80, c'est 160. » Elle a
+   raison : je taillais ses retraits pour lui laisser 100 € de marge en plus
+   de ses dépenses, une marge que je m'étais donnée tout seul et qui lui
+   faisait sortir 240 € là où il en manquait 140. Elle veut voir son argent,
+   pas le ranger d'avance : on ne retire plus que ce qui manque vraiment. */
+var ENV_MATELAS=0;
 function envSync(){
   var T=today(),c=calc(),env=null;
   c.accs.forEach(function(a){ if(a.id==="cash")env=a });
@@ -4598,7 +4603,7 @@ function renderPermis(){
     h+='<p class="cap" style="margin:8px 0 0">Le <b>'+dl(P.espFin.date)+
        '</b> il te manquera <b>'+fmt(r2(-P.espFin.min))+'</b> dans l\'enveloppe. '+
        'À combler avec tes pourboires, ou à retirer de SG avant.</p>';
-  else if(P.espFin&&Math.abs(P.espFin.min-ENV_MATELAS)<0.5)
+  else if(P.espFin&&ENV_MATELAS>0&&Math.abs(P.espFin.min-ENV_MATELAS)<0.5)
     /* « Ça veut rien dire vu que j'ai plus. » Exact : je taille ses retraits
        pour que l'enveloppe ne tombe jamais sous 100 €, puis je lui annonçais
        fièrement qu'elle tombait à 100 €. Je lui rendais ma propre consigne en
@@ -4608,8 +4613,9 @@ function renderPermis(){
        'tes retraits pour ça. Ce n\'est pas une alerte.</p>';
   else if(P.espFin)
     h+='<p class="cap" style="margin:8px 0 0">Au plus bas, il restera <b>'+
-       fmt(P.espFin.min)+'</b> dans l\'enveloppe le '+dl(P.espFin.date)+' — soit '+
-       fmt(r2(P.espFin.min-ENV_MATELAS))+' de plus que la marge que je garde.</p>';
+       fmt(P.espFin.min)+'</b> dans l\'enveloppe le '+dl(P.espFin.date)+
+       (ENV_MATELAS>0?' — soit '+fmt(r2(P.espFin.min-ENV_MATELAS))+
+        ' de plus que la marge que je garde':'')+'.</p>';
 
   var tout=P.psy.concat(P.ech);
   if(tout.length){
