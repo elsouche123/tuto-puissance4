@@ -4470,7 +4470,13 @@ function envSync(){
   ev.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0});
   var bal=env.real,j=0,chg=false;
   outs.forEach(function(o,i){
-    var fin=(i+1<outs.length)?outs[i+1].datePlanned:"9999-12-31";
+    /* « Je retire 2 200,00 € en espèces » : le dernier versement de la liste
+       n'avait aucune borne de fin, donc il additionnait TOUS ses retraits en
+       liquide jusqu'à la fin des temps — quinze mois de séances de Lou à
+       160 €. Personne ne retire quinze mois de liquide d'un coup, et une
+       carte qui lui demande ça n'est pas un conseil, c'est du bruit. Un
+       versement couvre le mois qui le suit, pas l'éternité. */
+    var fin=(i+1<outs.length)?outs[i+1].datePlanned:addDays(o.datePlanned,35);
     while(j<ev.length&&ev[j].d<=o.datePlanned){bal=r2(bal+ev[j].v);j++}
     var b=bal,bas=b,k=j;
     while(k<ev.length&&ev[k].d<fin){b=r2(b+ev[k].v); if(b<bas)bas=b; k++}
