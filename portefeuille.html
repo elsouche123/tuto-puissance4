@@ -4447,6 +4447,12 @@ function titreEpargne(){
    faisait sortir 240 € là où il en manquait 140. Elle veut voir son argent,
    pas le ranger d'avance : on ne retire plus que ce qui manque vraiment. */
 var ENV_MATELAS=0;
+/* le motif tient sur une carte : on garde le debut du libelle, avant le
+   premier tiret ou la premiere parenthese, et on coupe a 34 caracteres. */
+function court(t){
+  t=String(t||"").split(" — ")[0].split(" (")[0].trim();
+  return t.length>34?t.slice(0,33).trim()+"…":t;
+}
 function envSync(){
   var T=today(),c=calc(),env=null;
   c.accs.forEach(function(a){ if(a.id==="cash")env=a });
@@ -4465,7 +4471,7 @@ function envSync(){
   state.movements.forEach(function(m){
     if(m.account!=="cash"||m.done||m.skip||m.maybe||paire[m.id])return;
     if(!m.datePlanned||m.datePlanned<T)return;
-    ev.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount)});
+    ev.push({d:m.datePlanned,v:(m.dir==="in"?1:-1)*pa(m.amount),l:court(m.label)});
   });
   ev.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0});
   var bal=env.real,j=0,chg=false;
@@ -4478,9 +4484,19 @@ function envSync(){
        versement couvre le mois qui le suit, pas l'éternité. */
     var fin=(i+1<outs.length)?outs[i+1].datePlanned:addDays(o.datePlanned,35);
     while(j<ev.length&&ev[j].d<=o.datePlanned){bal=r2(bal+ev[j].v);j++}
-    var b=bal,bas=b,k=j;
-    while(k<ev.length&&ev[k].d<fin){b=r2(b+ev[k].v); if(b<bas)bas=b; k++}
+    var b=bal,bas=b,k=j,gros=null;
+    while(k<ev.length&&ev[k].d<fin){
+      b=r2(b+ev[k].v); if(b<bas)bas=b;
+      /* « virement de Revolut à je sais pas quoi » : la carte lui disait
+         combien retirer, jamais POURQUOI. Un retrait de 140 € sans motif,
+         c'est un ordre, pas un conseil — et un ordre sans motif, on ne le
+         suit pas. On retient la plus grosse sortie en liquide de la période
+         pour pouvoir la nommer dans le libellé. */
+      if(ev[k].v<0&&(!gros||ev[k].v<gros.v))gros=ev[k];
+      k++;
+    }
     var besoin=Math.max(0,Math.ceil((ENV_MATELAS-bas)/10)*10);
+    var motif=(gros&&gros.l)?(" — pour "+gros.l):"";
     /* un retrait de 0 € n'a rien à faire dans sa liste : on le raye, et il
        réapparaît tout seul si ses rentrées en liquide baissent. */
     var jum=o.id.replace("-o","-i");
@@ -4499,8 +4515,8 @@ function envSync(){
        d'arrivée est son enveloppe en liquide, c'est bien un retrait au
        distributeur qu'on lui demande, pas un virement vers l'épargne. */
     var enEsp=!!(dest&&dest.account==="cash");
-    var lo=enEsp?("Je retire "+fmt(besoin)+" en espèces (depuis "+ns+")")
-               :("Je mets "+fmt(besoin)+" de côté sur "+nd+" (depuis "+ns+")");
+    var lo=enEsp?("Je retire "+fmt(besoin)+" en espèces (depuis "+ns+")"+motif)
+               :("Je mets "+fmt(besoin)+" de côté sur "+nd+" (depuis "+ns+")"+motif);
     var li=enEsp?(fmt(besoin)+" retirés en espèces (depuis "+ns+")")
                :(fmt(besoin)+" mis de côté sur "+nd+" (depuis "+ns+")");
     if(r2(pa(o.amount))!==besoin||(!!o.skip)!==(besoin<=0)||o.label!==lo){
