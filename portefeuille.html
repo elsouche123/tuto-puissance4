@@ -4484,6 +4484,12 @@ function envSync(){
        versement couvre le mois qui le suit, pas l'éternité. */
     var fin=(i+1<outs.length)?outs[i+1].datePlanned:addDays(o.datePlanned,35);
     while(j<ev.length&&ev[j].d<=o.datePlanned){bal=r2(bal+ev[j].v);j++}
+    /* « tu me dis 50 x 2, retirer de l'argent pour Lou, mais je dois retirer
+       qu'une seule fois. » Le versement couvrait TOUTES les sorties en
+       liquide des 35 jours suivants — trois séances de Lou d'un coup — alors
+       qu'elle retire avant chaque séance, comme tout le monde. Un versement
+       couvre le PROCHAIN trou, pas les trois suivants : on s'arrête dès que
+       le solde passe sous le matelas. */
     var b=bal,bas=b,k=j,gros=null;
     while(k<ev.length&&ev[k].d<fin){
       b=r2(b+ev[k].v); if(b<bas)bas=b;
@@ -4494,6 +4500,7 @@ function envSync(){
          pour pouvoir la nommer dans le libellé. */
       if(ev[k].v<0&&(!gros||ev[k].v<gros.v))gros=ev[k];
       k++;
+      if(b<ENV_MATELAS)break;
     }
     var besoin=Math.max(0,Math.ceil((ENV_MATELAS-bas)/10)*10);
     var motif=(gros&&gros.l)?(" — pour "+gros.l):"";
